@@ -100,7 +100,6 @@
       openFirewall = true; # This opens port 11434
       host = "0.0.0.0"; # Listen on all interfaces (needed for remote access)
       models = "/opt/llm/models";
-      package = unstablePkgs.ollama;
     };
 
     open-webui = {
