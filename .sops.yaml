@@ -1,0 +1,8 @@
+creation_rules:
+  - path_regex: secrets\.ya?ml$
+    key_groups:
+      - age:
+          # Your local development key
+          - age1p9dfpws4kw6r7smgdhqryqmnaj27mnstea7dur5fuzz2uewcy3lqf7hpnu
+          # Target machine key (add after generating)
+          - age1ue0d40wgud28hh3krh9j8wckdfnehwdehmdr08k25yzw2j562aksjdtafu
