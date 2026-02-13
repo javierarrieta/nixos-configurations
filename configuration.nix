@@ -25,6 +25,16 @@
       owner = "javier";
       path = "${config.users.users.javier.home}/.ssh/authorized_keys";
     };
+    secrets."ssh_keys/javier_private" = {
+      mode = "0600";
+      owner = "javier";
+      path = "${config.users.users.javier.home}/.ssh/id_ed25519";
+    };
+    secrets."ssh_keys/javier_public" = {
+      mode = "0644";
+      owner = "javier";
+      path = "${config.users.users.javier.home}/.ssh/id_ed25519.pub";
+    };
   };
 
   # Use the systemd-boot EFI boot loader.
