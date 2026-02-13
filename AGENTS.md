@@ -21,3 +21,28 @@
 1. **Always read** `secrets.yaml` (via `sops -d`) before adding keys to ensure no duplicates.
 2. **Always verify** `secrets.yaml` is encrypted before committing (`grep "ENC" secrets.yaml`).
 3. **Do not change** `system.stateVersion` unless performing a full release upgrade migration.
+
+## Lessons Learned & Troubleshooting
+
+### SOPS & Secrets Management
+- **Key Location**: If decryption fails, ensure `SOPS_AGE_KEY_FILE` is set.
+  - Likely location: `~/.config/sops/age/keys.txt`
+  - Command: `export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt`
+- **Workflow**:
+  1. Decrypt: `sops -d secrets.yaml > secrets.dec.yaml`
+  2. Edit: Modify `secrets.dec.yaml`
+  3. Encrypt: `sops -e secrets.dec.yaml > secrets.yaml`
+  4. **Cleanup**: Immediately remove decrypted files (`secrets.dec.yaml`, etc.) to prevent accidental commits.
+- **In-place Encryption**: `sops -e -i secrets.yaml` re-encrypts the file in place. Useful after overwriting `secrets.yaml` with plaintext content (ensure you verify encryption immediately after).
+
+### Tool Quirks
+- **yq Version**: The environment uses an older version of `yq` (e.g., 3.4.3).
+  - It may not support newer syntax like `-i` (in-place) or complex path expressions.
+  - **Workaround**: Convert YAML to JSON, use `jq` for complex logic, then convert back to YAML.
+    - `cat file.yaml | yq . > file.json`
+    - `jq ... file.json > new.json`
+    - `cat new.json | yq -y . > new.yaml`
+
+### General
+- **Temporary Files**: Generate keys and temporary data in `/tmp` when possible.
+- **Cleanup**: Always clean up temporary files (`*.json`, `*.dec.yaml`, `*.bak`) before finishing the task.
