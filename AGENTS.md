@@ -32,8 +32,13 @@
   1. Decrypt: `sops -d secrets.yaml > secrets.dec.yaml`
   2. Edit: Modify `secrets.dec.yaml`
   3. Encrypt: `sops -e secrets.dec.yaml > secrets.yaml`
-  4. **Cleanup**: Immediately remove decrypted files (`secrets.dec.yaml`, etc.) to prevent accidental commits.
+  4. **Cleanup**: **IMMEDIATELY** remove decrypted files (`secrets.dec.yaml`, etc.) after encryption. Leaving them is a critical security risk. Double-check with `ls` before finishing.
 - **In-place Encryption**: `sops -e -i secrets.yaml` re-encrypts the file in place. Useful after overwriting `secrets.yaml` with plaintext content (ensure you verify encryption immediately after).
+
+### SSH Keys
+- **Trailing Newline**: SSH private keys (e.g., `id_ed25519`) **MUST** have a trailing newline. Without it, SSH clients will fail with `error in libcrypto` or `invalid format`.
+  - **Check**: `cat -e keyfile` should show `-----END OPENSSH PRIVATE KEY-----$` at the very end.
+  - **Fix**: Ensure the secret value ends with `\n` when adding via `jq` or manually.
 
 ### Tool Quirks
 - **yq Version**: The environment uses an older version of `yq` (e.g., 3.4.3).
