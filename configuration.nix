@@ -84,7 +84,7 @@
   sops.templates."wg0.conf".content = ''
     [Interface]
     Address = ${config.sops.placeholder."wireguard/address"}
-    DNS = 10.0.0.1
+    DNS = 8.8.8.8, 1.1.1.1
     PrivateKey = ${config.sops.placeholder."wireguard/private_key"}
     
     [Peer]
