@@ -159,7 +159,7 @@
         # Vital for preventing the 100% GPU hang you saw earlier
         OLLAMA_KEEP_ALIVE = "60"; 
         # Force the Vulkan runner
-        OLLAMA_VULKAN = "1"32
+        OLLAMA_VULKAN = "1";
       };
     };
 
