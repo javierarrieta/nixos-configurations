@@ -105,6 +105,7 @@
     vim
     rocmPackages.rocm-smi
     wireguard-tools
+    dig
   ];
 
   # Set your time zone.
