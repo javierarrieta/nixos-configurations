@@ -35,6 +35,26 @@
       owner = "javier";
       path = "${config.users.users.javier.home}/.ssh/id_ed25519.pub";
     };
+    secrets."wireguard/private_key" = {
+      mode = "0600";
+      owner = "root";
+    };
+    secrets."wireguard/address" = {
+      mode = "0644";
+      owner = "root";
+    };
+    secrets."wireguard/publicKey" = {
+      mode = "0644";
+      owner = "root";
+    };
+    secrets."wireguard/endpoint" = {
+      mode = "0644";
+      owner = "root";
+    };
+    secrets."wireguard/allowedIPs" = {
+      mode = "0644";
+      owner = "root";
+    };
   };
 
   # Use the systemd-boot EFI boot loader.
@@ -55,6 +75,21 @@
   # Configure network connections interactively with nmcli or nmtui.
   networking.networkmanager.enable = true;
 
+  # WireGuard VPN configuration
+  networking.wg-quick.interfaces = {
+    wg0 = {
+      address = [ (builtins.readFile config.sops.secrets."wireguard/address".path) ];
+      dns = [ "8.8.8.8" ];
+      privateKeyFile = config.sops.secrets."wireguard/private_key".path;
+      peers = [{
+        publicKey = builtins.readFile config.sops.secrets."wireguard/publicKey".path;
+        endpoint = builtins.readFile config.sops.secrets."wireguard/endpoint".path;
+        allowedIPs = (lib.splitString "," (builtins.readFile config.sops.secrets."wireguard/allowedIPs".path));
+        persistentKeepalive = 25;
+      }];
+    };
+  };
+
   # System-wide packages
   environment.systemPackages = with pkgs; [
     git
@@ -63,6 +98,7 @@
     openiscsi
     vim
     rocmPackages.rocm-smi
+    wireguard-tools
   ];
 
   # Set your time zone.
@@ -123,7 +159,7 @@
         # Vital for preventing the 100% GPU hang you saw earlier
         OLLAMA_KEEP_ALIVE = "60"; 
         # Force the Vulkan runner
-        OLLAMA_VULKAN = "1";
+        OLLAMA_VULKAN = "1"32
       };
     };
 
