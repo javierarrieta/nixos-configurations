@@ -47,6 +47,7 @@
 
   # Load AMD GPU kernel modules
   boot.initrd.kernelModules = [ "amdgpu" ];
+  boot.kernelPackages = pkgs.linuxPackages_latest; # Ensure you are on 6.13+
   boot.kernelParams = [ "amdgpu.sched_policy=2" ];
 
   # networking.hostName = "nixos"; # Define your hostname.
@@ -114,6 +115,16 @@
       openFirewall = true; # This opens port 11434
       host = "0.0.0.0"; # Listen on all interfaces (needed for remote access)
       models = "/opt/llm/models";
+      # rocmOverrideGfx = "11.5.0";
+      package = unstablePkgs.ollama-vulkan;
+      # acceleration = "rocm";
+  
+      environmentVariables = {
+        # Vital for preventing the 100% GPU hang you saw earlier
+        OLLAMA_KEEP_ALIVE = "60"; 
+        # Force the Vulkan runner
+        OLLAMA_VULKAN = "1";
+      };
     };
 
     open-webui = {
