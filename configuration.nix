@@ -96,8 +96,6 @@
 
   networking.wg-quick.interfaces.wg0.configFile = config.sops.templates."wg0.conf".path;
 
-  systemd.services.ollama.serviceConfig.EnvironmentFile = config.sops.templates."ollama.env".path;
-
   # System-wide packages
   environment.systemPackages = with pkgs; [
     git
