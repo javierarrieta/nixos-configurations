@@ -75,20 +75,26 @@
   # Configure network connections interactively with nmcli or nmtui.
   networking.networkmanager.enable = true;
 
-  # WireGuard VPN configuration
-  networking.wg-quick.interfaces = {
-    wg0 = {
-      address = [ (builtins.readFile config.sops.secrets."wireguard/address".path) ];
-      dns = [ "8.8.8.8" ];
-      privateKeyFile = config.sops.secrets."wireguard/private_key".path;
-      peers = [{
-        publicKey = builtins.readFile config.sops.secrets."wireguard/publicKey".path;
-        endpoint = builtins.readFile config.sops.secrets."wireguard/endpoint".path;
-        allowedIPs = (lib.splitString "," (builtins.readFile config.sops.secrets."wireguard/allowedIPs".path));
-        persistentKeepalive = 25;
-      }];
-    };
-  };
+  # WireGuard VPN configuration - secrets managed by sops
+  sops.secrets."wireguard/address" = { };
+  sops.secrets."wireguard/publicKey" = { };
+  sops.secrets."wireguard/endpoint" = { };
+  sops.secrets."wireguard/allowedIPs" = { };
+  
+  sops.templates."wg0.conf".content = ''
+    [Interface]
+    Address = ${config.sops.placeholder."wireguard/address"}
+    DNS = 10.0.0.1
+    PrivateKey = ${config.sops.placeholder."wireguard/private_key"}
+    
+    [Peer]
+    PublicKey = ${config.sops.placeholder."wireguard/publicKey"}
+    Endpoint = ${config.sops.placeholder."wireguard/endpoint"}
+    AllowedIPs = ${config.sops.placeholder."wireguard/allowedIPs"}
+    PersistentKeepalive = 25
+  '';
+
+  networking.wg-quick.interfaces.wg0.configFile = config.sops.templates."wg0.conf".path;
 
   # System-wide packages
   environment.systemPackages = with pkgs; [
