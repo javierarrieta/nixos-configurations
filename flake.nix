@@ -1,6 +1,4 @@
 {
-  description = "NixOS configuration";
-
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
     unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -10,7 +8,7 @@
   outputs = { self, nixpkgs, unstable, sops-nix, ... }: {
     nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
-      specialArgs = { 
+      specialArgs = {
         inherit unstable;
         unstablePkgs = import unstable {
           system = "x86_64-linux";
@@ -18,7 +16,22 @@
         };
       };
       modules = [
-        ./configuration.nix
+        ./hosts/nixos
+        sops-nix.nixosModules.sops
+      ];
+    };
+
+    nixosConfigurations.newhost = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = {
+        inherit unstable;
+        unstablePkgs = import unstable {
+          system = "x86_64-linux";
+          config.allowUnfree = true;
+        };
+      };
+      modules = [
+        ./hosts/newhost
         sops-nix.nixosModules.sops
       ];
     };

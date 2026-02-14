@@ -1,0 +1,170 @@
+{
+  config,
+  lib,
+  pkgs,
+  unstable,
+  unstablePkgs,
+  ...
+}:
+
+{
+  imports = [
+    ../../hardware-configuration.nix
+  ];
+
+  sops = {
+    defaultSopsFile = ../../secrets.yaml;
+    age.keyFile = "${config.users.users.javier.home}/.config/sops/age/keys.txt";
+    age.sshKeyPaths = [ "${config.users.users.javier.home}/.config/sops/age/keys.txt" ];
+    secrets."ssh_keys/javier_authorized" = {
+      mode = "0444";
+      owner = "javier";
+      path = "${config.users.users.javier.home}/.ssh/authorized_keys";
+    };
+    secrets."ssh_keys/javier_private" = {
+      mode = "0600";
+      owner = "javier";
+      path = "${config.users.users.javier.home}/.ssh/id_ed25519";
+    };
+    secrets."ssh_keys/javier_public" = {
+      mode = "0644";
+      owner = "javier";
+      path = "${config.users.users.javier.home}/.ssh/id_ed25519.pub";
+    };
+    secrets."wireguard/private_key" = {
+      mode = "0600";
+      owner = "root";
+    };
+    secrets."wireguard/address" = {
+      mode = "0644";
+      owner = "root";
+    };
+    secrets."wireguard/publicKey" = {
+      mode = "0644";
+      owner = "root";
+    };
+    secrets."wireguard/endpoint" = {
+      mode = "0644";
+      owner = "root";
+    };
+    secrets."wireguard/allowedIPs" = {
+      mode = "0644";
+      owner = "root";
+    };
+  };
+
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+
+  hardware.graphics.enable = true;
+  hardware.enableRedistributableFirmware = true;
+
+  boot.initrd.kernelModules = [ "amdgpu" ];
+  boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot.kernelParams = [ "amdgpu.sched_policy=2" ];
+
+  networking.networkmanager.enable = true;
+
+  sops.secrets."wireguard/address" = { };
+  sops.secrets."wireguard/publicKey" = { };
+  sops.secrets."wireguard/endpoint" = { };
+  sops.secrets."wireguard/allowedIPs" = { };
+  
+  sops.templates."wg0.conf".content = ''
+    [Interface]
+    Address = ${config.sops.placeholder."wireguard/address"}
+    DNS = 8.8.8.8, 1.1.1.1
+    PrivateKey = ${config.sops.placeholder."wireguard/private_key"}
+    
+    [Peer]
+    PublicKey = ${config.sops.placeholder."wireguard/publicKey"}
+    Endpoint = ${config.sops.placeholder."wireguard/endpoint"}
+    AllowedIPs = ${config.sops.placeholder."wireguard/allowedIPs"}
+    PersistentKeepalive = 25
+  '';
+
+  networking.wg-quick.interfaces.wg0.configFile = config.sops.templates."wg0.conf".path;
+
+  environment.systemPackages = with pkgs; [
+    git
+    zsh
+    fish
+    openiscsi
+    vim
+    rocmPackages.rocm-smi
+    wireguard-tools
+    dig
+  ];
+
+  time.timeZone = "Utc";
+
+  users.users.javier = {
+    isNormalUser = true;
+    extraGroups = [
+      "wheel"
+      "networkmanager"
+      "render"
+      "video"
+    ];
+    packages = with pkgs; [
+      htop
+      btop
+      git
+      screen
+      opencode
+      nvtopPackages.amd
+      sops
+      age
+    ];
+  };
+
+  users.users.ollama = {
+    isSystemUser = true;
+    group = "ollama";
+    extraGroups = [
+      "render"
+      "video"
+    ];
+  };
+
+  users.groups.ollama = { };
+
+  services = {
+    openssh = {
+      enable = true;
+      settings = {
+        PermitRootLogin = "no";
+        PasswordAuthentication = true;
+      };
+    };
+
+    ollama = {
+      enable = true;
+      acceleration = "vulkan";
+      openFirewall = true;
+      host = "0.0.0.0";
+      models = "/opt/llm/models";
+      package = unstablePkgs.ollama-vulkan;
+      environmentVariables = {
+        OLLAMA_KEEP_ALIVE = "60";
+        OLLAMA_VULKAN = "1";
+      };
+    };
+
+    open-webui = {
+      enable = true;
+      openFirewall = true;
+      host = "0.0.0.0";
+      package = unstablePkgs.open-webui;
+    };
+  };
+
+  nixpkgs.config.allowUnfree = true;
+  nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
+
+  systemd.tmpfiles.rules = [
+    "d /opt/llm/models 0755 ollama ollama -"
+  ];
+
+  system.stateVersion = "25.11";
+}
