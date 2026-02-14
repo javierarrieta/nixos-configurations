@@ -55,6 +55,9 @@
       mode = "0644";
       owner = "root";
     };
+    secrets."api_keys/ollama" = {
+      owner = "ollama";
+    };
   };
 
   # Use the systemd-boot EFI boot loader.
@@ -95,6 +98,12 @@
   '';
 
   networking.wg-quick.interfaces.wg0.configFile = config.sops.templates."wg0.conf".path;
+
+  sops.templates."ollama.env".content = ''
+    OLLAMA_API_KEY=${config.sops.placeholder."api_keys/ollama"}
+  '';
+
+  systemd.services.ollama.serviceConfig.EnvironmentFile = config.sops.templates."ollama.env".path;
 
   # System-wide packages
   environment.systemPackages = with pkgs; [
