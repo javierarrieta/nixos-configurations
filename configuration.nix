@@ -47,6 +47,7 @@
 
   # Load AMD GPU kernel modules
   boot.initrd.kernelModules = [ "amdgpu" ];
+  boot.kernelParams = [ "amdgpu.sched_policy=2" ];
 
   # networking.hostName = "nixos"; # Define your hostname.
 
@@ -56,8 +57,11 @@
   # System-wide packages
   environment.systemPackages = with pkgs; [
     git
+    zsh
+    fish
     openiscsi
     vim
+    rocmPackages.rocm-smi
   ];
 
   # Set your time zone.
