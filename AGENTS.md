@@ -48,6 +48,59 @@
     - `jq ... file.json > new.json`
     - `cat new.json | yq -y . > new.yaml`
 
+### Host Management & Renaming
+- **Host Renaming Process**: When renaming a host (e.g., `nixos` → `llm01`):
+  1. Update `flake.nix`: Change `nixosConfigurations.oldname` to `nixosConfigurations.newname` and update `./hosts/oldname` to `./hosts/newname`
+  2. Create new host directory: `mkdir -p hosts/newhost`
+  3. Copy configuration files: `cp hosts/oldhost/*.nix hosts/newhost/`
+  4. Update hostname in configuration: Add `networking.hostName = "newhost";`
+  5. **Critical**: Create `default.nix` in the new host directory (NixOS requires this)
+  6. Remove old host directory after verification: `rm -rf hosts/oldhost`
+- **Host Directory Structure**: Each host directory MUST contain a `default.nix` file:
+  ```nix
+  { ... }:
+
+  {
+    imports = [
+      ./configuration.nix
+      ./hardware-configuration.nix
+    ];
+  }
+  ```
+  Without this, NixOS will fail with "opening file '/nix/store/.../hosts/hostname/default.nix': No such file or directory"
+
+### SSH Host Key Management
+- **Persistent Host Keys**: To maintain stable SSH fingerprints across reinstalls:
+  1. Generate host key pair: `ssh-keygen -t ed25519 -f llm01_host_key -N "" -C "llm01"`
+  2. Add keys to secrets.yaml:
+     - `ssh_keys/llm01_host_private`: Private key content with trailing newline
+     - `ssh_keys/llm01_host_public`: Public key
+  3. Update host configuration:
+     ```nix
+     sops.secrets."ssh_keys/llm01_host_private" = {
+       mode = "0600";
+       owner = "root";
+       path = "/etc/ssh/ssh_host_ed25519_key";
+     };
+     sops.secrets."ssh_keys/llm01_host_public" = {
+       mode = "0644";
+       owner = "root";
+       path = "/etc/ssh/ssh_host_ed25519_key.pub";
+     };
+     ```
+  4. Configure OpenSSH service:
+     ```nix
+     services.openssh = {
+       enable = true;
+       hostKeys = [
+         {
+           path = "/etc/ssh/ssh_host_ed25519_key";
+           type = "ed25519";
+         }
+       ];
+     };
+     ```
+
 ### General
 - **Temporary Files**: Generate keys and temporary data in `/tmp` when possible.
-- **Cleanup**: Always clean up temporary files (`*.json`, `*.dec.yaml`, `*.bak`) before finishing the task.
+- **Cleanup**: Always clean up temporary files (`*.json`, `*.dec.yaml`, `*.bak`, `*_host_key*`) before finishing the task.
