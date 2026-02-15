@@ -65,6 +65,8 @@
 
   networking.networkmanager.enable = true;
 
+  networking.hostName = "llm01"; # Define your hostname.
+
   sops.secrets."wireguard/address" = { };
   sops.secrets."wireguard/publicKey" = { };
   sops.secrets."wireguard/endpoint" = { };

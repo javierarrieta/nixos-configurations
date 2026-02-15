@@ -6,7 +6,7 @@
   };
 
   outputs = { self, nixpkgs, unstable, sops-nix, ... }: {
-    nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
+    nixosConfigurations.llm01 = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       specialArgs = {
         inherit unstable;
@@ -16,7 +16,7 @@
         };
       };
       modules = [
-        ./hosts/nixos
+        ./hosts/llm01
         sops-nix.nixosModules.sops
       ];
     };
