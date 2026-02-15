@@ -205,8 +205,8 @@
 
       eval "$(zoxide init --cmd cd zsh)"
 
-      if [[ $(ps -o command= -p "$PPID" | awk '{print $1}') != 'fish' ]]
-      then
+      # Launch fish if available (as login shell)
+      if command -v fish >/dev/null 2>&1; then
           exec fish -l
       fi
     '';
@@ -260,11 +260,10 @@
     };
   };
 
-
   programs.tmux = {
     enable = true;
     # Enable focus events so tmux knows when you switch panes
-    focusEvents = true; 
+    focusEvents = true;
 
     extraConfig = ''
       # 1. Highlight Pane Borders
