@@ -74,6 +74,8 @@
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelParams = [ "amdgpu.sched_policy=2" ];
 
+  programs.zsh.enable = true;
+
   networking.networkmanager.enable = true;
 
   networking.hostName = "llm01"; # Define your hostname.
