@@ -17,6 +17,7 @@
     ./k8s.nix
     ./editors.nix
     ./term.nix
+    ./llm.nix
   ];
 
   home.packages = with pkgs; [ nixd ];
