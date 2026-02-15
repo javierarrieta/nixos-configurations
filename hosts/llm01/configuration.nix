@@ -3,7 +3,8 @@
   lib,
   pkgs,
   unstable,
-  unstablePkgs,
+  unstablepkgs,
+  home-manager,
   ...
 }:
 
@@ -108,27 +109,30 @@
     dig
   ];
 
-  time.timeZone = "Utc";
+   time.timeZone = "Utc";
 
-  users.users.javier = {
-    isNormalUser = true;
-    extraGroups = [
-      "wheel"
-      "networkmanager"
-      "render"
-      "video"
-    ];
-    packages = with pkgs; [
-      htop
-      btop
-      git
-      screen
-      opencode
-      nvtopPackages.amd
-      sops
-      age
-    ];
-  };
+   home-manager = {
+     useGlobalPkgs = true;
+     useUserPackages = true;
+     users.javier = {
+       imports = [
+         ../../modules/home-manager/base.nix
+       ];
+       home.stateVersion = "25.11";
+       home.username = "javier";
+       home.homeDirectory = "/home/javier";
+     };
+   };
+
+   users.users.javier = {
+     isNormalUser = true;
+     extraGroups = [
+       "wheel"
+       "networkmanager"
+       "render"
+       "video"
+     ];
+   };
 
   users.users.ollama = {
     isSystemUser = true;
@@ -162,19 +166,19 @@
       openFirewall = true;
       host = "0.0.0.0";
       models = "/opt/llm/models";
-      package = unstablePkgs.ollama-vulkan;
-      environmentVariables = {
-        OLLAMA_KEEP_ALIVE = "60";
-        OLLAMA_VULKAN = "1";
-      };
-    };
+       package = unstablepkgs.ollama-vulkan;
+       environmentVariables = {
+         OLLAMA_KEEP_ALIVE = "60";
+         OLLAMA_VULKAN = "1";
+       };
+     };
 
-    open-webui = {
-      enable = true;
-      openFirewall = true;
-      host = "0.0.0.0";
-      package = unstablePkgs.open-webui;
-    };
+     open-webui = {
+       enable = true;
+       openFirewall = true;
+       host = "0.0.0.0";
+       package = unstablepkgs.open-webui;
+     };
   };
 
   nixpkgs.config.allowUnfree = true;

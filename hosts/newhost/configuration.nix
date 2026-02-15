@@ -3,7 +3,8 @@
   lib,
   pkgs,
   unstable,
-  unstablePkgs,
+  unstablepkgs,
+  home-manager,
   ...
 }:
 
@@ -48,34 +49,38 @@
     vim
   ];
 
-  time.timeZone = "Utc";
+   time.timeZone = "Utc";
 
-  users.users.javier = {
-    isNormalUser = true;
-    extraGroups = [
-      "wheel"
-      "networkmanager"
-    ];
-    packages = with pkgs; [
-      htop
-      btop
-      git
-      screen
-      opencode
-      sops
-      age
-    ];
-  };
+   home-manager = {
+     useGlobalPkgs = true;
+     useUserPackages = true;
+     users.javier = {
+       imports = [
+         ../../modules/home-manager/base.nix
+       ];
+       home.stateVersion = "25.11";
+       home.username = "javier";
+       home.homeDirectory = "/home/javier";
+     };
+   };
 
-  services = {
-    openssh = {
-      enable = true;
-      settings = {
-        PermitRootLogin = "no";
-        PasswordAuthentication = true;
-      };
-    };
-  };
+   users.users.javier = {
+     isNormalUser = true;
+     extraGroups = [
+       "wheel"
+       "networkmanager"
+     ];
+   };
+
+   services = {
+     openssh = {
+       enable = true;
+       settings = {
+         PermitRootLogin = "no";
+         PasswordAuthentication = true;
+       };
+     };
+   };
 
   nixpkgs.config.allowUnfree = true;
 
