@@ -21,6 +21,11 @@
     "${userOptions.userHome}/.cargo/bin"
   ];
 
+  programs.ssh = {
+    enable = true;
+    userKnownHostsFile = "~/.ssh/known_hosts";
+  };
+
   programs.fish = {
     enable = true;
     interactiveShellInit = ''
