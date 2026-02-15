@@ -133,7 +133,6 @@
         "render"
         "video"
       ];
-      shell = pkgs.fish;
     };
 
   users.users.ollama = {
