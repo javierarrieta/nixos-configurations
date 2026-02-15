@@ -190,6 +190,7 @@
 
   systemd.tmpfiles.rules = [
     "d /opt/llm/models 0755 ollama ollama -"
+    "d /home/javier/.ssh 0700 javier javier -"
   ];
 
   system.stateVersion = "25.11";
