@@ -112,6 +112,7 @@
    time.timeZone = "Utc";
 
    home-manager = {
+     backupFileExtension = "orig";
      useGlobalPkgs = true;
      useUserPackages = true;
      users.javier = {
