@@ -23,7 +23,9 @@
 
   programs.ssh = {
     enable = true;
-    userKnownHostsFile = "~/.ssh/known_hosts";
+    matchBlocks."*" = {
+      userKnownHostsFile = "~/.ssh/known_hosts";
+    };
   };
 
   programs.fish = {
