@@ -167,12 +167,12 @@
       openFirewall = true;
       host = "0.0.0.0";
       models = "/opt/llm/models";
-       package = unstablepkgs.ollama-vulkan;
-       environmentVariables = {
-         OLLAMA_KEEP_ALIVE = "60";
-         OLLAMA_VULKAN = "1";
-       };
-     };
+      package = unstablePkgs.ollama-vulkan;
+      environmentVariables = {
+        OLLAMA_KEEP_ALIVE = "300";
+        OLLAMA_VULKAN = "1";
+      };
+    };
 
      open-webui = {
        enable = true;
