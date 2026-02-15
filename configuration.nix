@@ -129,6 +129,7 @@
       sops
       age
     ];
+    shell = pkgs.fish;
   };
 
   users.users.ollama = {
