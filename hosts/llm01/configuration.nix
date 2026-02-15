@@ -47,11 +47,21 @@
       mode = "0644";
       owner = "root";
     };
-    secrets."wireguard/allowedIPs" = {
-      mode = "0644";
-      owner = "root";
-    };
-  };
+     secrets."wireguard/allowedIPs" = {
+       mode = "0644";
+       owner = "root";
+     };
+     secrets."ssh_keys/llm01_host_private" = {
+       mode = "0600";
+       owner = "root";
+       path = "/etc/ssh/ssh_host_ed25519_key";
+     };
+     secrets."ssh_keys/llm01_host_public" = {
+       mode = "0644";
+       owner = "root";
+       path = "/etc/ssh/ssh_host_ed25519_key.pub";
+     };
+   };
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
@@ -131,14 +141,20 @@
 
   users.groups.ollama = { };
 
-  services = {
-    openssh = {
-      enable = true;
-      settings = {
-        PermitRootLogin = "no";
-        PasswordAuthentication = true;
-      };
-    };
+   services = {
+     openssh = {
+       enable = true;
+       settings = {
+         PermitRootLogin = "no";
+         PasswordAuthentication = true;
+       };
+       hostKeys = [
+         {
+           path = "/etc/ssh/ssh_host_ed25519_key";
+           type = "ed25519";
+         }
+       ];
+     };
 
     ollama = {
       enable = true;
