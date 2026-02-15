@@ -15,7 +15,6 @@
     ./shell.nix
     ./python.nix
     ./k8s.nix
-    ./editors.nix
     ./term.nix
     ./llm.nix
   ];

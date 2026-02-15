@@ -125,15 +125,16 @@
      };
    };
 
-   users.users.javier = {
-     isNormalUser = true;
-     extraGroups = [
-       "wheel"
-       "networkmanager"
-       "render"
-       "video"
-     ];
-   };
+    users.users.javier = {
+      isNormalUser = true;
+      extraGroups = [
+        "wheel"
+        "networkmanager"
+        "render"
+        "video"
+      ];
+      shell = pkgs.fish;
+    };
 
   users.users.ollama = {
     isSystemUser = true;
