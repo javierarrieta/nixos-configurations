@@ -164,7 +164,7 @@
       models = "/opt/llm/models";
       package = unstablePkgs.ollama-vulkan;
       environmentVariables = {
-        OLLAMA_KEEP_ALIVE = "60";
+        OLLAMA_KEEP_ALIVE = "300";
         OLLAMA_VULKAN = "1";
       };
     };
