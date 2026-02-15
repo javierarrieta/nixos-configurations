@@ -109,6 +109,7 @@
     rocmPackages.rocm-smi
     wireguard-tools
     dig
+    hdparm
   ];
 
    time.timeZone = "Utc";
@@ -185,6 +186,9 @@
      };
   };
 
+  nix.settings = {
+    experimental-features = [ "nix-command" "flakes" ];
+  };
   nixpkgs.config.allowUnfree = true;
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
 
