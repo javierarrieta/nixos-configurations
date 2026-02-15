@@ -9,6 +9,7 @@
 
 {
   imports = [
+    ./disko.nix
     ../../hardware-configuration.nix
   ];
 
@@ -62,6 +63,8 @@
        path = "/etc/ssh/ssh_host_ed25519_key.pub";
      };
    };
+
+  disko.enableConfig = true;
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
