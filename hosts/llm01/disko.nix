@@ -3,7 +3,7 @@
   disko.devices = {
     disk = {
       disk0 = {
-        device = "/dev/disk/by-id/CHANGE_ME";
+        device = "/dev/disk/by-id/nvme-SanDisk_SSD_Plus_500GB_A3N_25504G800078";
         type = "disk";
         content = {
           type = "gpt";
