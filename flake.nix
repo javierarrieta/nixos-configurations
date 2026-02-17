@@ -6,9 +6,11 @@
     home-manager = {
       url = "github:nix-community/home-manager/release-25.11";
     };
+    disko.url = "github:nix-community/disko";
+    disko.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, unstable, sops-nix, home-manager, ... }:
+  outputs = { self, nixpkgs, unstable, sops-nix, disko, home-manager, ... }:
     let
       mkExtraArgs = system: {
         unstablepkgs = import unstable {
@@ -44,6 +46,7 @@
         } // (mkExtraArgs "x86_64-linux");
         modules = [
           ./hosts/llm01
+          disko.nixosModules.disko
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
         ];
