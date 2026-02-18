@@ -3,13 +3,15 @@
   lib,
   pkgs,
   unstable,
-  unstablePkgs,
+  unstablepkgs,
+  home-manager,
   ...
 }:
 
 {
   imports = [
-    ../../hardware-configuration.nix
+    ./disko.nix
+    ./hardware-configuration.nix
   ];
 
   sops = {
@@ -63,6 +65,8 @@
      };
    };
 
+  disko.enableConfig = true;
+
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
@@ -72,6 +76,8 @@
   boot.initrd.kernelModules = [ "amdgpu" ];
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelParams = [ "amdgpu.sched_policy=2" ];
+
+  programs.zsh.enable = true;
 
   networking.networkmanager.enable = true;
 
@@ -106,29 +112,35 @@
     rocmPackages.rocm-smi
     wireguard-tools
     dig
+    hdparm
   ];
 
-  time.timeZone = "Utc";
+   time.timeZone = "Utc";
 
-  users.users.javier = {
-    isNormalUser = true;
-    extraGroups = [
-      "wheel"
-      "networkmanager"
-      "render"
-      "video"
-    ];
-    packages = with pkgs; [
-      htop
-      btop
-      git
-      screen
-      opencode
-      nvtopPackages.amd
-      sops
-      age
-    ];
-  };
+   home-manager = {
+     backupFileExtension = "orig";
+     useGlobalPkgs = true;
+     useUserPackages = true;
+     users.javier = {
+       imports = [
+         ../../modules/home-manager/base.nix
+       ];
+       home.stateVersion = "25.11";
+       home.username = "javier";
+       home.homeDirectory = "/home/javier";
+     };
+   };
+
+     users.users.javier = {
+       isNormalUser = true;
+       extraGroups = [
+         "wheel"
+         "networkmanager"
+         "render"
+         "video"
+       ];
+       shell = pkgs.zsh;
+     };
 
   users.users.ollama = {
     isSystemUser = true;
@@ -162,26 +174,30 @@
       openFirewall = true;
       host = "0.0.0.0";
       models = "/opt/llm/models";
-      package = unstablePkgs.ollama-vulkan;
+      package = unstablepkgs.ollama-vulkan;
       environmentVariables = {
         OLLAMA_KEEP_ALIVE = "300";
         OLLAMA_VULKAN = "1";
       };
     };
 
-    open-webui = {
-      enable = true;
-      openFirewall = true;
-      host = "0.0.0.0";
-      package = unstablePkgs.open-webui;
-    };
+     open-webui = {
+       enable = true;
+       openFirewall = true;
+       host = "0.0.0.0";
+       package = unstablepkgs.open-webui;
+     };
   };
 
+  nix.settings = {
+    experimental-features = [ "nix-command" "flakes" ];
+  };
   nixpkgs.config.allowUnfree = true;
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
 
   systemd.tmpfiles.rules = [
     "d /opt/llm/models 0755 ollama ollama -"
+    "d /home/javier/.ssh 0700 javier javier -"
   ];
 
   system.stateVersion = "25.11";

@@ -1,0 +1,41 @@
+{
+  config,
+  pkgs,
+  ...
+}:
+
+{
+  home.packages = with pkgs; [
+    htop
+    git
+    curl
+    wget
+    tmux
+    btop
+    ripgrep
+    yq
+    jq
+    rustup
+    fzf
+    bash
+    zsh
+    bat
+    lsd
+    difftastic
+    dyff
+    age
+    sops
+    neofetch
+    nixfmt
+    kubernetes-helm
+    scala-cli
+    pstree
+    nodejs_24
+  ];
+
+  programs.neovim = {
+    enable = true;
+    defaultEditor = true;
+    viAlias = true;
+  };
+}

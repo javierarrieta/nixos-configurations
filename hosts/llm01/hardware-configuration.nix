@@ -8,31 +8,13 @@
     [ (modulesPath + "/installer/scan/not-detected.nix")                                                                                                                                                                         
     ];                                                                                                                                                                                                                           
                                                                                                                                                                                                                                  
-  boot.initrd.availableKernelModules = [ "nvme" "xhci_pci" "thunderbolt" "usb_storage" "sd_mod" "sdhci_pci" ];                                                                                                                   
-  boot.initrd.kernelModules = [ "dm-snapshot" ];                                                                                                                                                                                 
-  boot.kernelModules = [ "kvm-amd" ];                                                                                                                                                                                            
-  boot.extraModulePackages = [ ];                                                                                                                                                                                                
-                                                                                                                                                                                                                                 
-  fileSystems."/" =                                                                                                                                                                                                              
-    { device = "/dev/mapper/disk0-root";                                                                                                                                                                                         
-      fsType = "ext4";                                                                                                                                                                                                           
-    };                                                                                                                                                                                                                           
-                                                                                                                                                                                                                                 
-  fileSystems."/boot" =                                                                                                                                                                                                          
-    { device = "/dev/disk/by-uuid/367E-3AC3";                                                                                                                                                                                    
-      fsType = "vfat";                                                                                                                                                                                                           
-      options = [ "fmask=0077" "dmask=0077" ];                                                                                                                                                                                   
-    };                                                                                                                                                                                                                           
-                                                                                                                                                                                                                                 
-  fileSystems."/opt/llm" =                                                                                                                                                                                                       
-    { device = "/dev/mapper/disk0-llm";                                                                                                                                                                                          
-      fsType = "ext4";                                                                                                                                                                                                           
-    };                                                                                                                                                                                                                           
-                                                                                                                                                                                                                                 
-  swapDevices =                                                                                                                                                                                                                  
-    [ { device = "/dev/disk/by-uuid/9d51d147-052b-4508-ad2b-25356493bee0"; }                                                                                                                                                     
-    ];                                                                                                                                                                                                                           
-                                                                                                                                                                                                                                 
-  nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";                                                                                                                                                                           
-  hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;                                                                                                                                
+  boot.initrd.availableKernelModules = [ "nvme" "xhci_pci" "thunderbolt" "usb_storage" "sd_mod" "sdhci_pci" ];
+  boot.initrd.kernelModules = [ "dm-snapshot" ];
+  boot.kernelModules = [ "kvm-amd" ];
+  boot.extraModulePackages = [ ];
+
+  swapDevices = [ ];
+
+  nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
+  hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 }
