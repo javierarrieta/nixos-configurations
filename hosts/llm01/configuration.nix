@@ -70,6 +70,9 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
+  
+  security.tpm2.enable = true;            # Enables TPM2 userspace tools
+
   hardware.graphics.enable = true;
   hardware.enableRedistributableFirmware = true;
 
@@ -104,6 +107,7 @@
   networking.wg-quick.interfaces.wg0.configFile = config.sops.templates."wg0.conf".path;
 
   environment.systemPackages = with pkgs; [
+    tpm2-tss # Provides systemd-cryptenroll
     git
     zsh
     fish
