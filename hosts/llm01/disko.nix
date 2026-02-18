@@ -1,4 +1,3 @@
-{ modulesPath, ... }:
 {
   disko.devices = {
     disk = {

@@ -16,8 +16,7 @@
 
   sops = {
     defaultSopsFile = ../../secrets.yaml;
-    age.keyFile = "${config.users.users.javier.home}/.config/sops/age/keys.txt";
-    age.sshKeyPaths = [ "${config.users.users.javier.home}/.config/sops/age/keys.txt" ];
+    age.keyFile = "/var/lib/nixos-secrets/keys.txt";
     secrets."ssh_keys/javier_authorized" = {
       mode = "0444";
       owner = "javier";
