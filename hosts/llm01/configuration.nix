@@ -18,6 +18,7 @@
     defaultSopsFile = ../../secrets.yaml;
     age.keyFile = "/var/lib/sops-nix/key.txt";
     age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+    secrets."users/javier_password_hash" = { };
     secrets."ssh_keys/javier_authorized" = {
       mode = "0444";
       owner = "javier";
@@ -135,16 +136,17 @@
      };
    };
 
-     users.users.javier = {
-       isNormalUser = true;
-       extraGroups = [
-         "wheel"
-         "networkmanager"
-         "render"
-         "video"
-       ];
-       shell = pkgs.zsh;
-     };
+      users.users.javier = {
+        isNormalUser = true;
+        hashedPasswordFile = config.sops.secrets."users/javier_password_hash".path;
+        extraGroups = [
+          "wheel"
+          "networkmanager"
+          "render"
+          "video"
+        ];
+        shell = pkgs.zsh;
+      };
 
   users.users.ollama = {
     isSystemUser = true;

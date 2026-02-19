@@ -44,10 +44,10 @@ fi
   echo "$DISK_PASSWORD" > "$TMP_DIR/disko-password"
 
   nix run github:nix-community/nixos-anywhere -- \
-    --build-on-target \
+    --build-on-remote \
     --extra-files "$TMP_DIR" \
     --disk-encryption-keys /tmp/disko-password "$TMP_DIR/disko-password" \
-    --no-reboot \
+    --phases kexec,disko,install \
     --flake ".#$HOSTNAME" \
     "root@$SERVER_IP"
 
