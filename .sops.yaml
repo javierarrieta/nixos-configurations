@@ -5,4 +5,6 @@ creation_rules:
           # Your local development key
           - age1p9dfpws4kw6r7smgdhqryqmnaj27mnstea7dur5fuzz2uewcy3lqf7hpnu
           # Target machine key (add after generating)
-          - age1ue0d40wgud28hh3krh9j8wckdfnehwdehmdr08k25yzw2j562aksjdtafu
+          - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMXtQHWgKc2ZXb0R06P2HUBuNeO1it8HWu12OLHP8vgB llm01"
+          # Bootstrap key
+          - age1rlvgte0l7225vqdusvkzmdqmsyfd3u255rfy7ku93xx99k4vldsqhxnyxx
