@@ -24,9 +24,10 @@
                 type = "luks";
                 name = "disk0-root";
                 extraOpenArgs = [ ];
+                passwordFile = "/tmp/disko-password";
                 settings = {
                   allowDiscards = true;
-                  crypttabExtraOpts = [ "tpm2-device=auto" ]; 
+                  crypttabExtraOpts = [ "tpm2-device=auto" ];
                 };
                 content = {
                   type = "filesystem";
@@ -48,9 +49,10 @@
                 type = "luks";
                 name = "disk0-llm";
                 extraOpenArgs = [ ];
+                passwordFile = "/tmp/disko-password";
                 settings = {
                   allowDiscards = true;
-                  crypttabExtraOpts = [ "tpm2-device=auto" ]; 
+                  crypttabExtraOpts = [ "tpm2-device=auto" ];
                 };
                 content = {
                   type = "filesystem";
