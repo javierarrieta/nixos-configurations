@@ -27,7 +27,6 @@
       content = "${config.sops.placeholder."users/javier_password_hash"}";
     };
 
-
     secrets."ssh_keys/javier_authorized" = {
       mode = "0444";
       owner = "javier";
@@ -59,30 +58,29 @@
       mode = "0644";
       owner = "root";
     };
-     secrets."wireguard/allowedIPs" = {
-       mode = "0644";
-       owner = "root";
-     };
-     secrets."ssh_keys/llm01_host_private" = {
-       mode = "0600";
-       owner = "root";
-       path = "/etc/ssh/ssh_host_ed25519_key";
-     };
-     secrets."ssh_keys/llm01_host_public" = {
-       mode = "0644";
-       owner = "root";
-       path = "/etc/ssh/ssh_host_ed25519_key.pub";
-     };
-   };
+    secrets."wireguard/allowedIPs" = {
+      mode = "0644";
+      owner = "root";
+    };
+    secrets."ssh_keys/llm01_host_private" = {
+      mode = "0600";
+      owner = "root";
+      path = "/etc/ssh/ssh_host_ed25519_key";
+    };
+    secrets."ssh_keys/llm01_host_public" = {
+      mode = "0644";
+      owner = "root";
+      path = "/etc/ssh/ssh_host_ed25519_key.pub";
+    };
+  };
 
   disko.enableConfig = true;
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  
   boot.initrd.systemd.enable = true;
-  security.tpm2.enable = true;            # Enables TPM2 userspace tools
+  security.tpm2.enable = true; # Enables TPM2 userspace tools
 
   hardware.graphics.enable = true;
   hardware.enableRedistributableFirmware = true;
@@ -101,13 +99,13 @@
   sops.secrets."wireguard/publicKey" = { };
   sops.secrets."wireguard/endpoint" = { };
   sops.secrets."wireguard/allowedIPs" = { };
-  
+
   sops.templates."wg0.conf".content = ''
     [Interface]
     Address = ${config.sops.placeholder."wireguard/address"}
     DNS = 8.8.8.8, 1.1.1.1
     PrivateKey = ${config.sops.placeholder."wireguard/private_key"}
-    
+
     [Peer]
     PublicKey = ${config.sops.placeholder."wireguard/publicKey"}
     Endpoint = ${config.sops.placeholder."wireguard/endpoint"}
@@ -130,33 +128,33 @@
     hdparm
   ];
 
-   time.timeZone = "Utc";
+  time.timeZone = "Utc";
 
-   home-manager = {
-     backupFileExtension = "orig";
-     useGlobalPkgs = true;
-     useUserPackages = true;
-     users.javier = {
-       imports = [
-         ../../modules/home-manager/base.nix
-       ];
-       home.stateVersion = "25.11";
-       home.username = "javier";
-       home.homeDirectory = "/home/javier";
-     };
-   };
+  home-manager = {
+    backupFileExtension = "orig";
+    useGlobalPkgs = true;
+    useUserPackages = true;
+    users.javier = {
+      imports = [
+        ../../modules/home-manager/base.nix
+      ];
+      home.stateVersion = "25.11";
+      home.username = "javier";
+      home.homeDirectory = "/home/javier";
+    };
+  };
 
-      users.users.javier = {
-        isNormalUser = true;
-        hashedPasswordFile = config.sops.templates."javier-password".path;
-        extraGroups = [
-          "wheel"
-          "networkmanager"
-          "render"
-          "video"
-        ];
-        shell = pkgs.zsh;
-      };
+  users.users.javier = {
+    isNormalUser = true;
+    hashedPasswordFile = config.sops.templates."javier-password".path;
+    extraGroups = [
+      "wheel"
+      "networkmanager"
+      "render"
+      "video"
+    ];
+    shell = pkgs.zsh;
+  };
 
   users.users.ollama = {
     isSystemUser = true;
@@ -169,20 +167,20 @@
 
   users.groups.ollama = { };
 
-   services = {
-     openssh = {
-       enable = true;
-       settings = {
-         PermitRootLogin = "no";
-         PasswordAuthentication = true;
-       };
-       hostKeys = [
-         {
-           path = "/etc/ssh/ssh_host_ed25519_key";
-           type = "ed25519";
-         }
-       ];
-     };
+  services = {
+    openssh = {
+      enable = true;
+      settings = {
+        PermitRootLogin = "no";
+        PasswordAuthentication = true;
+      };
+      hostKeys = [
+        {
+          path = "/etc/ssh/ssh_host_ed25519_key";
+          type = "ed25519";
+        }
+      ];
+    };
 
     ollama = {
       enable = true;
@@ -197,16 +195,19 @@
       };
     };
 
-     open-webui = {
-       enable = true;
-       openFirewall = true;
-       host = "0.0.0.0";
-       package = unstablepkgs.open-webui;
-     };
+    open-webui = {
+      enable = true;
+      openFirewall = true;
+      host = "0.0.0.0";
+      package = unstablepkgs.open-webui;
+    };
   };
 
   nix.settings = {
-    experimental-features = [ "nix-command" "flakes" ];
+    experimental-features = [
+      "nix-command"
+      "flakes"
+    ];
     download-buffer-size = 67108864;
   };
   nixpkgs.config.allowUnfree = true;
