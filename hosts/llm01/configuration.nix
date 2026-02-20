@@ -141,7 +141,7 @@
 
       users.users.javier = {
         isNormalUser = true;
-        hashedPassword = config.sops.placeholder."users/javier_password_hash";
+        hashedPasswordFile = "/run/user-password/javier-clean";
         extraGroups = [
           "wheel"
           "networkmanager"
@@ -200,6 +200,7 @@
 
   nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];
+    download-buffer-size = 67108864;
   };
   nixpkgs.config.allowUnfree = true;
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
@@ -207,7 +208,19 @@
   systemd.tmpfiles.rules = [
     "d /opt/llm/models 0755 ollama ollama -"
     "d /home/javier/.ssh 0700 javier javier -"
+    "d /run/user-password 0755 root root -"
   ];
+
+  systemd.services."set-javier-password" = {
+    wantedBy = [ "multi-user.target" ];
+    before = [ "systemd-user-sessions.service" ];
+    requires = [ "sops-nix.service" ];
+    after = [ "sops-nix.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.coreutils}/bin/tr -d '\\n' < ${config.sops.secrets."users/javier_password_hash".path} > /run/user-password/javier-clean";
+    };
+  };
 
   system.stateVersion = "25.11";
 }
