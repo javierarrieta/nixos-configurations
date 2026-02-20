@@ -81,6 +81,7 @@
   boot.loader.efi.canTouchEfiVariables = true;
 
   
+  boot.initrd.systemd.enable = true;
   security.tpm2.enable = true;            # Enables TPM2 userspace tools
 
   hardware.graphics.enable = true;
