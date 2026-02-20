@@ -22,6 +22,12 @@
       mode = "0600";
       owner = "root";
     };
+
+    sops.templates."javier-password" = {
+      content = "${config.sops.placeholder."users/javier_password_hash"}";
+    };
+
+
     secrets."ssh_keys/javier_authorized" = {
       mode = "0444";
       owner = "javier";
@@ -141,7 +147,7 @@
 
       users.users.javier = {
         isNormalUser = true;
-        hashedPasswordFile = "/run/user-password/javier-clean";
+        hashedPasswordFile = config.sops.templates."javier-password".path;
         extraGroups = [
           "wheel"
           "networkmanager"
@@ -208,19 +214,7 @@
   systemd.tmpfiles.rules = [
     "d /opt/llm/models 0755 ollama ollama -"
     "d /home/javier/.ssh 0700 javier javier -"
-    "d /run/user-password 0755 root root -"
   ];
-
-  systemd.services."set-javier-password" = {
-    wantedBy = [ "multi-user.target" ];
-    before = [ "systemd-user-sessions.service" ];
-    requires = [ "sops-nix.service" ];
-    after = [ "sops-nix.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = "${pkgs.coreutils}/bin/tr -d '\\n' < ${config.sops.secrets."users/javier_password_hash".path} > /run/user-password/javier-clean";
-    };
-  };
 
   system.stateVersion = "25.11";
 }
