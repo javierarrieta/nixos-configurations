@@ -8,9 +8,21 @@
     };
     disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
+    deploy-rs.url = "github:serokell/deploy-rs";
+    deploy-rs.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, unstable, sops-nix, disko, home-manager, ... }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      unstable,
+      sops-nix,
+      disko,
+      home-manager,
+      deploy-rs,
+      ...
+    }:
     let
       mkExtraArgs = system: {
         unstablepkgs = import unstable {
@@ -38,12 +50,14 @@
           config.allowUnfree = true;
         };
       };
-    in {
+    in
+    {
       nixosConfigurations.llm01 = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
           inherit unstable home-manager;
-        } // (mkExtraArgs "x86_64-linux");
+        }
+        // (mkExtraArgs "x86_64-linux");
         modules = [
           ./hosts/llm01
           disko.nixosModules.disko
@@ -56,12 +70,29 @@
         system = "x86_64-linux";
         specialArgs = {
           inherit unstable home-manager;
-        } // (mkExtraArgs "x86_64-linux");
+        }
+        // (mkExtraArgs "x86_64-linux");
         modules = [
           ./hosts/newhost
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
         ];
+      };
+
+      deploy.nodes.llm01 = {
+        hostname = "llm01";
+        sshUser = "javier";
+        profiles.system = {
+          path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.llm01;
+        };
+      };
+
+      deploy.nodes.newhost = {
+        hostname = "newhost";
+        sshUser = "javier";
+        profiles.system = {
+          path = deploy-rs.lib.x86_64-linux.activate.nixos self.nixosConfigurations.newhost;
+        };
       };
     };
 }

@@ -1,4 +1,4 @@
-.PHONY: bootstrap bootstrap-llm01
+.PHONY: bootstrap bootstrap-llm01 deploy deploy-llm01 deploy-newhost deploy-check
 
 bootstrap:
 	@echo "Usage: make bootstrap AGE_KEY=... HOST=... IP=... DISK_PASSWORD=..."
@@ -12,6 +12,10 @@ help:
 	@echo "Targets:"
 	@echo "  bootstrap       - Bootstrap a new host"
 	@echo "  bootstrap-llm01 - Bootstrap llm01 host"
+	@echo "  deploy          - Deploy to all hosts"
+	@echo "  deploy-llm01    - Deploy to llm01 host"
+	@echo "  deploy-newhost  - Deploy to newhost host"
+	@echo "  deploy-check    - Check deployment config"
 	@echo ""
 	@echo "Variables (for bootstrap target):"
 	@echo "  AGE_KEY        - Age private key for sops"
@@ -21,6 +25,20 @@ help:
 	@echo ""
 	@echo "Example: make bootstrap AGE_KEY='AGE-SECRET-KEY...' HOST=llm01 IP=192.168.1.100 DISK_PASSWORD='strong-password'"
 	@echo "         make bootstrap-llm01 AGE_KEY='AGE-SECRET-KEY...' IP=192.168.1.100 DISK_PASSWORD='strong-password'"
+	@echo ""
+	@echo "Deploy: make deploy"
 
 bootstrap-llm01:
 	@$(MAKE) bootstrap HOST=llm01
+
+deploy:
+	nix run .#deploy-rs -- activate --skip-checks
+
+deploy-llm01:
+	nix run .#deploy-rs -- activate .#llm01 --skip-checks
+
+deploy-newhost:
+	nix run .#deploy-rs -- activate .#newhost --skip-checks
+
+deploy-check:
+	nix run .#deploy-rs -- check

@@ -4,6 +4,10 @@
 - **Apply Config**: `nixos-rebuild switch --flake .#nixos`
 - **Test Config**: `nixos-rebuild test --flake .#nixos` (builds & activates in VM/test environment)
 - **Format**: `nixfmt .` (Ensure clean git state before running)
+- **Deploy (GitOps)**:
+  - Deploy all: `make deploy` or `nix run .#deploy-rs -- activate --skip-checks`
+  - Deploy single host: `make deploy-llm01` or `nix run .#deploy-rs -- activate .#llm01`
+  - Check config: `make deploy-check`
 - **Secrets (Sops)**:
   - Edit: `sops secrets.yaml` (opens editor, encrypts on save)
   - Verify Encryption: `cat secrets.yaml` (must show `ENC[...]`)
@@ -100,6 +104,28 @@
        ];
      };
      ```
+
+### GitOps with deploy-rs
+- **Setup**: Configured in `flake.nix` under `deploy.nodes.<host>`
+- **SSH User**: Uses `javier` user (not root) with passwordless sudo
+- **Auto-deployment**: Works via CI/CD by triggering `nix run .#deploy-rs -- activate --skip-checks`
+- **Host Configuration**: Each host needs:
+  ```nix
+  services.sudo = {
+    enable = true;
+    extraRules = [
+      {
+        users = [ "javier" ];
+        commands = [
+          {
+            command = "ALL";
+            options = [ "NOPASSWD" ];
+          }
+        ];
+      }
+    ];
+  };
+  ```
 
 ### General
 - **Temporary Files**: Generate keys and temporary data in `/tmp` when possible.
