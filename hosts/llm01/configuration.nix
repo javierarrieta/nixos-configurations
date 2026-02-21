@@ -182,6 +182,11 @@
       ];
     };
 
+    node-exporter = {
+      enable = true;
+      openFirewall = true;
+    };
+
     ollama = {
       enable = true;
       acceleration = "vulkan";
