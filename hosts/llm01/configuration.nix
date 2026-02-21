@@ -88,6 +88,13 @@
   boot.initrd.kernelModules = [ "amdgpu" ];
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelParams = [ "amdgpu.sched_policy=2" ];
+  boot.extraModprobeConfig = ''
+    # Allocate more memory to the GPU VRAM for llama.cpp
+    # options amdgpu gttsize=110592 deprecated
+    options ttm pages_limit=27648000
+    options ttm page_pool_size=27648000
+
+  '';
 
   programs.zsh.enable = true;
 
