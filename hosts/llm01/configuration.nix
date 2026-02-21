@@ -182,7 +182,7 @@
       ];
     };
 
-    node-exporter = {
+    prometheus.node-exporter = {
       enable = true;
       openFirewall = true;
     };
