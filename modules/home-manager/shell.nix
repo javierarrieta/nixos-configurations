@@ -83,10 +83,6 @@
       "kx" = "kubectx";
       "venv" = "python3 -m venv";
       "rebase-pr" = "git fetch && git merge origin/${userOptions.gitDefaultBranch} && git push";
-      "autocomplete-server" =
-        "hf download sweepai/sweep-next-edit-1.5B sweep-next-edit-1.5b.q8_0.v2.gguf --local-dir $HOME/llm/models && \
-         llama-server -m $HOME/llm/models/sweep-next-edit-1.5b.q8_0.v2.gguf --offline --jinja -ngl 99 --threads -1 --ctx-size 8192 --port 8081";
-    };
   };
 
   programs.starship = {
