@@ -225,7 +225,7 @@
       User = "ollama";
       Group = "ollama";
       WorkingDirectory = "/opt/llm/models";
-      ExecStart = "${unstablepkgs.llama-cpp-vulkan}/bin/llama-server --port 8001 --host 0.0.0.0 --models-dir /opt/llm/models --offline --jinja -ngl 99 --threads -1 --gpu-layers 999 --n-gpu-layers 999";
+      ExecStart = "${unstablepkgs.llama-cpp-vulkan}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline --jinja -ngl 99 --threads -1 --gpu-layers 999 --n-gpu-layers 999";
       Restart = "on-failure";
       RestartSec = "5s";
     };
