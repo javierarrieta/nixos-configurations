@@ -132,6 +132,7 @@
     wireguard-tools
     dig
     hdparm
+    unstablepkgs.llama-cpp-vulkan
   ];
 
   time.timeZone = "Utc";
@@ -214,6 +215,23 @@
       package = unstablepkgs.open-webui;
     };
   };
+
+  systemd.services.llama-cpp-server = {
+    description = "LLaMA C++ Server with Vulkan";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network.target" ];
+    serviceConfig = {
+      Type = "simple";
+      User = "ollama";
+      Group = "ollama";
+      WorkingDirectory = "/opt/llm/models";
+      ExecStart = "${unstablepkgs.llama-cpp-vulkan}/bin/llama-server --port 8001 --host 0.0.0.0 --models-dir /opt/llm/models --offline --jinja -ngl 99 --threads -1 --gpu-layers 999 --n-gpu-layers 999";
+      Restart = "on-failure";
+      RestartSec = "5s";
+    };
+  };
+
+  networking.firewall.allowedTCPPorts = [ 8001 ];
 
   nix.settings = {
     experimental-features = [
