@@ -83,6 +83,7 @@
       "kx" = "kubectx";
       "venv" = "python3 -m venv";
       "rebase-pr" = "git fetch && git merge origin/${userOptions.gitDefaultBranch} && git push";
+    };
   };
 
   programs.starship = {
