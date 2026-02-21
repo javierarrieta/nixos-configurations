@@ -87,7 +87,7 @@
 
   boot.initrd.kernelModules = [ "amdgpu" ];
   boot.kernelPackages = pkgs.linuxPackages_latest;
-  boot.kernelParams = [ "amdgpu.sched_policy=2 amd_iommu=off" ];
+  boot.kernelParams = [ "amdgpu.sched_policy=2" "amd_iommu=off" ];
   boot.extraModprobeConfig = ''
     # Allocate more memory to the GPU VRAM for llama.cpp
     options amdgpu gttsize=120000
