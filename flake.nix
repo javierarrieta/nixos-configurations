@@ -8,14 +8,25 @@
     };
     disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
-comin = {
-       url = "github:nlewo/comin";
-       inputs.nixpkgs.follows = "nixpkgs";
-     };
-     nix-sweep.url = "github:jzbor/nix-sweep";
-   };
+    comin = {
+      url = "github:nlewo/comin";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    nix-sweep.url = "github:jzbor/nix-sweep";
+  };
 
-  outputs = { self, nixpkgs, unstable, sops-nix, disko, home-manager, comin, nix-sweep, ... }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      unstable,
+      sops-nix,
+      disko,
+      home-manager,
+      comin,
+      nix-sweep,
+      ...
+    }:
     let
       mkExtraArgs = system: {
         unstablepkgs = import unstable {
@@ -43,12 +54,14 @@ comin = {
           config.allowUnfree = true;
         };
       };
-    in {
+    in
+    {
       nixosConfigurations.llm01 = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
           inherit unstable home-manager;
-        } // (mkExtraArgs "x86_64-linux");
+        }
+        // (mkExtraArgs "x86_64-linux");
         modules = [
           ./hosts/llm01
           disko.nixosModules.disko
@@ -58,30 +71,32 @@ comin = {
         ];
       };
 
-nixosConfigurations.newhost = nixpkgs.lib.nixosSystem {
-         system = "x86_64-linux";
-         specialArgs = {
-           inherit unstable home-manager;
-         } // (mkExtraArgs "x86_64-linux");
-         modules = [
-           ./hosts/newhost
-           sops-nix.nixosModules.sops
-           home-manager.nixosModules.home-manager
-         ];
-       };
+      nixosConfigurations.newhost = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = {
+          inherit unstable home-manager;
+        }
+        // (mkExtraArgs "x86_64-linux");
+        modules = [
+          ./hosts/newhost
+          sops-nix.nixosModules.sops
+          home-manager.nixosModules.home-manager
+        ];
+      };
 
-       nixosConfigurations.ryzen7 = nixpkgs.lib.nixosSystem {
-         system = "x86_64-linux";
-         specialArgs = {
-           inherit unstable home-manager nix-sweep;
-         } // (mkExtraArgs "x86_64-linux");
-         modules = [
-           ./hosts/ryzen7
-           disko.nixosModules.disko
-           sops-nix.nixosModules.sops
-           home-manager.nixosModules.home-manager
-           nix-sweep.nixosModules.default
-         ];
-       };
-     };
- }
+      nixosConfigurations.ryzen7 = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = {
+          inherit unstable home-manager nix-sweep;
+        }
+        // (mkExtraArgs "x86_64-linux");
+        modules = [
+          ./hosts/ryzen7
+          disko.nixosModules.disko
+          sops-nix.nixosModules.sops
+          home-manager.nixosModules.home-manager
+          nix-sweep.nixosModules.default
+        ];
+      };
+    };
+}

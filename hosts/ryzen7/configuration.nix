@@ -2,13 +2,21 @@
 # your system. Help is available in the configuration.nix(5) man page, on
 # https://search.nixos.org/options and in the NixOS manual (`nixos-help`).
 
-{ config, lib, pkgs, nixpkgs, nix-sweep, home-manager, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  nixpkgs,
+  nix-sweep,
+  home-manager,
+  ...
+}:
 
 {
-  imports =
-    [ # Include the results of the hardware scan.
-      ./hardware-configuration.nix
-    ];
+  imports = [
+    # Include the results of the hardware scan.
+    ./hardware-configuration.nix
+  ];
 
   # Use the systemd-boot EFI boot loader.
   boot.loader.systemd-boot.enable = true;
@@ -27,7 +35,7 @@
     {
       address = "192.168.1.182";
       prefixLength = 24;
-      
+
     }
   ];
   networking.defaultGateway = "192.168.1.1";
@@ -53,9 +61,6 @@
 
   # Enable the X11 windowing system.
   # services.xserver.enable = true;
-
-
-  
 
   # Configure keymap in X11
   # services.xserver.xkb.layout = "us";
@@ -87,7 +92,6 @@
     removeOlder = "7d";
     keepMin = 10;
   };
-
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
   # users.users.alice = {
@@ -146,7 +150,7 @@
     users.javier = {
       imports = [
         ../../modules/home-manager/base.nix
-         ./home-manager.nix
+        ./home-manager.nix
       ];
       home.stateVersion = "25.11";
       home.username = "javier";
@@ -180,7 +184,7 @@
   };
 
   users.groups.ollama = { };
-    
+
   # programs.firefox.enable = true;
 
   # List packages installed in system profile.
@@ -236,7 +240,7 @@
   # accidentally delete configuration.nix.
   # system.copySystemConfiguration = true;
   nix.optimise.automatic = true;
- 
+
   systemd.services.llama-svc = {
     enable = true;
     description = "Llama service";
@@ -275,10 +279,8 @@
   # For more information, see `man configuration.nix` or https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion .
   system.stateVersion = "25.11"; # Did you read the comment?
 
-  
   nixpkgs.config.allowUnfree = true;
 
   hardware.graphics.enable32Bit = true;
   hardware.graphics.enable = true;
 }
-
