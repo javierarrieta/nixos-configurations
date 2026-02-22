@@ -193,6 +193,7 @@
     prometheus.exporters.node = {
       enable = true;
       openFirewall = true;
+      enabledCollectors = [ "drm" ];
     };
 
     ollama = {
