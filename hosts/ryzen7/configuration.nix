@@ -2,7 +2,7 @@
 # your system. Help is available in the configuration.nix(5) man page, on
 # https://search.nixos.org/options and in the NixOS manual (`nixos-help`).
 
-{ config, lib, pkgs, nixpkgs, nix-sweep,  ... }:
+{ config, lib, pkgs, nixpkgs, nix-sweep, home-manager, ... }:
 
 {
   imports =
@@ -97,15 +97,89 @@
   #     tree
   #   ];
   # };
-  users.users.harrybear = {
+  sops = {
+    defaultSopsFile = ../../secrets.yaml;
+    age.keyFile = "/var/lib/sops-nix/key.txt";
+    age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+    secrets."users/javier_password_hash" = {
+      mode = "0600";
+      owner = "root";
+    };
+
+    templates."javier-password" = {
+      content = "${config.sops.placeholder."users/javier_password_hash"}";
+    };
+
+    secrets."ssh_keys/javier_authorized" = {
+      mode = "0444";
+      owner = "javier";
+      path = "${config.users.users.javier.home}/.ssh/authorized_keys";
+    };
+    secrets."ssh_keys/javier_private" = {
+      mode = "0600";
+      owner = "javier";
+      path = "${config.users.users.javier.home}/.ssh/id_ed25519";
+    };
+    secrets."ssh_keys/javier_public" = {
+      mode = "0644";
+      owner = "javier";
+      path = "${config.users.users.javier.home}/.ssh/id_ed25519.pub";
+    };
+    secrets."ssh_keys/ryzen7_host_private" = {
+      mode = "0600";
+      owner = "root";
+      path = "/etc/ssh/ssh_host_ed25519_key";
+    };
+    secrets."ssh_keys/ryzen7_host_public" = {
+      mode = "0644";
+      owner = "root";
+      path = "/etc/ssh/ssh_host_ed25519_key.pub";
+    };
+  };
+
+  programs.zsh.enable = true;
+
+  home-manager = {
+    backupFileExtension = "orig";
+    useGlobalPkgs = true;
+    useUserPackages = true;
+    users.javier = {
+      imports = [
+        ../../modules/home-manager/base.nix
+         ./home-manager.nix
+      ];
+      home.stateVersion = "25.11";
+      home.username = "javier";
+      home.homeDirectory = "/home/javier";
+    };
+  };
+
+  systemd.tmpfiles.rules = [
+    "d /home/javier/.ssh 0700 javier javier -"
+  ];
+
+  users.users.javier = {
     isNormalUser = true;
-    extraGroups = [ "wheel" ];
-    openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJAxtDTZvN/YqOQC1nOGahb/qLp35iYnBTPaGld6/N6k javier@Javiers-MacBook-Air.local" ];
-    packages = [
-      pkgs.screen
-      pkgs.btop
+    hashedPasswordFile = config.sops.templates."javier-password".path;
+    extraGroups = [
+      "wheel"
+      "networkmanager"
+      "render"
+      "video"
+    ];
+    shell = pkgs.zsh;
+  };
+
+  users.users.ollama = {
+    isSystemUser = true;
+    group = "ollama";
+    extraGroups = [
+      "render"
+      "video"
     ];
   };
+
+  users.groups.ollama = { };
     
   # programs.firefox.enable = true;
 
@@ -137,7 +211,19 @@
   # List services that you want to enable:
 
   # Enable the OpenSSH daemon.
-  services.openssh.enable = true;
+  services.openssh = {
+    enable = true;
+    settings = {
+      PermitRootLogin = "no";
+      PasswordAuthentication = true;
+    };
+    hostKeys = [
+      {
+        path = "/etc/ssh/ssh_host_ed25519_key";
+        type = "ed25519";
+      }
+    ];
+  };
 
   # Open ports in the firewall.
   networking.firewall.allowedTCPPorts = [ 22 ];
@@ -158,11 +244,18 @@
       Type = "simple";
     };
     serviceConfig = {
-      ExecStart = "/run/wrappers/bin/su - harrybear -c '/run/current-system/sw/bin/llama-server -hf unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF  --host 0.0.0.0  --ctx-size 16384 --metrics'";
+      ExecStart = "${pkgs.llama-cpp-vulkan}/bin/llama-server -hf unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF  --host 0.0.0.0  --ctx-size 16384 --metrics'";
+      Type = "simple";
+      User = "ollama";
+      Group = "ollama";
+      WorkingDirectory = "/opt/llm/models";
+      Restart = "on-failure";
+      RestartSec = "5s";
     };
     wantedBy = [ "multi-user.target" ];
     # ...
   };
+
   # This option defines the first version of NixOS you have installed on this particular machine,
   # and is used to maintain compatibility with application data (e.g. databases) created on older NixOS versions.
   #
