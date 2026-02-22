@@ -8,9 +8,13 @@
     };
     disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
+    comin = {
+      url = "github:nlewo/comin";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, unstable, sops-nix, disko, home-manager, ... }:
+  outputs = { self, nixpkgs, unstable, sops-nix, disko, home-manager, comin, ... }:
     let
       mkExtraArgs = system: {
         unstablepkgs = import unstable {
@@ -49,6 +53,7 @@
           disko.nixosModules.disko
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
+          comin.nixosModules.comin
         ];
       };
 

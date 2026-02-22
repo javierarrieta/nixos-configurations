@@ -249,5 +249,17 @@
     "d /home/javier/.ssh 0700 javier javier -"
   ];
 
+  services.comin = {
+    enable = true;
+    remotes = [
+      {
+        name = "origin";
+        url = "git@github.com:javierarrieta/nixos-configurations.git";
+        branches.main.name = "main";
+        poller.period = 900;
+      }
+    ];
+  };
+
   system.stateVersion = "25.11";
 }
