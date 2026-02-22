@@ -104,3 +104,37 @@
 ### General
 - **Temporary Files**: Generate keys and temporary data in `/tmp` when possible.
 - **Cleanup**: Always clean up temporary files (`*.json`, `*.dec.yaml`, `*.bak`, `*_host_key*`) before finishing the task.
+
+### GitOps with Comin
+- **What is Comin**: Comin is a GitOps tool for NixOS that runs in pull mode, periodically polling Git repositories and deploying configurations associated with the machine hostname.
+- **Repository URL**: `github:nlewo/comin`
+- **Flake Input Setup**:
+  ```nix
+  comin = {
+    url = "github:nlewo/comin";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+  ```
+- **Module Import**: Add `comin.nixosModules.comin` to the modules list in `flake.nix`
+- **Configuration** (in host `configuration.nix`):
+  ```nix
+  services.comin = {
+    enable = true;
+    remotes = [
+      {
+        name = "origin";
+        url = "git@github.com:your/infra.git";
+        branches.main.name = "main";
+        poller.period = 900;  # 15 minutes in seconds
+      }
+    ];
+  };
+  ```
+- **Important Options**:
+  - `services.comin.enable`: Enable the comin service
+  - `services.comin.remotes`: List of Git repositories to poll
+  - `services.comin.remotes.*.url`: Git repository URL
+  - `services.comin.remotes.*.branches.main.name`: Branch to deploy
+  - `services.comin.remotes.*.poller.period`: Polling interval in seconds (default: 60)
+  - `services.comin.hostname`: Machine name (defaults to `networking.hostName`)
+- **Note**: Do not use `settings` block - use direct options like `poller.period` instead
