@@ -22,7 +22,7 @@
 
   '';
 
-  networking.hostName = "ai-server"; # Define your hostname.
+  networking.hostName = "ryzen7"; # Define your hostname.
   networking.interfaces.enp3s0.ipv4.addresses = [
     {
       address = "192.168.1.182";
