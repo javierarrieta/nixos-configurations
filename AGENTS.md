@@ -1,8 +1,9 @@
 # NixOS Configuration Agent Guidelines
 
 ## Commands
-- **Apply Config**: `nixos-rebuild switch --flake .#nixos`
-- **Test Config**: `nixos-rebuild test --flake .#nixos` (builds & activates in VM/test environment)
+- **Apply Config**: `nixos-rebuild switch --flake .#<hostname>`
+- **Test Config (NixOS)**: `nixos-rebuild test --flake .#<hostname>` (builds & activates in test environment)
+- **Test Evaluation (macOS/Non-NixOS)**: `nix eval .#nixosConfigurations.<hostname>.config.system.build.toplevel --show-trace` (verifies syntax and module configuration locally without needing `nixos-rebuild`)
 - **Format**: `nixfmt .` (Ensure clean git state before running)
 - **Secrets (Sops)**:
   - Edit: `sops secrets.yaml` (opens editor, encrypts on save)
