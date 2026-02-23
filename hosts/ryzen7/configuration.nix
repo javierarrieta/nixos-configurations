@@ -114,11 +114,6 @@
       content = "${config.sops.placeholder."users/javier_password_hash"}";
     };
 
-    secrets."ssh_keys/javier_authorized" = {
-      mode = "0444";
-      owner = "javier";
-      path = "${config.users.users.javier.home}/.ssh/authorized_keys";
-    };
     secrets."ssh_keys/javier_private" = {
       mode = "0600";
       owner = "javier";
@@ -172,6 +167,9 @@
       "video"
     ];
     shell = pkgs.zsh;
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJAxtDTZvN/YqOQC1nOGahb/qLp35iYnBTPaGld6/N6k javier@Javiers-MacBook-Air.local"
+    ];
   };
 
   users.users.ollama = {

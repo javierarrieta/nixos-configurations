@@ -20,11 +20,6 @@
     defaultSopsFile = ./secrets.yaml;
     age.keyFile = "${config.users.users.javier.home}/.config/sops/age/keys.txt";
     age.sshKeyPaths = [ "${config.users.users.javier.home}/.config/sops/age/keys.txt" ];
-    secrets."ssh_keys/javier_authorized" = {
-      mode = "0444";
-      owner = "javier";
-      path = "${config.users.users.javier.home}/.ssh/authorized_keys";
-    };
     secrets."ssh_keys/javier_private" = {
       mode = "0600";
       owner = "javier";
