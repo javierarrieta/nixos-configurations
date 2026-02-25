@@ -242,7 +242,7 @@
     remotes = [
       {
         name = "origin";
-        url = "git@github.com:javierarrieta/nixos-configurations.git";
+        url = "https://github.com/javierarrieta/nixos-configurations.git";
         branches.main.name = "main";
         poller.period = 900;
       }
