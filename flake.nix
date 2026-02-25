@@ -102,5 +102,18 @@
           nix-sweep.nixosModules.default
         ];
       };
+
+      nixosConfigurations.k8s-node03 = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        specialArgs = {
+          inherit unstable home-manager;
+        }
+        // (mkExtraArgs "x86_64-linux");
+        modules = [
+          ./hosts/k8s-node03
+          sops-nix.nixosModules.sops
+          home-manager.nixosModules.home-manager
+        ];
+      };
     };
 }

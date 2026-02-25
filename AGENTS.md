@@ -29,6 +29,9 @@
 - **Key Location**: If decryption fails, ensure `SOPS_AGE_KEY_FILE` is set.
   - Likely location: `~/.config/sops/age/keys.txt`
   - Command: `export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt`
+- **Agent Decryption Limitations**: When a user's SSH key (like `~/.ssh/id_ed25519`) has a passphrase, `sops updatekeys` cannot prompt for the passphrase non-interactively in the agent's shell environment. `sops` will fail with an error `failed to obtain passphrase... standard input is not a terminal`. In these cases:
+  1. Add the public keys to `.sops.yaml` yourself.
+  2. Ask the user to run `sops updatekeys secrets.yaml -y` and `sops secrets.yaml` in their own terminal.
 - **Workflow**:
   1. Decrypt: `sops -d secrets.yaml > secrets.dec.yaml`
   2. Edit: Modify `secrets.dec.yaml`

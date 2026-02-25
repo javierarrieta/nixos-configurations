@@ -44,41 +44,41 @@
     vim
   ];
 
-   time.timeZone = "Utc";
+  time.timeZone = "Utc";
 
-   home-manager = {
-     useGlobalPkgs = true;
-     useUserPackages = true;
-     users.javier = {
-       imports = [
-         ../../modules/home-manager/base.nix
-       ];
-       home.stateVersion = "25.11";
-       home.username = "javier";
-       home.homeDirectory = "/home/javier";
-     };
-   };
+  home-manager = {
+    useGlobalPkgs = true;
+    useUserPackages = true;
+    users.javier = {
+      imports = [
+        ../../modules/home-manager/base.nix
+      ];
+      home.stateVersion = "25.11";
+      home.username = "javier";
+      home.homeDirectory = "/home/javier";
+    };
+  };
 
-   users.users.javier = {
-     isNormalUser = true;
-     extraGroups = [
-       "wheel"
-       "networkmanager"
-     ];
-     openssh.authorizedKeys.keys = [
-       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJAxtDTZvN/YqOQC1nOGahb/qLp35iYnBTPaGld6/N6k javier@Javiers-MacBook-Air.local"
-     ];
-   };
+  users.users.javier = {
+    isNormalUser = true;
+    extraGroups = [
+      "wheel"
+      "networkmanager"
+    ];
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJAxtDTZvN/YqOQC1nOGahb/qLp35iYnBTPaGld6/N6k javier@Javiers-MacBook-Air.local"
+    ];
+  };
 
-   services = {
-     openssh = {
-       enable = true;
-       settings = {
-         PermitRootLogin = "no";
-         PasswordAuthentication = true;
-       };
-     };
-   };
+  services = {
+    openssh = {
+      enable = true;
+      settings = {
+        PermitRootLogin = "no";
+        PasswordAuthentication = true;
+      };
+    };
+  };
 
   nixpkgs.config.allowUnfree = true;
 
