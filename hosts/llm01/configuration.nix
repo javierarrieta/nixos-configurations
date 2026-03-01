@@ -244,8 +244,8 @@ in
   systemd.services.llama-cpp-server = {
     description = "llama-cpp server";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network.target" "llama-cpp-download-models.service" ];
-    requires = [ "llama-cpp-download-models.service" ];
+    after = [ "network.target" "llama-cpp-config.service" ];
+    requires = [ "llama-cpp-config.service" ];
     serviceConfig = {
       Type = "simple";
       User = "ollama";
@@ -310,27 +310,35 @@ in
     };
   };
 
-  system.activationScripts.llama-cpp-config = lib.stringAfter [ "llama-cpp-download-models.service" ] ''
-    mkdir -p /opt/llm
-    cat > /opt/llm/llama-cpp.ini <<EOF
-    ${lib.concatStrings (
-      lib.mapAttrsToList (
-        entry-name: config:
-        let
-          filename = config.filename;
-          extraProperties = config.extraProperties or { };
-        in
-        ''
-          [${entry-name}]
-          model = /opt/llm/models/llama-cpp/${filename}
-          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value: "${key} = ${value}") extraProperties)}
-        ''
-      ) models
-    )}
-    EOF
-    chown ollama:ollama /opt/llm/llama-cpp.ini
-    chmod 644 /opt/llm/llama-cpp.ini
-  '';
+  systemd.services.llama-cpp-config = {
+    description = "Generate llama-cpp config file";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "llama-cpp-download-models.service" ];
+    requires = [ "llama-cpp-download-models.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      User = "ollama";
+      Group = "ollama";
+      ExecStart = pkgs.writeShellScript "generate-config" ''
+        cat > /opt/llm/llama-cpp.ini <<EOF
+        ${lib.concatStrings (
+          lib.mapAttrsToList (
+            entry-name: config:
+            let
+              filename = config.filename;
+              extraProperties = config.extraProperties or { };
+            in
+            ''
+               [${entry-name}]
+               model = /opt/llm/models/llama-cpp/${filename}
+               ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value: "${key} = ${value}") extraProperties)}
+            ''
+          ) models
+        )}
+        EOF
+      '';
+    };
+  };
 
   services.comin = {
     enable = true;
