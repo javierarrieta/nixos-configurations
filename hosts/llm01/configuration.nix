@@ -258,6 +258,15 @@ in
     };
   };
 
+  systemd.paths.llama-cpp-config-watch = {
+    description = "Watch llama-cpp config file for changes";
+    wantedBy = [ "multi-user.target" ];
+    pathConfig = {
+      PathModified = "/opt/llm/llama-cpp.ini";
+      Unit = "llama-cpp-server.service";
+    };
+  };
+
   networking.firewall.allowedTCPPorts = [ 8001 ];
 
   nix.settings = {
@@ -275,7 +284,23 @@ in
     "d /home/javier/.ssh 0700 javier javier -"
   ];
 
-  system.activationScripts.llama-cpp-config = lib.stringAfter [ "users" ] ''
+  system.activationScripts.llama-cpp-download-models = lib.stringAfter [ "users" ] ''
+    ${lib.concatStrings (
+      lib.mapAttrsToList (
+        entry-name: config:
+        let
+          modelId = config.modelId;
+          filename = config.filename;
+        in
+        ''
+           echo "Downloading ${entry-name} from ${modelId}..."
+           su - ollama -c '${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model'
+        ''
+      ) models
+    )}
+  '';
+
+  system.activationScripts.llama-cpp-config = lib.stringAfter [ "llama-cpp-download-models" ] ''
     mkdir -p /opt/llm
     cat > /opt/llm/llama-cpp.ini <<EOF
     ${lib.concatStrings (
@@ -295,23 +320,6 @@ in
     EOF
     chown ollama:ollama /opt/llm/llama-cpp.ini
     chmod 644 /opt/llm/llama-cpp.ini
-  '';
-
-  system.activationScripts.llama-cpp-download-models = lib.stringAfter [ "llama-cpp-config" ] ''
-    ${lib.concatStrings (
-      lib.mapAttrsToList (
-        entry-name: config:
-        let
-          modelId = config.modelId;
-          filename = config.filename;
-        in
-        ''
-          echo "Downloading ${entry-name} from ${modelId}..."
-          sudo -u ollama ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model
-        ''
-      ) models
-    )}
-    systemctl restart llama-cpp-server.service
   '';
 
   services.comin = {
