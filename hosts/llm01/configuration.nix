@@ -210,6 +210,8 @@
     description = "LLaMA C++ Server with Vulkan";
     wantedBy = [ "multi-user.target" ];
     after = [ "network.target" ];
+    environment.XDG_CACHE_HOME = "/opt/llm/.cache/llama.cpp";
+    serviceConfig.CacheDirectory = "llama.cpp";
     serviceConfig = {
       Type = "simple";
       User = "ollama";
