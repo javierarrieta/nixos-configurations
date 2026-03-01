@@ -5,6 +5,7 @@
   unstable,
   unstablepkgs,
   home-manager,
+  llama-cpp,
   ...
 }:
 
@@ -119,19 +120,19 @@
 
   networking.wg-quick.interfaces.wg0.configFile = config.sops.templates."wg0.conf".path;
 
-  environment.systemPackages = with pkgs; [
-    tpm2-tss # Provides systemd-cryptenroll
-    git
-    zsh
-    fish
-    openiscsi
-    vim
-    rocmPackages.rocm-smi
-    wireguard-tools
-    dig
-    hdparm
-    unstablepkgs.llama-cpp-vulkan
-  ];
+  environment.systemPackages =   [
+      pkgs.tpm2-tss # Provides systemd-cryptenroll
+      pkgs.git
+      pkgs.zsh
+      pkgs.fish
+      pkgs.openiscsi
+      pkgs.vim
+      pkgs.rocmPackages.rocm-smi
+      pkgs.wireguard-tools
+      pkgs.dig
+      pkgs.hdparm
+      llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.vulkan
+    ];
 
   time.timeZone = "Utc";
 
