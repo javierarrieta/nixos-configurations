@@ -75,13 +75,13 @@
   sops.secrets."wireguard/publicKey" = { };
   sops.secrets."wireguard/endpoint" = { };
   sops.secrets."wireguard/allowedIPs" = { };
-  
+
   sops.templates."wg0.conf".content = ''
     [Interface]
     Address = ${config.sops.placeholder."wireguard/address"}
     DNS = 8.8.8.8, 1.1.1.1
     PrivateKey = ${config.sops.placeholder."wireguard/private_key"}
-    
+
     [Peer]
     PublicKey = ${config.sops.placeholder."wireguard/publicKey"}
     Endpoint = ${config.sops.placeholder."wireguard/endpoint"}
@@ -156,10 +156,10 @@
       # rocmOverrideGfx = "11.5.0";
       package = unstablePkgs.ollama-vulkan;
       # acceleration = "rocm";
-  
+
       environmentVariables = {
         # Vital for preventing the 100% GPU hang you saw earlier
-        OLLAMA_KEEP_ALIVE = "60"; 
+        OLLAMA_KEEP_ALIVE = "60";
         # Force the Vulkan runner
         OLLAMA_VULKAN = "1";
       };

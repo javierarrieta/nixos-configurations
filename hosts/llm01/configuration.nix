@@ -11,6 +11,37 @@
 let
   # This points to the specific Vulkan package from the flake
   llamaPackage = llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.vulkan;
+
+  models = {
+    "Qwen2.5-coder-1.5B" = {
+      modelId = "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF";
+      filename = "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf";
+      extraProperties = {
+        "ctx-size" = "8192";
+      };
+    };
+    "Qwen3.5-35B" = {
+      modelId = "Qwen/Qwen3-Coder-Next-GGUF";
+      filename = "Qwen3.5-35B-A3B-Q4_K_M.gguf ";
+      extraProperties = {
+        "ctx-size" = "65386";
+      };
+    };
+    "MiroThinker-v1.5-30B" = {
+      modelId = "mradermacher/MiroThinker-v1.5-30B-GGUF";
+      filename = "MiroThinker-v1.5-30B.Q6_K.gguf ";
+      extraProperties = {
+        "ctx-size" = "65386";
+      };
+    };
+    "Qwen3-coder-Next" = {
+      modelId = "unsloth/Qwen3-Coder-Next-GGUF";
+      filename = "Qwen3-Coder-Next-Q4_K_M.gguf ";
+      extraProperties = {
+        "ctx-size" = "65386";
+      };
+    };
+  };
 in
 {
   imports = [
@@ -239,9 +270,31 @@ in
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
 
   systemd.tmpfiles.rules = [
-    "d /opt/llm/models 0755 ollama ollama -"
+    "d /opt/llm/models/llama-cpp 0755 ollama ollama -"
     "d /home/javier/.ssh 0700 javier javier -"
   ];
+
+  system.activationScripts.llama-cpp-config = lib.stringAfter [ "users" ] ''
+    mkdir -p /opt/llm
+    cat > /opt/llm/llama-cpp.ini <<EOF
+    ${lib.concatStrings (
+      lib.mapAttrsToList (
+        entry-name: config:
+        let
+          filename = config.filename;
+          extraProperties = config.extraProperties or { };
+        in
+        ''
+          [${entry-name}]
+          model = /opt/llm/models/llama-cpp/${filename}
+          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value: "${key} = ${value}") extraProperties)}
+        ''
+      ) models
+    )}
+    EOF
+    chown ollama:ollama /opt/llm/llama-cpp.ini
+    chmod 644 /opt/llm/llama-cpp.ini
+  '';
 
   services.comin = {
     enable = true;
