@@ -292,6 +292,13 @@ in
       User = "ollama";
       Group = "ollama";
       WorkingDirectory = "/opt/llm/models/llama-cpp";
+      ReadWritePaths = [ "/opt/llm/models/llama-cpp" ];
+      Environment = [
+        "HOME=/var/lib/ollama"
+        "XDG_CACHE_HOME=/var/lib/ollama/.cache"
+      ];
+      PrivateTmp = false;
+      NoNewPrivileges = false;
       ExecStart = pkgs.writeShellScript "download-models" ''
         ${lib.concatStrings (
           lib.mapAttrsToList (
