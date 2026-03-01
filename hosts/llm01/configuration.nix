@@ -294,8 +294,8 @@ in
       WorkingDirectory = "/opt/llm/models/llama-cpp";
       ReadWritePaths = [ "/opt/llm/models/llama-cpp" ];
       Environment = [
-        "HOME=/var/lib/ollama"
-        "XDG_CACHE_HOME=/var/lib/ollama/.cache"
+        "HOME=/opt/llm/models"
+        "XDG_CACHE_HOME=/opt/llm/models/.cache"
       ];
       PrivateTmp = false;
       NoNewPrivileges = false;
