@@ -294,6 +294,7 @@ in
         in
         ''
            echo "Downloading ${entry-name} from ${modelId}..."
+           install -d -m 0755 -o ollama -g ollama /opt/llm/models/llama-cpp
            runuser -u ollama -- ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model
         ''
       ) models
