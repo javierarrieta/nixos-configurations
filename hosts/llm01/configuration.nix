@@ -285,7 +285,7 @@ in
 
   systemd.services.llama-cpp-download-models = {
     description = "Download llama-cpp models from HuggingFace";
-    wantedBy = [ "llama-cpp-server.service" ];
+    wantedBy = [ "multi-user.target" ];
     after = [ "network.target" ];
     serviceConfig = {
       Type = "oneshot";
