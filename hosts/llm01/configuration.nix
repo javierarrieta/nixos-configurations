@@ -165,6 +165,7 @@ in
     pkgs.wireguard-tools
     pkgs.dig
     pkgs.hdparm
+    pkgs.python311Packages.huggingface-hub
     llamaPackage
   ];
 
@@ -294,6 +295,23 @@ in
     EOF
     chown ollama:ollama /opt/llm/llama-cpp.ini
     chmod 644 /opt/llm/llama-cpp.ini
+  '';
+
+  system.activationScripts.llama-cpp-download-models = lib.stringAfter [ "llama-cpp-config" ] ''
+    ${lib.concatStrings (
+      lib.mapAttrsToList (
+        entry-name: config:
+        let
+          modelId = config.modelId;
+          filename = config.filename;
+        in
+        ''
+          echo "Downloading ${entry-name} from ${modelId}..."
+          sudo -u ollama ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+        ''
+      ) models
+    )}
+    systemctl restart llama-cpp-server.service
   '';
 
   services.comin = {
