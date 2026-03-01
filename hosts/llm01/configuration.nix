@@ -294,7 +294,7 @@ in
         in
         ''
            echo "Downloading ${entry-name} from ${modelId}..."
-           su - ollama -c '${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model'
+           runuser -u ollama -- ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model
         ''
       ) models
     )}
