@@ -36,7 +36,7 @@ let
     };
     "Qwen3-coder-Next" = {
       modelId = "unsloth/Qwen3-Coder-Next-GGUF";
-      filename = "Qwen3-Coder-Next-Q4_K_M-00001-of-00004.gguf";
+      filename = "Qwen3-Coder-Next-Q4_K_M.gguf";
       extraProperties = {
         "ctx-size" = "65386";
       };
