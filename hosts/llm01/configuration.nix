@@ -242,11 +242,10 @@ in
   };
 
   systemd.services.llama-cpp-server = {
-    description = "LLaMA C++ Server with Vulkan";
+    description = "llama-cpp server";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network.target" ];
-    environment.XDG_CACHE_HOME = "/opt/llm/.cache/llama.cpp";
-    serviceConfig.CacheDirectory = "llama.cpp";
+    after = [ "network.target" "llama-cpp-download-models.service" ];
+    requires = [ "llama-cpp-download-models.service" ];
     serviceConfig = {
       Type = "simple";
       User = "ollama";
@@ -284,24 +283,34 @@ in
     "d /home/javier/.ssh 0700 javier javier -"
   ];
 
-  system.activationScripts.llama-cpp-download-models = lib.stringAfter [ "users" ] ''
-    ${lib.concatStrings (
-      lib.mapAttrsToList (
-        entry-name: config:
-        let
-          modelId = config.modelId;
-          filename = config.filename;
-        in
-        ''
-           echo "Downloading ${entry-name} from ${modelId}..."
-           install -d -m 0775 -o ollama -g ollama /opt/llm/models/llama-cpp
-           HOME=/run/user/$(id -u ollama) runuser -u ollama -- ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model
-        ''
-      ) models
-    )}
-  '';
+  systemd.services.llama-cpp-download-models = {
+    description = "Download llama-cpp models from HuggingFace";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      User = "ollama";
+      Group = "ollama";
+      WorkingDirectory = "/opt/llm/models/llama-cpp";
+      ExecStart = pkgs.writeShellScript "download-models" ''
+        ${lib.concatStrings (
+          lib.mapAttrsToList (
+            entry-name: config:
+            let
+              modelId = config.modelId;
+              filename = config.filename;
+            in
+            ''
+               echo "Downloading ${entry-name} from ${modelId}..."
+               ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+            ''
+          ) models
+        )}
+      '';
+    };
+  };
 
-  system.activationScripts.llama-cpp-config = lib.stringAfter [ "llama-cpp-download-models" ] ''
+  system.activationScripts.llama-cpp-config = lib.stringAfter [ "llama-cpp-download-models.service" ] ''
     mkdir -p /opt/llm
     cat > /opt/llm/llama-cpp.ini <<EOF
     ${lib.concatStrings (
