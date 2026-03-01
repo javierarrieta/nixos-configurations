@@ -22,21 +22,21 @@ let
     };
     "Qwen3.5-35B" = {
       modelId = "Qwen/Qwen3-Coder-Next-GGUF";
-      filename = "Qwen3.5-35B-A3B-Q4_K_M.gguf ";
+      filename = "Qwen3.5-35B-A3B-Q4_K_M.gguf";
       extraProperties = {
         "ctx-size" = "65386";
       };
     };
     "MiroThinker-v1.5-30B" = {
       modelId = "mradermacher/MiroThinker-v1.5-30B-GGUF";
-      filename = "MiroThinker-v1.5-30B.Q6_K.gguf ";
+      filename = "MiroThinker-v1.5-30B.Q6_K.gguf";
       extraProperties = {
         "ctx-size" = "65386";
       };
     };
     "Qwen3-coder-Next" = {
       modelId = "unsloth/Qwen3-Coder-Next-GGUF";
-      filename = "Qwen3-Coder-Next-Q4_K_M.gguf ";
+      filename = "Qwen3-Coder-Next-Q4_K_M.gguf";
       extraProperties = {
         "ctx-size" = "65386";
       };
