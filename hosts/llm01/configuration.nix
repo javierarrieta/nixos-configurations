@@ -8,7 +8,10 @@
   llama-cpp,
   ...
 }:
-
+let
+  # This points to the specific Vulkan package from the flake
+  llamaPackage = llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.vulkan;
+in
 {
   imports = [
     ./disko.nix
@@ -120,19 +123,19 @@
 
   networking.wg-quick.interfaces.wg0.configFile = config.sops.templates."wg0.conf".path;
 
-  environment.systemPackages =   [
-      pkgs.tpm2-tss # Provides systemd-cryptenroll
-      pkgs.git
-      pkgs.zsh
-      pkgs.fish
-      pkgs.openiscsi
-      pkgs.vim
-      pkgs.rocmPackages.rocm-smi
-      pkgs.wireguard-tools
-      pkgs.dig
-      pkgs.hdparm
-      llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.vulkan
-    ];
+  environment.systemPackages = [
+    pkgs.tpm2-tss # Provides systemd-cryptenroll
+    pkgs.git
+    pkgs.zsh
+    pkgs.fish
+    pkgs.openiscsi
+    pkgs.vim
+    pkgs.rocmPackages.rocm-smi
+    pkgs.wireguard-tools
+    pkgs.dig
+    pkgs.hdparm
+    llamaPackage
+  ];
 
   time.timeZone = "Utc";
 
@@ -217,7 +220,7 @@
       User = "ollama";
       Group = "ollama";
       WorkingDirectory = "/opt/llm/models";
-      ExecStart = "${unstablepkgs.llama-cpp-vulkan}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 99 --threads 8 --gpu-layers 999 --n-gpu-layers 999";
+      ExecStart = "${llamaPackage}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 99 --threads 8 --gpu-layers 999 --n-gpu-layers 999";
       Restart = "on-failure";
       RestartSec = "5s";
     };
