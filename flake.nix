@@ -14,7 +14,10 @@
     };
     nix-sweep.url = "github:jzbor/nix-sweep";
     # Pull llama-cpp directly from its source
-    llama-cpp.url = "github:ggerganov/llama.cpp";
+    llama-cpp = {
+      url = "github:ggerganov/llama.cpp";
+      inputs.nixpkgs.follows = "unstable";
+    };
   };
 
   outputs =
