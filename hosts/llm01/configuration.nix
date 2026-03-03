@@ -226,7 +226,7 @@ in
       User = "ollama";
       Group = "ollama";
       WorkingDirectory = "/opt/llm/models";
-      ExecStart = "${llamaPackage}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 99 --threads 8 --gpu-layers 999 --n-gpu-layers 999";
+      ExecStart = "${llamaPackage}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 99 --threads 16 --gpu-layers 999 --n-gpu-layers 999";
       Restart = "on-failure";
       RestartSec = "5s";
     };
