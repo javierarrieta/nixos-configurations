@@ -131,11 +131,16 @@ in
     pkgs.fish
     pkgs.openiscsi
     pkgs.vim
-    pkgs.rocmPackages.rocm-smi
     pkgs.wireguard-tools
     pkgs.dig
     pkgs.hdparm
     pkgs.python311Packages.huggingface-hub
+    pkgs.nix-tree
+    pkgs.nix-index
+
+    unstablepkgs.rocmPackages.rocm-smi
+    unstablepkgs.rocmPackages.clr
+
     llamaPackage
   ];
 
