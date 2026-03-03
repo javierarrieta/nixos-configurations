@@ -229,7 +229,7 @@ in
         "HSA_OVERRIDE_GFX_VERSION=11.5.0"
         "HSA_ENABLE_SDMA=0"
       ];
-      ExecStart = "${llamaPackage}/bin/llama-server -v --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 999 --threads 8";
+      ExecStart = "${llamaPackage}/bin/llama-server -v --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 99 --threads 16";
       Restart = "on-failure";
       RestartSec = "5s";
     };
