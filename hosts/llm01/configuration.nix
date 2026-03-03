@@ -140,7 +140,6 @@ in
 
     unstablepkgs.rocmPackages.rocm-smi
     unstablepkgs.rocmPackages.clr
-
     llamaPackage
   ];
 
