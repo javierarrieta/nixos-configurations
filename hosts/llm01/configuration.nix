@@ -10,7 +10,7 @@
 }:
 let
   # This points to the specific Vulkan package from the flake
-  llamaPackage = llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.rocm;
+  # llamaPackage = llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.rocm;
   models = import ./llm-models.nix;
 in
 {
@@ -140,7 +140,7 @@ in
 
     unstablepkgs.rocmPackages.rocm-smi
     unstablepkgs.rocmPackages.clr
-    llamaPackage
+    unstablepkgs.llama-cpp-vulkan
   ];
 
   time.timeZone = "Utc";
@@ -223,16 +223,16 @@ in
     serviceConfig = {
       Type = "simple";
       User = "ollama";
-      Group = "ollama";                                                                                                                                                                                                                       
-      # Allows the GPU to lock system RAM for direct access                                                                                                                                                                                   
-      LimitMEMLOCK = "infinity";    
+      Group = "ollama";
+      # Allows the GPU to lock system RAM for direct access
+      LimitMEMLOCK = "infinity";
       WorkingDirectory = "/opt/llm/models";
       Environment = [
         "HSA_OVERRIDE_GFX_VERSION=11.5.0"
         "HSA_ENABLE_SDMA=0"
         "HSA_DISABLE_FRAGMENT_ALLOCATOR=1"
       ];
-      ExecStart = "${llamaPackage}/bin/llama-server -v --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --flash-attn on --no-mmap --offline -ngl 99 --threads 16";
+      ExecStart = "${unstablepkgs.llama-cpp-vulkan}/bin/llama-server -v --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --flash-attn on --no-mmap --offline -ngl 99 --threads 16";
       Restart = "on-failure";
       RestartSec = "5s";
     };
