@@ -89,7 +89,7 @@ in
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelParams = [
     "amdgpu.sched_policy=2"
-    "amd_iommu=off"
+    "amd_iommu=pt"
   ];
   boot.extraModprobeConfig = ''
     # Allocate more memory to the GPU VRAM for llama.cpp
@@ -223,13 +223,16 @@ in
     serviceConfig = {
       Type = "simple";
       User = "ollama";
-      Group = "ollama";
+      Group = "ollama";                                                                                                                                                                                                                       
+      # Allows the GPU to lock system RAM for direct access                                                                                                                                                                                   
+      LimitMEMLOCK = "infinity";    
       WorkingDirectory = "/opt/llm/models";
       Environment = [
         "HSA_OVERRIDE_GFX_VERSION=11.5.0"
         "HSA_ENABLE_SDMA=0"
+        "HSA_DISABLE_FRAGMENT_ALLOCATOR=1"
       ];
-      ExecStart = "${llamaPackage}/bin/llama-server -v --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 99 --threads 16";
+      ExecStart = "${llamaPackage}/bin/llama-server -v --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --flash-attn on --no-mmap --offline -ngl 99 --threads 16";
       Restart = "on-failure";
       RestartSec = "5s";
     };
