@@ -190,7 +190,7 @@ in
   services = {
     openssh = {
       enable = true;
-      settings = {`
+      settings = {
         PermitRootLogin = "no";
         PasswordAuthentication = true;
       };
