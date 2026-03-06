@@ -26,6 +26,6 @@
     extraProperties = {
       "ctx-size" = "65386";
     };
-    mmproj = "mmproj-F32.gguf"
+    mmproj = "mmproj-F32.gguf";
   };
 }
