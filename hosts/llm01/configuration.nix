@@ -10,7 +10,7 @@
 }:
 let
   # This points to the specific Vulkan package from the flake
-  llamaPackage = llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.rocm;
+  llamaPackage = llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.vulkan;
   models = import ./llm-models.nix;
 in
 {
@@ -90,6 +90,9 @@ in
   boot.kernelParams = [
     "amdgpu.sched_policy=2"
     "amd_iommu=pt"
+    "amdgpu.gttsize=120000"
+    "ttm.pages_limit=31457280"
+    "ttm.page_pool_size=27525120"
   ];
   boot.extraModprobeConfig = ''
     # Allocate more memory to the GPU VRAM for llama.cpp
@@ -222,7 +225,7 @@ in
     after = [ "network.target" "llama-cpp-config.service" ];
     requires = [ "llama-cpp-config.service" ];
     environment = {
-      SA_OVERRIDE_GFX_VERSION="H11.5.0";
+      HSA_OVERRIDE_GFX_VERSION="11.5.0";
       HSA_ENABLE_SDMA="0";
       HSA_DISABLE_FRAGMENT_ALLOCATOR="1";
       XDG_CACHE_HOME="/opt/llm/.cache/llama.cpp";
