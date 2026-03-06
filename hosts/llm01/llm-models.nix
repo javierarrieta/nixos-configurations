@@ -12,6 +12,7 @@
     extraProperties = {
       "ctx-size" = "32768";
     };
+    mmproj = "mmproj-F32.gguf";
   };
   "MiroThinker-v1.5-30B" = {
     modelId = "mradermacher/MiroThinker-v1.5-30B-GGUF";
@@ -26,6 +27,5 @@
     extraProperties = {
       "ctx-size" = "65386";
     };
-    mmproj = "mmproj-F32.gguf";
   };
 }
