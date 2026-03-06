@@ -293,10 +293,15 @@ in
             let
               modelId = config.modelId;
               filename = config.filename;
+              mmproj = config.mmproj or null;
             in
             ''
                echo "Downloading ${entry-name} from ${modelId}..."
                ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+               ${lib.optionalString (mmproj != null) ''
+                 echo "Downloading mmproj for ${entry-name}..."
+                 ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${mmproj}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+               ''}
             ''
           ) models
         )}
@@ -320,11 +325,13 @@ in
             entry-name: config:
             let
               filename = config.filename;
+              mmproj = config.mmproj or null;
               extraProperties = config.extraProperties or { };
             in
             ''
                [${entry-name}]
                model = /opt/llm/models/llama-cpp/${filename}
+               ${lib.optionalString (mmproj != null) "mmproj = /opt/llm/models/llama-cpp/${mmproj}"}
                ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value: "${key} = ${value}") extraProperties)}
             ''
           ) models
