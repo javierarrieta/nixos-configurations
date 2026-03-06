@@ -10,7 +10,7 @@
 }:
 let
   # This points to the specific Vulkan package from the flake
-  # llamaPackage = llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.rocm;
+  llamaPackage = llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.vulkan;
   models = import ./llm-models.nix;
 in
 {
@@ -90,6 +90,9 @@ in
   boot.kernelParams = [
     "amdgpu.sched_policy=2"
     "amd_iommu=pt"
+    "amdgpu.gttsize=120000"
+    "ttm.pages_limit=31457280"
+    "ttm.page_pool_size=27525120"
   ];
   boot.extraModprobeConfig = ''
     # Allocate more memory to the GPU VRAM for llama.cpp
@@ -140,7 +143,8 @@ in
 
     unstablepkgs.rocmPackages.rocm-smi
     unstablepkgs.rocmPackages.clr
-    unstablepkgs.llama-cpp-vulkan
+
+    llamaPackage
   ];
 
   time.timeZone = "Utc";
@@ -220,6 +224,12 @@ in
     wantedBy = [ "multi-user.target" ];
     after = [ "network.target" "llama-cpp-config.service" ];
     requires = [ "llama-cpp-config.service" ];
+    environment = {
+      HSA_OVERRIDE_GFX_VERSION="11.5.0";
+      HSA_ENABLE_SDMA="0";
+      HSA_DISABLE_FRAGMENT_ALLOCATOR="1";
+      XDG_CACHE_HOME="/opt/llm/.cache/llama.cpp";
+    };
     serviceConfig = {
       Type = "simple";
       User = "ollama";
@@ -227,12 +237,8 @@ in
       # Allows the GPU to lock system RAM for direct access
       LimitMEMLOCK = "infinity";
       WorkingDirectory = "/opt/llm/models";
-      Environment = [
-        "HSA_OVERRIDE_GFX_VERSION=11.5.0"
-        "HSA_ENABLE_SDMA=0"
-        "HSA_DISABLE_FRAGMENT_ALLOCATOR=1"
-      ];
-      ExecStart = "${unstablepkgs.llama-cpp-vulkan}/bin/llama-server -v --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --flash-attn on --no-mmap --offline -ngl 99 --threads 16";
+      CacheDirectory = "llama.cpp";
+      ExecStart = "${llamaPackage}/bin/llama-server -v --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --flash-attn on --no-mmap --offline -ngl 99 --threads 16";
       Restart = "on-failure";
       RestartSec = "5s";
     };
