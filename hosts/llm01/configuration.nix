@@ -140,7 +140,8 @@ in
 
     unstablepkgs.rocmPackages.rocm-smi
     unstablepkgs.rocmPackages.clr
-    unstablepkgs.llama-cpp-vulkan
+
+    llamaPackage
   ];
 
   time.timeZone = "Utc";
@@ -189,7 +190,7 @@ in
   services = {
     openssh = {
       enable = true;
-      settings = {
+      settings = {`
         PermitRootLogin = "no";
         PasswordAuthentication = true;
       };
@@ -227,12 +228,14 @@ in
       # Allows the GPU to lock system RAM for direct access
       LimitMEMLOCK = "infinity";
       WorkingDirectory = "/opt/llm/models";
+      CacheDirectory = "llama.cpp";
       Environment = [
         "HSA_OVERRIDE_GFX_VERSION=11.5.0"
         "HSA_ENABLE_SDMA=0"
         "HSA_DISABLE_FRAGMENT_ALLOCATOR=1"
+        "XDG_CACHE_HOME=/opt/llm/.cache/llama.cpp"
       ];
-      ExecStart = "${unstablepkgs.llama-cpp-vulkan}/bin/llama-server -v --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --flash-attn on --no-mmap --offline -ngl 99 --threads 16";
+      ExecStart = "${llamaPackage}/bin/llama-server -v --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --flash-attn on --no-mmap --offline -ngl 99 --threads 16";
       Restart = "on-failure";
       RestartSec = "5s";
     };
