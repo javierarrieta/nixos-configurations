@@ -221,12 +221,12 @@ in
     wantedBy = [ "multi-user.target" ];
     after = [ "network.target" "llama-cpp-config.service" ];
     requires = [ "llama-cpp-config.service" ];
-    environment = [
-      "HSA_OVERRIDE_GFX_VERSION=11.5.0"
-      "HSA_ENABLE_SDMA=0"
-      "HSA_DISABLE_FRAGMENT_ALLOCATOR=1"
-      "XDG_CACHE_HOME=/opt/llm/.cache/llama.cpp"
-    ];
+    environment = {
+      SA_OVERRIDE_GFX_VERSION="H11.5.0";
+      HSA_ENABLE_SDMA="0";
+      HSA_DISABLE_FRAGMENT_ALLOCATOR="1";
+      XDG_CACHE_HOME="/opt/llm/.cache/llama.cpp";
+    };
     serviceConfig = {
       Type = "simple";
       User = "ollama";
