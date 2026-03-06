@@ -10,7 +10,7 @@
 }:
 let
   # This points to the specific Vulkan package from the flake
-  # llamaPackage = llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.rocm;
+  llamaPackage = llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.rocm;
   models = import ./llm-models.nix;
 in
 {
