@@ -112,20 +112,20 @@ in
   sops.secrets."wireguard/endpoint" = { };
   sops.secrets."wireguard/allowedIPs" = { };
 
-  sops.templates."wg0.conf".content = ''
-    [Interface]
-    Address = ${config.sops.placeholder."wireguard/address"}
-    DNS = 8.8.8.8, 1.1.1.1
-    PrivateKey = ${config.sops.placeholder."wireguard/private_key"}
+  # sops.templates."wg0.conf".content = ''
+  #   [Interface]
+  #   Address = ${config.sops.placeholder."wireguard/address"}
+  #   DNS = 8.8.8.8, 1.1.1.1
+  #   PrivateKey = ${config.sops.placeholder."wireguard/private_key"}
 
-    [Peer]
-    PublicKey = ${config.sops.placeholder."wireguard/publicKey"}
-    Endpoint = ${config.sops.placeholder."wireguard/endpoint"}
-    AllowedIPs = ${config.sops.placeholder."wireguard/allowedIPs"}
-    PersistentKeepalive = 25
-  '';
+  #   [Peer]
+  #   PublicKey = ${config.sops.placeholder."wireguard/publicKey"}
+  #   Endpoint = ${config.sops.placeholder."wireguard/endpoint"}
+  #   AllowedIPs = ${config.sops.placeholder."wireguard/allowedIPs"}
+  #   PersistentKeepalive = 25
+  # '';
 
-  networking.wg-quick.interfaces.wg0.configFile = config.sops.templates."wg0.conf".path;
+  # networking.wg-quick.interfaces.wg0.configFile = config.sops.templates."wg0.conf".path;
 
   environment.systemPackages = [
     pkgs.tpm2-tss # Provides systemd-cryptenroll
