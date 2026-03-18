@@ -127,6 +127,7 @@
         // (mkExtraArgs "x86_64-linux");
         modules = [
           ./hosts/k8s-node04
+          disko.nixosModules.disko
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
         ];
