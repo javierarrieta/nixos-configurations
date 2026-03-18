@@ -13,6 +13,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     nix-sweep.url = "github:jzbor/nix-sweep";
+    comfyui-nix.url = "github:utensils/comfyui-nix";
     # Pull llama-cpp directly from its source
     llama-cpp = {
       url = "github:ggerganov/llama.cpp";
@@ -30,6 +31,7 @@
       home-manager,
       comin,
       nix-sweep,
+      comfyui-nix,
       llama-cpp,
       ...
     }:
@@ -65,16 +67,27 @@
       nixosConfigurations.llm01 = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
-          inherit unstable home-manager llama-cpp;
+          inherit
+            unstable
+            home-manager
+            llama-cpp
+            comfyui-nix
+            ;
         }
         // (mkExtraArgs "x86_64-linux");
         modules = [
-          { nixpkgs.overlays = [ llama-cpp.overlays.default ]; }
+          {
+            nixpkgs.overlays = [
+              llama-cpp.overlays.default
+              comfyui-nix.overlays.default
+            ];
+          }
           ./hosts/llm01
           disko.nixosModules.disko
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           comin.nixosModules.comin
+          comfyui-nix.nixosModules.default
         ];
       };
 

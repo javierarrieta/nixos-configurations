@@ -229,6 +229,14 @@ in
       host = "0.0.0.0";
       package = unstablepkgs.open-webui;
     };
+
+    comfyui = {
+      enable = true;
+      gpuSupport = "rocm";
+      enableManager = true;
+      listenAddress = "0.0.0.0";
+      openFirewall = true;
+    };
   };
 
   systemd.services.llama-cpp-server = {
