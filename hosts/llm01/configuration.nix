@@ -211,6 +211,18 @@ in
       enabledCollectors = [ "drm" ];
     };
 
+    rsyslogd = {
+      enable = true;
+      extraConfig = ''
+        $ModLoad imuxsock
+        $ModLoad imjournal
+        $WorkDirectory /var/spool/rsyslog
+        $ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
+
+        *.* @@192.168.0.41:514
+      '';
+    };
+
     open-webui = {
       enable = true;
       openFirewall = true;
@@ -222,13 +234,16 @@ in
   systemd.services.llama-cpp-server = {
     description = "llama-cpp server";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network.target" "llama-cpp-config.service" ];
+    after = [
+      "network.target"
+      "llama-cpp-config.service"
+    ];
     requires = [ "llama-cpp-config.service" ];
     environment = {
-      HSA_OVERRIDE_GFX_VERSION="11.5.0";
-      HSA_ENABLE_SDMA="0";
-      HSA_DISABLE_FRAGMENT_ALLOCATOR="1";
-      XDG_CACHE_HOME="/opt/llm/.cache/llama.cpp";
+      HSA_OVERRIDE_GFX_VERSION = "11.5.0";
+      HSA_ENABLE_SDMA = "0";
+      HSA_DISABLE_FRAGMENT_ALLOCATOR = "1";
+      XDG_CACHE_HOME = "/opt/llm/.cache/llama.cpp";
     };
     serviceConfig = {
       Type = "simple";
@@ -296,12 +311,12 @@ in
               mmproj = config.mmproj or null;
             in
             ''
-               echo "Downloading ${entry-name} from ${modelId}..."
-               ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model
-               ${lib.optionalString (mmproj != null) ''
-                 echo "Downloading mmproj for ${entry-name}..."
-                 ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${mmproj}" --local-dir /opt/llm/models/llama-cpp --repo-type model
-               ''}
+              echo "Downloading ${entry-name} from ${modelId}..."
+              ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+              ${lib.optionalString (mmproj != null) ''
+                echo "Downloading mmproj for ${entry-name}..."
+                ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${mmproj}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+              ''}
             ''
           ) models
         )}
@@ -329,10 +344,10 @@ in
               extraProperties = config.extraProperties or { };
             in
             ''
-               [${entry-name}]
-               model = /opt/llm/models/llama-cpp/${filename}
-               ${lib.optionalString (mmproj != null) "mmproj = /opt/llm/models/llama-cpp/${mmproj}"}
-               ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value: "${key} = ${value}") extraProperties)}
+              [${entry-name}]
+              model = /opt/llm/models/llama-cpp/${filename}
+              ${lib.optionalString (mmproj != null) "mmproj = /opt/llm/models/llama-cpp/${mmproj}"}
+              ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value: "${key} = ${value}") extraProperties)}
             ''
           ) models
         )}
