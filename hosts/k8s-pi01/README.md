@@ -1,36 +1,35 @@
 # k8s-pi01 SD Image Building
 
 ## Overview
-This document explains how to build SD card images for k8s-pi01 (Raspberry Pi 4).
+This document explains how to build SD card images for k8s-pi01 (Raspberry Pi 4) using a GitOps minimal-intervention approach.
 
 ## Quick Start
 
-### Option 1: Build on Linux (Recommended for Full Config)
-If you have access to a Linux machine (x86_64 or aarch64), build the full configuration:
+### Option 1: Build Minimal Image + Comin (Recommended, Works on Mac & Linux)
+This is the recommended approach for cross-compiling, especially from macOS (aarch64-darwin → aarch64-linux), as it avoids `sops` cross-compilation errors.
+
+```bash
+# Build the minimal image (no SOPS dependencies)
+# On macOS:
+nix build .#packages.aarch64-darwin.sd-image-k8s-pi01-minimal
+
+# On Linux:
+nix build .#packages.x86_64-linux.sd-image-k8s-pi01-minimal
+
+# Result: result/sd-image/*.img.zst
+```
+
+### Option 2: Build on Linux (Full Config)
+If you have access to a Linux machine (x86_64 or aarch64) and your SOPS key is correctly injected into the environment, you can build the full configuration straight away:
 
 ```bash
 # Set up SOPS environment
 export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
 
 # Build SD image
-nixos-rebuild build-image --flake .#k8s-pi01 --image-variant sd-card
+nix build .#packages.x86_64-linux.sd-image-k8s-pi01
 
 # Result: result/sd-image/*.img.zst
-```
-
-### Option 2: Build Minimal Image + Comin (Works on Mac)
-For cross-compiling from Mac (aarch64-darwin → aarch64-linux), use the minimal image approach:
-
-```bash
-# Build minimal image (no SOPS dependencies, builds anywhere)
-nixos-rebuild build-image --flake .#k8s-pi01-minimal --image-variant sd-card
-
-# Flash to SD card
-unzstd result/sd-image/*.img.zst
-dd if=result/sd-image/*.img of=/dev/sdX bs=4M status=progress conv=fsync sync
-
-# Boot Pi, then let Comin deploy full configuration
-# The full configuration will be pulled automatically with k3s, promtail, etc. enabled
 ```
 
 ## Why Two Options?
@@ -38,19 +37,18 @@ dd if=result/sd-image/*.img of=/dev/sdX bs=4M status=progress conv=fsync sync
 ### Cross-Compilation Issue
 When building SD images on Mac for Linux (aarch64-darwin → aarch64-linux):
 - Build sandbox cannot access SOPS secrets from `~/.config/sops/age/keys.txt`
-- This causes `nixos-rebuild build-image` to fail with "Undefined error: 0"
-- The error occurs even if secrets are conditionally included with `lib.mkIf`
+- This causes evaluation to fail with "Undefined error: 0"
 
 ### Comin GitOps Solution
 Comin solves this by:
-1. **Initial boot**: Minimal image provides just bootloader, kernel, networking, and SSH access
-2. **Automatic deployment**: Comin runs on the target Pi where SOPS can access secrets
-3. **Full configuration**: Comin pulls and applies `configuration.nix` with all services enabled (k3s, promtail, etc.)
+1. **Initial boot**: Minimal image provides just the bootloader, kernel, networking, SSH access, and `comin`.
+2. **Key Injection**: You manually securely copy your `keys.txt` over to the newly booted Pi.
+3. **Automatic deployment**: `comin` polls the repository every 5 minutes (`poller.period = 300`), runs on the target Pi where SOPS can access secrets, and applies `configuration.nix` with all services enabled (k3s, promtail, etc.).
 
 ## File Structure
 
 - **`configuration.nix`**: Full configuration with k3s, promtail, and all services
-- **`minimal-image.nix`**: Minimal configuration for SD image building (no SOPS, no k3s)
+- **`minimal-image.nix`**: Minimal configuration for SD image building (no SOPS, no k3s, comin enabled)
 - **`vars.nix`**: Shared variables (hostname, network settings)
 
 ## Flashing Instructions
@@ -64,6 +62,9 @@ unzstd result/sd-image/*.img.zst
 sudo dd if=result/sd-image/*.img of=/dev/sdX bs=4M status=progress conv=fsync sync
 
 # Unmount SD card
+# Linux:
+sudo umount /dev/sdX
+# macOS:
 sudo diskutil unmountDisk /dev/sdX
 ```
 
@@ -74,36 +75,36 @@ sudo diskutil unmountDisk /dev/sdX
 4. Select your SD card
 5. Click "Write"
 
-## First Boot Setup
+## First Boot Setup (GitOps Flow)
 
 1. Insert SD card into Raspberry Pi 4
 2. Connect Ethernet cable (recommended) or WiFi
 3. Connect power
 4. Wait 2-3 minutes for initial boot
-5. SSH as: `ssh javier@192.168.0.21`
+5. SSH into the Pi: `ssh javier@192.168.0.21`
 
-### Adding SOPS Secrets
+### Injecting SOPS Secrets
 
-After first boot, you need to set up SOPS:
+After first boot, you need to provide the AGE key so Comin can decrypt the secrets during its autonomous deployments:
 
 ```bash
-# On the Pi, add your age key
-age-keygen -o ~/.config/sops/age/keys.txt
+# From your laptop, scp the age key to the Pi
+scp ~/.config/sops/age/keys.txt javier@192.168.0.21:~/.config/sops/keys.txt
 
-# Or copy from your laptop
-scp ~/.config/sops/age/keys.txt javier@192.168.0.21:~/.config/sops/
-
-# Test SOPS
-sops -d secrets.yaml  # Should decrypt without errors
+# SSH into the Pi and move the key to the expected location
+ssh javier@192.168.0.21
+sudo mkdir -p /var/lib/sops-nix
+sudo cp ~/.config/sops/keys.txt /var/lib/sops-nix/key.txt
+sudo chmod 600 /var/lib/sops-nix/key.txt
 ```
 
-Then the full configuration will be deployed automatically by Comin.
+Once the key is in place, `comin` will automatically evaluate `.#nixosConfigurations.k8s-pi01`, decrypt all secrets, install `k3s`, and seamlessly deploy the full configuration.
 
 ## Troubleshooting
 
 ### Build Fails with "Undefined error: 0"
 **Cause**: Cross-compiling on Mac with SOPS secrets
-**Fix**: Use Option 2 (minimal image + Comin) or build on Linux
+**Fix**: Use Option 1 (minimal image + Comin) or build natively on Linux
 
 ### SSH Connection Refused
 **Cause**: Pi still booting or SSH not ready
