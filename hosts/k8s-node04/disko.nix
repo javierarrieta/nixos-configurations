@@ -37,7 +37,7 @@
               };
             };
             longhorn = {
-              size = "320G";
+              size = "350G";
               content = {
                 type = "filesystem";
                 format = "ext4";
