@@ -1,84 +1,119 @@
-# k8s-pi01 - Raspberry Pi 4 K8s Node
+# k8s-pi01 SD Image Building
 
 ## Overview
-This is a NixOS configuration for a Raspberry Pi 4 designed to run as a Kubernetes (k3s) agent node.
+This document explains how to build SD card images for k8s-pi01 (Raspberry Pi 4).
 
-## System Specs
-- **Hostname**: k8s-pi01
-- **Architecture**: aarch64-linux (ARM64)
-- **Platform**: Raspberry Pi 4
-- **Storage**: SD Card
-- **K3s Role**: Agent
+## Quick Start
 
-## Building the SD Image
+### Option 1: Build on Linux (Recommended for Full Config)
+If you have access to a Linux machine (x86_64 or aarch64), build the full configuration:
 
-### From Linux (x86_64)
 ```bash
-nix build .#packages.x86_64-linux.sd-image-k8s-pi01
+# Set up SOPS environment
+export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
+
+# Build SD image
+nixos-rebuild build-image --flake .#k8s-pi01 --image-variant sd-card
+
+# Result: result/sd-image/*.img.zst
 ```
 
-### From macOS (M1/M2/M3)
+### Option 2: Build Minimal Image + Comin (Works on Mac)
+For cross-compiling from Mac (aarch64-darwin → aarch64-linux), use the minimal image approach:
+
 ```bash
-nix build .#packages.aarch64-darwin.sd-image-k8s-pi01
+# Build minimal image (no SOPS dependencies, builds anywhere)
+nixos-rebuild build-image --flake .#k8s-pi01-minimal --image-variant sd-card
+
+# Flash to SD card
+unzstd result/sd-image/*.img.zst
+dd if=result/sd-image/*.img of=/dev/sdX bs=4M status=progress conv=fsync sync
+
+# Boot Pi, then let Comin deploy full configuration
+# The full configuration will be pulled automatically with k3s, promtail, etc. enabled
 ```
 
-The resulting image will be at `./result/sd-image/*.img.zst` (compressed) or `./result/sd-image/*.img` (uncompressed).
+## Why Two Options?
 
-## Flashing the SD Card
+### Cross-Compilation Issue
+When building SD images on Mac for Linux (aarch64-darwin → aarch64-linux):
+- Build sandbox cannot access SOPS secrets from `~/.config/sops/age/keys.txt`
+- This causes `nixos-rebuild build-image` to fail with "Undefined error: 0"
+- The error occurs even if secrets are conditionally included with `lib.mkIf`
 
-### Using dd (Linux/macOS)
+### Comin GitOps Solution
+Comin solves this by:
+1. **Initial boot**: Minimal image provides just bootloader, kernel, networking, and SSH access
+2. **Automatic deployment**: Comin runs on the target Pi where SOPS can access secrets
+3. **Full configuration**: Comin pulls and applies `configuration.nix` with all services enabled (k3s, promtail, etc.)
+
+## File Structure
+
+- **`configuration.nix`**: Full configuration with k3s, promtail, and all services
+- **`minimal-image.nix`**: Minimal configuration for SD image building (no SOPS, no k3s)
+- **`vars.nix`**: Shared variables (hostname, network settings)
+
+## Flashing Instructions
+
+### Using dd
 ```bash
-# Decompress if needed
+# Decompress (if needed)
 unzstd result/sd-image/*.img.zst
 
-# Flash to SD card (be careful with the device path!)
-dd if=result/sd-image/*.img of=/dev/sdX bs=4M status=progress conv=fsync sync
+# Write to SD card (adjust device path!)
+sudo dd if=result/sd-image/*.img of=/dev/sdX bs=4M status=progress conv=fsync sync
+
+# Unmount SD card
+sudo diskutil unmountDisk /dev/sdX
 ```
 
 ### Using Raspberry Pi Imager
-1. Download and install [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
-2. Select "Use custom image" and choose the generated `.img` file
-3. Select your SD card storage
-4. Flash the image
-
-## Network Configuration
-- **Static IP**: 192.168.0.251/24
-- **Gateway**: 192.168.0.1
-- **DNS**: 1.1.1.1, 8.8.8.8
-- **SSH**: Enabled on port 22
+1. Download [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
+2. Select "Use custom image"
+3. Choose `result/sd-image/*.img` or `result/sd-image/*.img.zst`
+4. Select your SD card
+5. Click "Write"
 
 ## First Boot Setup
 
-1. Insert the SD card into the Raspberry Pi 4
-2. Connect power and network (Ethernet recommended)
-3. Wait for boot (~2-3 minutes)
-4. SSH as: `ssh javier@192.168.0.251`
+1. Insert SD card into Raspberry Pi 4
+2. Connect Ethernet cable (recommended) or WiFi
+3. Connect power
+4. Wait 2-3 minutes for initial boot
+5. SSH as: `ssh javier@192.168.0.21`
 
-## Services Enabled
-- **k3s**: Kubernetes agent node
-- **SSH**: Remote access
-- **Prometheus Node Exporter**: Metrics on port 9002
-- **Promtail**: Log forwarding to 192.168.0.41:3100
-- **open-iscsi**: For Longhorn storage
-- **NFS**: Network file system support
+### Adding SOPS Secrets
 
-## Hardware Configuration
-- Bootloader: extlinux-compatible (no GRUB)
-- Kernel: linux-rpi (Raspberry Pi optimized)
-- Console: ttyAMA0 (serial console)
+After first boot, you need to set up SOPS:
 
-## K3s Configuration
-```yaml
-Role: agent
-Server: https://192.168.0.200:6443
-Labels:
-  - storage=sd
-  - arch=aarch64
-  - cpu=rpi4
+```bash
+# On the Pi, add your age key
+age-keygen -o ~/.config/sops/age/keys.txt
+
+# Or copy from your laptop
+scp ~/.config/sops/age/keys.txt javier@192.168.0.21:~/.config/sops/
+
+# Test SOPS
+sops -d secrets.yaml  # Should decrypt without errors
 ```
 
-## Notes
-- Initial boot may take 2-3 minutes as NixOS sets up the system
-- SSH host keys are managed via sops for persistent fingerprints
-- Home directory is configured for user `javier`
-- Default shell is fish
+Then the full configuration will be deployed automatically by Comin.
+
+## Troubleshooting
+
+### Build Fails with "Undefined error: 0"
+**Cause**: Cross-compiling on Mac with SOPS secrets
+**Fix**: Use Option 2 (minimal image + Comin) or build on Linux
+
+### SSH Connection Refused
+**Cause**: Pi still booting or SSH not ready
+**Fix**: Wait 2-3 minutes after power on
+
+### Wrong IP Address
+**Default IP**: 192.168.0.21 (configured in `vars.nix`)
+**Check**: `ip addr show dev eth0` on the Pi
+
+## Reference
+
+- [NixOS SD Image Documentation](https://nixos.org/manual/nixos/stable/#sec-image-nixos-rebuild-build-image)
+- [AGENTS.md](../../AGENTS.md) - General NixOS configuration guidelines
