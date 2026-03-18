@@ -14,6 +14,8 @@
     };
     nix-sweep.url = "github:jzbor/nix-sweep";
     comfyui-nix.url = "github:utensils/comfyui-nix";
+    nixos-generators.url = "github:nix-community/nixos-generators";
+    nixos-generators.inputs.nixpkgs.follows = "nixpkgs";
     # Pull llama-cpp directly from its source
     llama-cpp = {
       url = "github:ggerganov/llama.cpp";
@@ -32,6 +34,7 @@
       comin,
       nix-sweep,
       comfyui-nix,
+      nixos-generators,
       llama-cpp,
       ...
     }:
@@ -130,6 +133,39 @@
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
         ];
+      };
+
+      nixosConfigurations.k8s-pi01 = nixpkgs.lib.nixosSystem {
+        system = "aarch64-linux";
+        specialArgs = {
+          inherit unstable home-manager;
+        }
+        // (mkExtraArgs "aarch64-linux");
+        modules = [
+          ./hosts/k8s-pi01
+          sops-nix.nixosModules.sops
+          home-manager.nixosModules.home-manager
+        ];
+      };
+
+      packages.x86_64-linux.sd-image-k8s-pi01 = nixos-generators.nixosGenerate {
+        system = "aarch64-linux";
+        modules = [
+          ./hosts/k8s-pi01
+          sops-nix.nixosModules.sops
+          home-manager.nixosModules.home-manager
+        ];
+        format = "sd-aarch64";
+      };
+
+      packages.aarch64-darwin.sd-image-k8s-pi01 = nixos-generators.nixosGenerate {
+        system = "aarch64-linux";
+        modules = [
+          ./hosts/k8s-pi01
+          sops-nix.nixosModules.sops
+          home-manager.nixosModules.home-manager
+        ];
+        format = "sd-aarch64";
       };
     };
 }

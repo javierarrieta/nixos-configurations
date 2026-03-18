@@ -3,7 +3,7 @@ creation_rules:
     key_groups:
       - age:
           # Your local development key
-          - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJAxtDTZvN/YqOQC1nOGahb/qLp35iYnBTPaGld6/N6k javier@Javiers-MacBook-Air.local"
+          - "age1wynx7pnkg8z6n20zxg2krecmgyy5gdlj6xrs2tmfjctefy2xwv3qa2v24g"
           # Target machine key (add after generating)
           - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMXtQHWgKc2ZXb0R06P2HUBuNeO1it8HWu12OLHP8vgB llm01"
           - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPGe70V1923+UAbbB9himWWvqjv+vvEp9HE3J7j4KJvp ryzen7"

@@ -1,0 +1,182 @@
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  vars = import ./vars.nix { inherit config pkgs; };
+in
+{
+  imports = [
+    ./hardware-configuration.nix
+    ./users.nix
+  ];
+
+  sops = {
+    defaultSopsFile = ../../secrets.yaml;
+    age.keyFile = "/var/lib/sops-nix/key.txt";
+    age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+    secrets."users/javier_password_hash" = {
+      mode = "0600";
+      owner = "root";
+    };
+    templates."javier-password" = {
+      content = "${config.sops.placeholder."users/javier_password_hash"}";
+    };
+    secrets."ssh_keys/javier_private" = {
+      mode = "0600";
+      owner = "javier";
+      path = "${config.users.users.javier.home}/.ssh/id_ed25519";
+    };
+    secrets."ssh_keys/javier_public" = {
+      mode = "0644";
+      owner = "javier";
+      path = "${config.users.users.javier.home}/.ssh/id_ed25519.pub";
+    };
+    secrets."k8s-pi01/k3s_token" = {
+      mode = "0600";
+      owner = "root";
+    };
+    secrets."ssh_keys/k8s-pi01_host_private" = {
+      mode = "0600";
+      owner = "root";
+      path = "/etc/ssh/ssh_host_ed25519_key";
+    };
+    secrets."ssh_keys/k8s-pi01_host_public" = {
+      mode = "0644";
+      owner = "root";
+      path = "/etc/ssh/ssh_host_ed25519_key.pub";
+    };
+  };
+
+  boot.loader.grub.enable = false;
+  boot.loader.generic-extlinux-compatible.enable = true;
+  boot.kernelPackages = pkgs.linuxPackages_rpi4;
+  boot.kernelParams = [
+    "8250.nr_uarts=1"
+    "console=ttyAMA0,115200"
+    "console=tty1"
+  ];
+
+  networking.hostName = vars.hostname;
+
+  time.timeZone = "UTC";
+  i18n.defaultLocale = "en_US.UTF-8";
+
+  users.defaultUserShell = pkgs.fish;
+
+  environment.systemPackages = with pkgs; [
+    vim
+    wget
+    screen
+    htop
+    git
+    fish
+    prometheus-node-exporter
+    k3s
+    kubernetes-helm
+    openiscsi
+    nfs-utils
+    xfsprogs
+    age
+    sops
+    neovim
+    btop
+    libraspberrypi
+  ];
+
+  programs.fish.enable = true;
+
+  boot.supportedFilesystems = [ "nfs" ];
+  services.rpcbind.enable = true;
+
+  services.openssh = {
+    enable = true;
+    hostKeys = [
+      {
+        path = "/etc/ssh/ssh_host_ed25519_key";
+        type = "ed25519";
+      }
+    ];
+  };
+
+  services.openiscsi = {
+    enable = true;
+    name = "openscsi";
+  };
+
+  services.prometheus.exporters.node = {
+    enable = true;
+    enabledCollectors = [ "systemd" ];
+    port = 9002;
+  };
+
+  home-manager = {
+    backupFileExtension = "orig";
+    useGlobalPkgs = true;
+    useUserPackages = true;
+    users.javier = {
+      imports = [
+        ../../modules/home-manager/base.nix
+        ./home-manager.nix
+      ];
+      home.stateVersion = "25.11";
+      home.username = "javier";
+      home.homeDirectory = "/home/javier";
+    };
+  };
+
+  services.k3s = vars.k3sOptions;
+
+  systemd.services.k3s.path = with pkgs; [
+    openiscsi
+    e2fsprogs
+    xfsprogs
+    util-linux
+  ];
+
+  services.promtail = {
+    enable = true;
+    configuration = {
+      server = {
+        http_listen_port = 3031;
+        grpc_listen_port = 0;
+      };
+      positions = {
+        filename = "/tmp/positions.yaml";
+      };
+      clients = [ vars.lokiPromtailClient ];
+      scrape_configs = [
+        {
+          job_name = "journal";
+          journal = {
+            json = false;
+            max_age = "1h";
+            labels = {
+              job = "systemd-journal";
+              host = vars.hostname;
+            };
+          };
+          relabel_configs = [
+            {
+              source_labels = [ "__journal__systemd_unit" ];
+              target_label = "unit";
+            }
+          ];
+        }
+      ];
+    };
+    extraFlags = [
+      "-config.expand-env=true"
+    ];
+  };
+
+  systemd.tmpfiles.rules = [
+    "L+ /usr/local/bin - - - - /run/current-system/sw/bin/"
+  ];
+
+  hardware.enableRedistributableFirmware = true;
+
+  system.stateVersion = "25.11";
+}
