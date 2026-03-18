@@ -8,7 +8,11 @@
   llama-cpp,
   ...
 }:
-
+let
+  # This points to the specific Vulkan package from the flake
+  llamaPackage = llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.vulkan;
+  models = import ./llm-models.nix;
+in
 {
   imports = [
     ./disko.nix
@@ -85,7 +89,10 @@
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelParams = [
     "amdgpu.sched_policy=2"
-    "amd_iommu=off"
+    "amd_iommu=pt"
+    "amdgpu.gttsize=120000"
+    "ttm.pages_limit=31457280"
+    "ttm.page_pool_size=27525120"
   ];
   boot.extraModprobeConfig = ''
     # Allocate more memory to the GPU VRAM for llama.cpp
@@ -120,19 +127,25 @@
 
   networking.wg-quick.interfaces.wg0.configFile = config.sops.templates."wg0.conf".path;
 
-  environment.systemPackages =   [
-      pkgs.tpm2-tss # Provides systemd-cryptenroll
-      pkgs.git
-      pkgs.zsh
-      pkgs.fish
-      pkgs.openiscsi
-      pkgs.vim
-      pkgs.rocmPackages.rocm-smi
-      pkgs.wireguard-tools
-      pkgs.dig
-      pkgs.hdparm
-      llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.vulkan
-    ];
+  environment.systemPackages = [
+    pkgs.tpm2-tss # Provides systemd-cryptenroll
+    pkgs.git
+    pkgs.zsh
+    pkgs.fish
+    pkgs.openiscsi
+    pkgs.vim
+    pkgs.wireguard-tools
+    pkgs.dig
+    pkgs.hdparm
+    pkgs.python311Packages.huggingface-hub
+    pkgs.nix-tree
+    pkgs.nix-index
+
+    unstablepkgs.rocmPackages.rocm-smi
+    unstablepkgs.rocmPackages.clr
+
+    llamaPackage
+  ];
 
   time.timeZone = "Utc";
 
@@ -207,17 +220,36 @@
   };
 
   systemd.services.llama-cpp-server = {
-    description = "LLaMA C++ Server with Vulkan";
+    description = "llama-cpp server";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network.target" ];
+    after = [ "network.target" "llama-cpp-config.service" ];
+    requires = [ "llama-cpp-config.service" ];
+    environment = {
+      HSA_OVERRIDE_GFX_VERSION="11.5.0";
+      HSA_ENABLE_SDMA="0";
+      HSA_DISABLE_FRAGMENT_ALLOCATOR="1";
+      XDG_CACHE_HOME="/opt/llm/.cache/llama.cpp";
+    };
     serviceConfig = {
       Type = "simple";
       User = "ollama";
       Group = "ollama";
+      # Allows the GPU to lock system RAM for direct access
+      LimitMEMLOCK = "infinity";
       WorkingDirectory = "/opt/llm/models";
-      ExecStart = "${unstablepkgs.llama-cpp-vulkan}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 99 --threads 8 --gpu-layers 999 --n-gpu-layers 999";
+      CacheDirectory = "llama.cpp";
+      ExecStart = "${llamaPackage}/bin/llama-server -v --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --flash-attn on --no-mmap --offline -ngl 99 --threads 16";
       Restart = "on-failure";
       RestartSec = "5s";
+    };
+  };
+
+  systemd.paths.llama-cpp-config-watch = {
+    description = "Watch llama-cpp config file for changes";
+    wantedBy = [ "multi-user.target" ];
+    pathConfig = {
+      PathModified = "/opt/llm/llama-cpp.ini";
+      Unit = "llama-cpp-server.service";
     };
   };
 
@@ -234,9 +266,80 @@
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
 
   systemd.tmpfiles.rules = [
-    "d /opt/llm/models 0755 ollama ollama -"
+    "d /opt/llm/models/llama-cpp 0755 ollama ollama -"
     "d /home/javier/.ssh 0700 javier javier -"
   ];
+
+  systemd.services.llama-cpp-download-models = {
+    description = "Download llama-cpp models from HuggingFace";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      User = "ollama";
+      Group = "ollama";
+      WorkingDirectory = "/opt/llm/models/llama-cpp";
+      ReadWritePaths = [ "/opt/llm/models/llama-cpp" ];
+      Environment = [
+        "HOME=/opt/llm/models"
+        "XDG_CACHE_HOME=/opt/llm/models/.cache"
+      ];
+      PrivateTmp = false;
+      NoNewPrivileges = false;
+      ExecStart = pkgs.writeShellScript "download-models" ''
+        ${lib.concatStrings (
+          lib.mapAttrsToList (
+            entry-name: config:
+            let
+              modelId = config.modelId;
+              filename = config.filename;
+              mmproj = config.mmproj or null;
+            in
+            ''
+               echo "Downloading ${entry-name} from ${modelId}..."
+               ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+               ${lib.optionalString (mmproj != null) ''
+                 echo "Downloading mmproj for ${entry-name}..."
+                 ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${mmproj}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+               ''}
+            ''
+          ) models
+        )}
+      '';
+    };
+  };
+
+  systemd.services.llama-cpp-config = {
+    description = "Generate llama-cpp config file";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "llama-cpp-download-models.service" ];
+    requires = [ "llama-cpp-download-models.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      User = "ollama";
+      Group = "ollama";
+      ExecStart = pkgs.writeShellScript "generate-config" ''
+        cat > /opt/llm/llama-cpp.ini <<EOF
+        ${lib.concatStrings (
+          lib.mapAttrsToList (
+            entry-name: config:
+            let
+              filename = config.filename;
+              mmproj = config.mmproj or null;
+              extraProperties = config.extraProperties or { };
+            in
+            ''
+               [${entry-name}]
+               model = /opt/llm/models/llama-cpp/${filename}
+               ${lib.optionalString (mmproj != null) "mmproj = /opt/llm/models/llama-cpp/${mmproj}"}
+               ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value: "${key} = ${value}") extraProperties)}
+            ''
+          ) models
+        )}
+        EOF
+      '';
+    };
+  };
 
   services.comin = {
     enable = true;
