@@ -2,10 +2,20 @@
   config,
   lib,
   pkgs,
+  unstable,
+  unstablepkgs,
+  home-manager,
+  llama-cpp,
   ...
 }:
 let
-  vars = import ./vars.nix { inherit config pkgs; };
+  vars = import ./vars.nix {
+    inherit
+      config
+      pkgs
+      lib
+      ;
+  };
 in
 {
   imports = [
