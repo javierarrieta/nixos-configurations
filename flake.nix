@@ -14,8 +14,6 @@
     };
     nix-sweep.url = "github:jzbor/nix-sweep";
     comfyui-nix.url = "github:utensils/comfyui-nix";
-    nixos-generators.url = "github:nix-community/nixos-generators";
-    nixos-generators.inputs.nixpkgs.follows = "nixpkgs";
     # Pull llama-cpp directly from its source
     llama-cpp = {
       url = "github:ggerganov/llama.cpp";
@@ -34,7 +32,6 @@
       comin,
       nix-sweep,
       comfyui-nix,
-      nixos-generators,
       llama-cpp,
       ...
     }:
@@ -161,44 +158,52 @@
         ];
       };
 
-      packages.x86_64-linux.sd-image-k8s-pi01 = nixos-generators.nixosGenerate {
-        system = "aarch64-linux";
-        modules = [
-          ./hosts/k8s-pi01
-          sops-nix.nixosModules.sops
-          home-manager.nixosModules.home-manager
-          comin.nixosModules.comin
-        ];
-        format = "sd-aarch64";
-      };
+      packages.x86_64-linux.sd-image-k8s-pi01 =
+        (self.nixosConfigurations.k8s-pi01.extendModules {
 
-      packages.x86_64-linux.sd-image-k8s-pi01-minimal = nixos-generators.nixosGenerate {
-        system = "aarch64-linux";
-        modules = [
-          ./hosts/k8s-pi01/minimal-image.nix
-          comin.nixosModules.comin
-        ];
-        format = "sd-aarch64";
-      };
+          modules = [
 
-      packages.aarch64-darwin.sd-image-k8s-pi01 = nixos-generators.nixosGenerate {
-        system = "aarch64-linux";
-        modules = [
-          ./hosts/k8s-pi01
-          sops-nix.nixosModules.sops
-          home-manager.nixosModules.home-manager
-          comin.nixosModules.comin
-        ];
-        format = "sd-aarch64";
-      };
+            { nixpkgs.buildPlatform.system = "x86_64-linux"; }
 
-      packages.aarch64-darwin.sd-image-k8s-pi01-minimal = nixos-generators.nixosGenerate {
-        system = "aarch64-linux";
-        modules = [
-          ./hosts/k8s-pi01/minimal-image.nix
-          comin.nixosModules.comin
-        ];
-        format = "sd-aarch64";
-      };
+            "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
+
+          ];
+
+        }).config.system.build.sdImage;
+
+      packages.x86_64-linux.sd-image-k8s-pi01-minimal =
+        (self.nixosConfigurations.k8s-pi01-minimal.extendModules {
+
+          modules = [
+
+            { nixpkgs.buildPlatform.system = "x86_64-linux"; }
+
+            "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
+
+          ];
+
+        }).config.system.build.sdImage;
+
+      packages.aarch64-darwin.sd-image-k8s-pi01 =
+        (self.nixosConfigurations.k8s-pi01.extendModules {
+
+          modules = [
+
+            "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
+
+          ];
+
+        }).config.system.build.sdImage;
+
+      packages.aarch64-darwin.sd-image-k8s-pi01-minimal =
+        (self.nixosConfigurations.k8s-pi01-minimal.extendModules {
+
+          modules = [
+
+            "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
+
+          ];
+
+        }).config.system.build.sdImage;
     };
 }
