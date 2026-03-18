@@ -139,6 +139,18 @@ in
 
   services.k3s = vars.k3sOptions;
 
+  services.comin = {
+    enable = true;
+    remotes = [
+      {
+        name = "origin";
+        url = "https://github.com/javierarrieta/nixos-configurations.git";
+        branches.main.name = "main";
+        poller.period = 300;
+      }
+    ];
+  };
+
   systemd.services.k3s.path = with pkgs; [
     openiscsi
     e2fsprogs
