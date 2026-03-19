@@ -20,26 +20,30 @@ nmcli
 # 3. Write the luks key to /tmp/disko-password in the target machine
 
 # 4. Run nix-anywhere
-SOPS_AGE_KEY=<path_to_age_key> nix run github:nix-community/nixos-anywhere -- --flake <path_to_flake>.#llm01 --target-host nixos@<ip_addr> --build-on-remote
+SOPS_AGE_KEY_FILE=<path_to_age_key> nix --extra-experimental-features "nix-command flakes" run github:nix-community/nixos-anywhere -- --flake <path_to_flake>#llm01 --target-host nixos@<ip_addr> --build-on-remote
 ```
 
 ## Manual Bootstrap
 
 If you prefer manual control:
 
+Copy the luks password to a file on the target machine `/tmp/disko-password`
+
+Copy the age key to a file on the target machine `/tmp/age-key`
+
 ```bash
-# 1. Install Nix (single-user mode, flakes enabled)
-sh <(curl -L https://nixos.org/nix/install) --no-daemon
+# 1. Enable flakes
 
 # Add to ~/.config/nix/nix.conf (create if doesn't exist)
-mkdir -p ~/.config/nix
+mkdir -p ~/.config/nix && \
 echo "experimental-features = nix-command flakes" >> ~/.config/nix/nix.conf
 
 # 2. Clone your repository
-git clone https://github.com/javierarrieta/nixos-configurations.git /root/nixos-configurations
-cd /root/nixos-configurations
+git clone https://github.com/javierarrieta/nixos-configurations.git $HOME/nixos-configurations && \
+cd $HOME/nixos-configurations
 
 # 3. Install NixOS
+export SOPS_AGE_KEY_FILE=/tmp/age-key && \
 sudo nixos-install --flake .#llm01
 
 # Or test first without installing:
