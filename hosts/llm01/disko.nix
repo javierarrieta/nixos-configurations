@@ -22,7 +22,7 @@
               };
             };
             luks-root = {
-              size = "50G";
+              size = "100G";
               content = {
                 type = "luks";
                 name = "disk0-root";

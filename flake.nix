@@ -176,7 +176,11 @@
 
           modules = [
 
-            { nixpkgs.buildPlatform.system = "x86_64-linux"; }
+            {
+              nixpkgs.buildPlatform.system = "x86_64-linux";
+              nixpkgs.hostPlatform.system = "aarch64-linux";
+              nixpkgs.overlays = [ comin.overlays.default ];
+            }
 
             "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
 
