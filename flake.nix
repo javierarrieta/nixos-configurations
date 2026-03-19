@@ -47,7 +47,6 @@
     in
     {
       nixosConfigurations.llm01 = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
         specialArgs = {
           inherit
             unstable
@@ -58,6 +57,7 @@
         // (mkExtraArgs "x86_64-linux");
         modules = [
           {
+            nixpkgs.hostPlatform.system = "x86_64-linux";
             nixpkgs.overlays = [
               comfyui-nix.overlays.default
             ];
@@ -72,12 +72,14 @@
       };
 
       nixosConfigurations.newhost = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
         specialArgs = {
           inherit unstable home-manager;
         }
         // (mkExtraArgs "x86_64-linux");
         modules = [
+          {
+            nixpkgs.hostPlatform.system = "x86_64-linux";
+          }
           ./hosts/newhost
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
@@ -85,12 +87,14 @@
       };
 
       nixosConfigurations.ryzen7 = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
         specialArgs = {
           inherit unstable home-manager nix-sweep;
         }
         // (mkExtraArgs "x86_64-linux");
         modules = [
+          {
+            nixpkgs.hostPlatform.system = "x86_64-linux";
+          }
           ./hosts/ryzen7
           disko.nixosModules.disko
           sops-nix.nixosModules.sops
@@ -100,12 +104,14 @@
       };
 
       nixosConfigurations.k8s-node03 = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
         specialArgs = {
           inherit unstable home-manager;
         }
         // (mkExtraArgs "x86_64-linux");
         modules = [
+          {
+            nixpkgs.hostPlatform.system = "x86_64-linux";
+          }
           ./hosts/k8s-node03
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
