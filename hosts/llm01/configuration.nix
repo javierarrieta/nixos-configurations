@@ -3,7 +3,6 @@
   lib,
   pkgs,
   unstable,
-  unstablepkgs,
   home-manager,
   llama-cpp,
   ...
@@ -142,8 +141,8 @@ in
     pkgs.nix-index
     pkgs.qemu
 
-    unstablepkgs.rocmPackages.rocm-smi
-    unstablepkgs.rocmPackages.clr
+    unstablePkgs.rocmPackages.rocm-smi
+    unstablePkgs.rocmPackages.clr
 
     llamaPackage
   ];
@@ -222,13 +221,6 @@ in
 
         *.* @@192.168.0.41:514
       '';
-    };
-
-    open-webui = {
-      enable = true;
-      openFirewall = true;
-      host = "0.0.0.0";
-      package = unstablepkgs.open-webui;
     };
 
     comfyui = {

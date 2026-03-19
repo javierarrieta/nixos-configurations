@@ -37,18 +37,6 @@
     }:
     let
       mkExtraArgs = system: {
-        unstablepkgs = import unstable {
-          system = system;
-          config.allowUnfree = true;
-        };
-        pkgsunfree = import nixpkgs {
-          system = system;
-          config.allowUnfree = true;
-        };
-        unstablepkgsunfree = import unstable {
-          system = system;
-          config.allowUnfree = true;
-        };
         unstablePkgs = import unstable {
           system = system;
           config.allowUnfree = false;

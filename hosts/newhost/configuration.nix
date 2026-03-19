@@ -3,7 +3,6 @@
   lib,
   pkgs,
   unstable,
-  unstablepkgs,
   home-manager,
   ...
 }:
