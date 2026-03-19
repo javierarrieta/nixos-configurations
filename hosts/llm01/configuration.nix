@@ -140,6 +140,8 @@ in
     pkgs.python311Packages.huggingface-hub
     pkgs.nix-tree
     pkgs.nix-index
+    pkgs.raspberrypiTools
+    pkgs.qemu
 
     unstablepkgs.rocmPackages.rocm-smi
     unstablepkgs.rocmPackages.clr
