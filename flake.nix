@@ -14,11 +14,6 @@
     };
     nix-sweep.url = "github:jzbor/nix-sweep";
     comfyui-nix.url = "github:utensils/comfyui-nix";
-    # Pull llama-cpp directly from its source
-    llama-cpp = {
-      url = "github:ggerganov/llama.cpp";
-      inputs.nixpkgs.follows = "unstable";
-    };
   };
 
   outputs =
@@ -32,7 +27,6 @@
       comin,
       nix-sweep,
       comfyui-nix,
-      llama-cpp,
       ...
     }:
     let
@@ -58,7 +52,6 @@
           inherit
             unstable
             home-manager
-            llama-cpp
             comfyui-nix
             ;
         }
@@ -66,7 +59,6 @@
         modules = [
           {
             nixpkgs.overlays = [
-              llama-cpp.overlays.default
               comfyui-nix.overlays.default
             ];
           }

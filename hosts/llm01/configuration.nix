@@ -4,12 +4,9 @@
   pkgs,
   unstable,
   home-manager,
-  llama-cpp,
   ...
 }:
 let
-  # This points to the specific Vulkan package from the flake
-  llamaPackage = llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.vulkan;
   models = import ./llm-models.nix;
 in
 {
@@ -144,7 +141,7 @@ in
     unstablePkgs.rocmPackages.rocm-smi
     unstablePkgs.rocmPackages.clr
 
-    llamaPackage
+    unstablePkgs.llama-cpp-vulkan
   ];
 
   time.timeZone = "Utc";
