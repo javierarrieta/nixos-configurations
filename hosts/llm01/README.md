@@ -17,22 +17,11 @@ This is the fastest way to bootstrap your NixOS configuration:
 # 2. Connect to network (if not already connected)
 nmcli
 
-# 3. Export SOPS age key for secrets decryption
-export SOPS_AGE_KEY_FILE=/path/to/your/age.key
+# 3. Write the luks key to /tmp/disko-password in the target machine
 
 # 4. Run nix-anywhere
-bash <(curl -sSL https://nix-anywhere.vercel.app)
+SOPS_AGE_KEY=~<path_to_age_key> nix run github:nix-community/nixos-anywhere -- --flake <path_to_flake>.#llm01 --target-host nixos@<ip_addr> --build-on-remote
 ```
-
-When prompted:
-- **Repository URL**: `https://github.com/javierarrieta/nixos-configurations.git`
-- **Flake ref**: `.#llm01`
-- **System**: `x86_64-linux`
-
-The script will automatically:
-- Install Nix with flakes support
-- Clone your repository
-- Run `nixos-install` with your flake configuration
 
 ## Manual Bootstrap
 
