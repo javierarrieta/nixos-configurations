@@ -2,12 +2,14 @@
   config,
   lib,
   pkgs,
+  unstablePkgs,
   unstable,
   home-manager,
   ...
 }:
 let
   models = import ./llm-models.nix;
+  llamaPackage = unstablePkgs.llama-cpp-vulkan;
 in
 {
   imports = [
@@ -173,6 +175,7 @@ in
     shell = pkgs.zsh;
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJAxtDTZvN/YqOQC1nOGahb/qLp35iYnBTPaGld6/N6k javier@Javiers-MacBook-Air.local"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKhwR+SbHJQR8mSFe5UvBVNlcuG6vpXLU6K+4Rh3z25N javier@DESKTOP-9N12DRJ"
     ];
   };
 
