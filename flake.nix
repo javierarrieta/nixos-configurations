@@ -32,15 +32,15 @@
     let
       mkExtraArgs = system: {
         unstablePkgs = import unstable {
-          system = system;
+          localSystem = system;
           config.allowUnfree = false;
         };
         pkgsUnfree = import nixpkgs {
-          system = system;
+          localSystem = system;
           config.allowUnfree = true;
         };
         unstablePkgsUnfree = import unstable {
-          system = system;
+          localSystem = system;
           config.allowUnfree = true;
         };
       };

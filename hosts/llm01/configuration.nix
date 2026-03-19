@@ -276,7 +276,7 @@ in
       "nix-command"
       "flakes"
     ];
-    download-buffer-size = 67108864;
+    download-buffer-size = 536870912;
   };
   nixpkgs.config.allowUnfree = true;
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
