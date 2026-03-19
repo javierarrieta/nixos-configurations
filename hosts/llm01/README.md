@@ -20,7 +20,7 @@ nmcli
 # 3. Write the luks key to /tmp/disko-password in the target machine
 
 # 4. Run nix-anywhere
-SOPS_AGE_KEY=~<path_to_age_key> nix run github:nix-community/nixos-anywhere -- --flake <path_to_flake>.#llm01 --target-host nixos@<ip_addr> --build-on-remote
+SOPS_AGE_KEY=<path_to_age_key> nix run github:nix-community/nixos-anywhere -- --flake <path_to_flake>.#llm01 --target-host nixos@<ip_addr> --build-on-remote
 ```
 
 ## Manual Bootstrap
