@@ -94,10 +94,10 @@ By placing the bootstrap age key directly on the mounted filesystem before insta
 2. Enroll LUKS passwords in TPM2 for automatic unlocking:
    ```bash
    # For root partition (/)
-   sudo systemd-cryptenroll --tpm2-device=auto /dev/mapper/disk0-root
+   sudo systemd-cryptenroll --tpm2-device=auto /dev/disk/by-partlabel/disk-disk0-luks-root
 
    # For LLM partition (/opt/llm)
-   sudo systemd-cryptenroll --tpm2-device=auto /dev/mapper/disk0-llm
+   sudo systemd-cryptenroll --tpm2-device=auto /dev/disk/by-partlabel/disk-disk0-luks-llm
    ```
 3. Remove the bootstrap age key (if using manual bootstrap):
    ```bash
