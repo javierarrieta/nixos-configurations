@@ -19,13 +19,14 @@ nmcli
 
 # 3. Write the luks key to /tmp/disko-password in the target machine
 
-# 4. Create a local file with your bootstrap age private key
-cat > sops-key.txt << 'EOF'
+# 4. Create a local file with your bootstrap age private key in a _deployment_ folder that we will use with `nix-anywhere`, using that folder as root of the overlay in the filesystem, ie `<deploy_dir>/var/lib/sops-nix`
+mkdir -p <deploy_dir>/var/lib/sops-nix
+cat > <deploy_dir>/var/lib/sops-nix/sops-key.txt << 'EOF'
 AGE-PRIVATE-KEY-HERE
 EOF
 
 # 5. Run nix-anywhere with the bootstrap key
-nix --extra-experimental-features "nix-command flakes" run github:nix-community/nixos-anywhere -- --flake .#llm01 --target-host nixos@<ip_addr> --build-on-remote --extra-files sops-key.txt:/var/lib/sops-nix/key.txt
+nix --extra-experimental-features "nix-command flakes" run github:nix-community/nixos-anywhere -- --flake .#llm01 --target-host nixos@<ip_addr> --build-on-remote --extra-files <deployment_dir>
 
 # 6. Clean up local key file
 rm sops-key.txt
