@@ -190,6 +190,8 @@ in
 
   users.groups.ollama = { };
 
+  security.sudo.wheelNeedsPassword = false; # TODO: Remove when issues with passwords are resolved
+
   services = {
     openssh = {
       enable = true;
