@@ -148,6 +148,11 @@ in
     "net.bridge.bridge-nf-call-ip6tables" = 1;
   };
 
+  boot.kernelParams = [
+    "overlay.override_cgroup=1"
+    "cgroup.no_restrict=1"
+  ];
+
   boot.supportedFilesystems = [ "nfs" ];
   services.rpcbind.enable = true;
   services.smartd.enable = true;
