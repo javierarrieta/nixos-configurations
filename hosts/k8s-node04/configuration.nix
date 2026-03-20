@@ -210,6 +210,9 @@ in
   systemd.tmpfiles.rules = [
     # Hack for Longhorn, see https://github.com/longhorn/longhorn/issues/2166#issuecomment-1864656450
     "L+ /usr/local/bin - - - - /run/current-system/sw/bin/"
+    # Log rotation for rsyslog
+    "f /var/log/rsyslog.log 0644 root root - -"
+    "f /var/spool/rsyslog/* 0640 root adm - -"
   ];
 
   services.rsyslogd = {
@@ -219,6 +222,12 @@ in
       $ModLoad imjournal
       $WorkDirectory /var/spool/rsyslog
       $ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
+      $FileOwner root
+      $FileGroup adm
+      $FileCreateMode 0640
+      $DirCreateMode 0755
+      $UMask 0022
+      $WorkDirectoryCreateMode 0755
 
       *.* @@192.168.0.41:514
     '';
