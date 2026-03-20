@@ -284,7 +284,8 @@ in
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
 
   systemd.tmpfiles.rules = [
-    "d /opt/llm/models/llama-cpp 0755 ollama ollama -"
+    "d /opt/llm 0755 ollama ollama -"
+    "Z /opt/llm - ollama ollama -"
     "d /home/javier/.ssh 0700 javier javier -"
   ];
 
