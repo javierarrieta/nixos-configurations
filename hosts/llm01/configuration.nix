@@ -313,10 +313,16 @@ in
               modelId = config.modelId;
               filename = config.filename;
               mmproj = config.mmproj or null;
+              matchSplit = builtins.match "(.*)-[0-9]+-of-[0-9]+\\.gguf" filename;
+              downloadArgs =
+                if matchSplit != null then
+                  "--include \"${builtins.head matchSplit}-*-of-*.gguf\""
+                else
+                  "\"${filename}\"";
             in
             ''
               echo "Downloading ${entry-name} from ${modelId}..."
-              ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+              ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" ${downloadArgs} --local-dir /opt/llm/models/llama-cpp --repo-type model
               ${lib.optionalString (mmproj != null) ''
                 echo "Downloading mmproj for ${entry-name}..."
                 ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${mmproj}" --local-dir /opt/llm/models/llama-cpp --repo-type model
