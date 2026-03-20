@@ -126,7 +126,7 @@ in
     xfsprogs
     age
     sops
-    promtail
+    rsyslog
     neovim
     btop
   ];
@@ -193,40 +193,13 @@ in
     utillinux # mount, umount, blkid
   ];
 
-  services.promtail = {
+  services.rsyslog = {
     enable = true;
-    configuration = {
-      server = {
-        http_listen_port = 3031;
-        grpc_listen_port = 0;
-      };
-      positions = {
-        filename = "/tmp/positions.yaml";
-      };
-      clients = [ vars.lokiPromtailClient ];
-      scrape_configs = [
-        {
-          job_name = "journal";
-          journal = {
-            json = false;
-            max_age = "1h";
-            labels = {
-              job = "systemd-journal";
-              host = vars.hostname;
-            };
-          };
-          relabel_configs = [
-            {
-              source_labels = [ "__journal__systemd_unit" ];
-              target_label = "unit";
-            }
-          ];
-        }
-      ];
+    remoteLogging = {
+      address = "192.168.0.41";
+      port = 514;
+      protocol = "udp";
     };
-    extraFlags = [
-      "-config.expand-env=true"
-    ];
   };
 
   systemd.tmpfiles.rules = [
@@ -293,7 +266,7 @@ in
   systemd.services.k3s.serviceConfig.EnvironmentFile =
     lib.mkForce
       config.sops.secrets."k8s-node04/network_env".path;
-  systemd.services.promtail.serviceConfig.EnvironmentFile =
+  systemd.services.rsyslog.serviceConfig.EnvironmentFile =
     lib.mkForce
       config.sops.secrets."k8s-node04/network_env".path;
 }
