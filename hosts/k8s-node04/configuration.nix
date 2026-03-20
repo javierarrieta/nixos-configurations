@@ -176,7 +176,6 @@ in
       node = {
         enable = true;
         enabledCollectors = [ "systemd" ];
-        port = 9002;
       };
     };
   };
