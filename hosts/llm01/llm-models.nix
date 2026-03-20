@@ -21,4 +21,11 @@
       "ctx-size" = "65536";
     };
   };
+  "Mistral-Small-4-119B-2603" = {
+    modelId = "unsloth/Mistral-Small-4-119B-2603-GGUF";
+    filename = "Mistral-Small-4-119B-2603-UD-Q4_K_XL-00001-of-00003.gguf";
+    extraProperties = {
+      "ctx-size" = "65536";
+    };
+  };
 }
