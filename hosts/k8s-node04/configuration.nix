@@ -211,11 +211,17 @@ in
     "L+ /usr/local/bin - - - - /run/current-system/sw/bin/"
   ];
 
-  # Configure rsyslog remote logging
-  environment.etc."rsyslog.d/49-k8s-node04.conf".text = ''
-    # Send all logs to remote syslog server at 192.168.0.41
-    *.* @@192.168.0.41:514
-  '';
+  services.rsyslogd = {
+    enable = true;
+    extraConfig = ''
+      $ModLoad imuxsock
+      $ModLoad imjournal
+      $WorkDirectory /var/spool/rsyslog
+      $ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
+
+      *.* @@192.168.0.41:514
+    '';
+  };
   # networking.firewall.allowedTCPPorts = [ ... ];
   # networking.firewall.allowedUDPPorts = [ ... ];
   # Or disable the firewall altogether.
