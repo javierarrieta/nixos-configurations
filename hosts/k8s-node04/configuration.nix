@@ -253,7 +253,7 @@ in
   # and migrated your data accordingly.
   #
   # For more information, see `man configuration.nix` or https://nixos.org/manual/nixos/stable/options#opt-system.stateVersion .
-  system.stateVersion = "23.11"; # Did you read the comment?
+  system.stateVersion = "25.11";
 
   # fileSystems."/storage01" = {
   #   device = "/dev/disk/by-uuid/57f18cec-59c3-4343-8a5a-180acdc3f2b1";
