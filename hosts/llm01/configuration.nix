@@ -2,16 +2,14 @@
   config,
   lib,
   pkgs,
+  unstablePkgs,
   unstable,
-  unstablepkgs,
   home-manager,
-  llama-cpp,
   ...
 }:
 let
-  # This points to the specific Vulkan package from the flake
-  llamaPackage = llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.vulkan;
   models = import ./llm-models.nix;
+  llamaPackage = unstablePkgs.llama-cpp-vulkan;
 in
 {
   imports = [
@@ -112,20 +110,20 @@ in
   sops.secrets."wireguard/endpoint" = { };
   sops.secrets."wireguard/allowedIPs" = { };
 
-  sops.templates."wg0.conf".content = ''
-    [Interface]
-    Address = ${config.sops.placeholder."wireguard/address"}
-    DNS = 8.8.8.8, 1.1.1.1
-    PrivateKey = ${config.sops.placeholder."wireguard/private_key"}
+  # sops.templates."wg0.conf".content = ''
+  #   [Interface]
+  #   Address = ${config.sops.placeholder."wireguard/address"}
+  #   DNS = 8.8.8.8, 1.1.1.1
+  #   PrivateKey = ${config.sops.placeholder."wireguard/private_key"}
 
-    [Peer]
-    PublicKey = ${config.sops.placeholder."wireguard/publicKey"}
-    Endpoint = ${config.sops.placeholder."wireguard/endpoint"}
-    AllowedIPs = ${config.sops.placeholder."wireguard/allowedIPs"}
-    PersistentKeepalive = 25
-  '';
+  #   [Peer]
+  #   PublicKey = ${config.sops.placeholder."wireguard/publicKey"}
+  #   Endpoint = ${config.sops.placeholder."wireguard/endpoint"}
+  #   AllowedIPs = ${config.sops.placeholder."wireguard/allowedIPs"}
+  #   PersistentKeepalive = 25
+  # '';
 
-  networking.wg-quick.interfaces.wg0.configFile = config.sops.templates."wg0.conf".path;
+  # networking.wg-quick.interfaces.wg0.configFile = config.sops.templates."wg0.conf".path;
 
   environment.systemPackages = [
     pkgs.tpm2-tss # Provides systemd-cryptenroll
@@ -140,11 +138,12 @@ in
     pkgs.python311Packages.huggingface-hub
     pkgs.nix-tree
     pkgs.nix-index
+    pkgs.qemu
 
-    unstablepkgs.rocmPackages.rocm-smi
-    unstablepkgs.rocmPackages.clr
+    unstablePkgs.rocmPackages.rocm-smi
+    unstablePkgs.rocmPackages.clr
 
-    llamaPackage
+    unstablePkgs.llama-cpp-vulkan
   ];
 
   time.timeZone = "Utc";
@@ -176,6 +175,7 @@ in
     shell = pkgs.zsh;
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJAxtDTZvN/YqOQC1nOGahb/qLp35iYnBTPaGld6/N6k javier@Javiers-MacBook-Air.local"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKhwR+SbHJQR8mSFe5UvBVNlcuG6vpXLU6K+4Rh3z25N javier@DESKTOP-9N12DRJ"
     ];
   };
 
@@ -189,6 +189,8 @@ in
   };
 
   users.groups.ollama = { };
+
+  security.sudo.wheelNeedsPassword = false; # TODO: Remove when issues with passwords are resolved
 
   services = {
     openssh = {
@@ -211,24 +213,40 @@ in
       enabledCollectors = [ "drm" ];
     };
 
-    open-webui = {
+    rsyslogd = {
       enable = true;
+      extraConfig = ''
+        $ModLoad imuxsock
+        $ModLoad imjournal
+        $WorkDirectory /var/spool/rsyslog
+        $ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
+
+        *.* @@192.168.0.41:514
+      '';
+    };
+
+    comfyui = {
+      enable = true;
+      gpuSupport = "rocm";
+      enableManager = true;
+      listenAddress = "0.0.0.0";
       openFirewall = true;
-      host = "0.0.0.0";
-      package = unstablepkgs.open-webui;
     };
   };
 
   systemd.services.llama-cpp-server = {
     description = "llama-cpp server";
     wantedBy = [ "multi-user.target" ];
-    after = [ "network.target" "llama-cpp-config.service" ];
+    after = [
+      "network.target"
+      "llama-cpp-config.service"
+    ];
     requires = [ "llama-cpp-config.service" ];
     environment = {
-      HSA_OVERRIDE_GFX_VERSION="11.5.0";
-      HSA_ENABLE_SDMA="0";
-      HSA_DISABLE_FRAGMENT_ALLOCATOR="1";
-      XDG_CACHE_HOME="/opt/llm/.cache/llama.cpp";
+      HSA_OVERRIDE_GFX_VERSION = "11.5.0";
+      HSA_ENABLE_SDMA = "0";
+      HSA_DISABLE_FRAGMENT_ALLOCATOR = "1";
+      XDG_CACHE_HOME = "/opt/llm/.cache/llama.cpp";
     };
     serviceConfig = {
       Type = "simple";
@@ -260,13 +278,14 @@ in
       "nix-command"
       "flakes"
     ];
-    download-buffer-size = 67108864;
+    download-buffer-size = 536870912;
   };
   nixpkgs.config.allowUnfree = true;
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
 
   systemd.tmpfiles.rules = [
-    "d /opt/llm/models/llama-cpp 0755 ollama ollama -"
+    "d /opt/llm 0755 ollama ollama -"
+    "Z /opt/llm - ollama ollama -"
     "d /home/javier/.ssh 0700 javier javier -"
   ];
 
@@ -294,14 +313,20 @@ in
               modelId = config.modelId;
               filename = config.filename;
               mmproj = config.mmproj or null;
+              matchSplit = builtins.match "(.*)-[0-9]+-of-[0-9]+\\.gguf" filename;
+              downloadArgs =
+                if matchSplit != null then
+                  "--include \"${builtins.head matchSplit}-*-of-*.gguf\""
+                else
+                  "\"${filename}\"";
             in
             ''
-               echo "Downloading ${entry-name} from ${modelId}..."
-               ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model
-               ${lib.optionalString (mmproj != null) ''
-                 echo "Downloading mmproj for ${entry-name}..."
-                 ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${mmproj}" --local-dir /opt/llm/models/llama-cpp --repo-type model
-               ''}
+              echo "Downloading ${entry-name} from ${modelId}..."
+              ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" ${downloadArgs} --local-dir /opt/llm/models/llama-cpp --repo-type model
+              ${lib.optionalString (mmproj != null) ''
+                echo "Downloading mmproj for ${entry-name}..."
+                ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${mmproj}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+              ''}
             ''
           ) models
         )}
@@ -329,10 +354,10 @@ in
               extraProperties = config.extraProperties or { };
             in
             ''
-               [${entry-name}]
-               model = /opt/llm/models/llama-cpp/${filename}
-               ${lib.optionalString (mmproj != null) "mmproj = /opt/llm/models/llama-cpp/${mmproj}"}
-               ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value: "${key} = ${value}") extraProperties)}
+              [${entry-name}]
+              model = /opt/llm/models/llama-cpp/${filename}
+              ${lib.optionalString (mmproj != null) "mmproj = /opt/llm/models/llama-cpp/${mmproj}"}
+              ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value: "${key} = ${value}") extraProperties)}
             ''
           ) models
         )}
