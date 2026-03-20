@@ -1,11 +1,11 @@
 { config, pkgs }:
 {
   hostname = "k8s-node04";
-  ipAddress = "$IP_ADDRESS";
-  defaultGateway = "$DEFAULT_GATEWAY";
+  ipAddress = "192.168.0.17";
+  defaultGateway = "192.168.0.1";
   nameservers = [
-    "$DNS1"
-    "$DNS2"
+    "8.8.8.8"
+    "8.8.4.4"
   ];
 
   k3sOptions = {
@@ -18,10 +18,6 @@
       "--node-label cpu=n100"
     ];
     tokenFile = config.sops.secrets."k8s-node04/k3s_token".path;
-    serverAddr = "https://$SERVER_ADDR:6443";
-  };
-
-  lokiPromtailClient = {
-    url = "$LOKI_URL";
+    serverAddr = "https://192.168.0.11:6443";
   };
 }

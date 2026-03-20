@@ -142,6 +142,12 @@ in
 
   # List services that you want to enable:
 
+  boot.kernel.sysctl = {
+    "net.bridge.bridge-nf-call-iptables" = 1;
+    "net.ipv4.ip_forward" = 1;
+    "net.bridge.bridge-nf-call-ip6tables" = 1;
+  };
+
   boot.supportedFilesystems = [ "nfs" ];
   services.rpcbind.enable = true;
   # Enable the OpenSSH daemon.
@@ -190,16 +196,14 @@ in
     openiscsi
     e2fsprogs # mkfs.ext4
     xfsprogs # mkfs.xfs
-    utillinux # mount, umount, blkid
+    util-linux # mount, umount, blkid
   ];
 
-  services.rsyslog = {
-    enable = true;
-    remoteLogging = {
-      address = "192.168.0.41";
-      port = 514;
-      protocol = "udp";
-    };
+  systemd.services.k3s.serviceConfig = {
+    MemoryLimit = "4G";
+    CPUQuota = "80%";
+    LimitNOFILE = lib.mkForce 1000000;
+    LimitNPROC = lib.mkForce 1000000;
   };
 
   systemd.tmpfiles.rules = [
@@ -207,7 +211,11 @@ in
     "L+ /usr/local/bin - - - - /run/current-system/sw/bin/"
   ];
 
-  # Open ports in the firewall.
+  # Configure rsyslog remote logging
+  environment.etc."rsyslog.d/49-k8s-node04.conf".text = ''
+    # Send all logs to remote syslog server at 192.168.0.41
+    *.* @@192.168.0.41:514
+  '';
   # networking.firewall.allowedTCPPorts = [ ... ];
   # networking.firewall.allowedUDPPorts = [ ... ];
   # Or disable the firewall altogether.
@@ -221,17 +229,14 @@ in
   networking.defaultGateway = vars.defaultGateway;
   networking.nameservers = vars.nameservers;
 
-  networking.firewall = {
-    enable = false;
-    # allowedTCPPorts = [
-    #   6443 # k3s: required so that pods can reach the API server (running on port 6443 by default)
-    # 2379 # k3s, etcd clients: required if using a "High Availability Embedded etcd" configuration
-    # 2380 # k3s, etcd peers: required if using a "High Availability Embedded etcd" configuration
-    # ];
-    # allowedUDPPorts = [
-    #   8472 # k3s, flannel: required if using multi-node for inter-node networking
-    # ];
-  };
+  networking.firewall.enable = false;
+
+  swapDevices = [
+    {
+      device = "/swapfile";
+      size = 8192;
+    }
+  ];
 
   # This option defines the first version of NixOS you have installed on this particular machine,
   # and is used to maintain compatibility with application data (e.g. databases) created on older NixOS versions.
