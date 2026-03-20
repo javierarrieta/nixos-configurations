@@ -150,6 +150,7 @@ in
 
   boot.supportedFilesystems = [ "nfs" ];
   services.rpcbind.enable = true;
+  services.smartd.enable = true;
   # Enable the OpenSSH daemon.
   services.openssh = {
     enable = true;
