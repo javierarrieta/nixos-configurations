@@ -270,7 +270,4 @@ in
   systemd.services.k3s.serviceConfig.EnvironmentFile =
     lib.mkForce
       config.sops.secrets."k8s-node04/network_env".path;
-  systemd.services.rsyslog.serviceConfig.EnvironmentFile =
-    lib.mkForce
-      config.sops.secrets."k8s-node04/network_env".path;
 }
