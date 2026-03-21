@@ -130,6 +130,7 @@ in
     rsyslog
     neovim
     btop
+    tpm2-tss # Provides systemd-cryptenroll
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
@@ -142,6 +143,8 @@ in
   # };
 
   # List services that you want to enable:
+
+  security.tpm2.enable = true; # Enables TPM2 userspace tools
 
   boot.kernel.sysctl = {
     "net.bridge.bridge-nf-call-iptables" = 1;
