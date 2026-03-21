@@ -18,7 +18,7 @@
       "--node-label cpu=n100"
       "--kubelet-arg pod-max-pids=500"
     ];
-    tokenFile = config.sops.secrets."k8s-node04/k3s_token".path;
+    tokenFile = config.sops.secrets."k3s_token".path;
     serverAddr = "https://192.168.0.11:6443";
   };
 }

@@ -17,7 +17,7 @@
       "--node-label arch=amd64"
       "--node-label cpu=n100"
     ];
-    tokenFile = config.sops.secrets."k8s-node03/k3s_token".path;
+    tokenFile = config.sops.secrets."k3s_token".path;
     serverAddr = "https://$SERVER_ADDR:6443";
   };
 
