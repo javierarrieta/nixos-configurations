@@ -119,7 +119,6 @@ in
     htop
     git
     fish
-    prometheus-node-exporter
     smartmontools
     k3s
     kubernetes-helm
@@ -172,14 +171,6 @@ in
     # Required for longhorn
     enable = true;
     name = "openscsi";
-  };
-  services.prometheus = {
-    exporters = {
-      node = {
-        enable = true;
-        enabledCollectors = [ "systemd" ];
-      };
-    };
   };
 
   home-manager = {
