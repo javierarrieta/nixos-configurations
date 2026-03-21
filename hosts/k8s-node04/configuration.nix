@@ -232,13 +232,13 @@ in
   # networking.firewall.allowedTCPPorts = [ ... ];
   # networking.firewall.allowedUDPPorts = [ ... ];
   # Or disable the firewall altogether.
-  networking.interfaces.enp3s0.ipv4.addresses = [
+  networking.interfaces.enp2s0.ipv4.addresses = [
     {
       address = vars.ipAddress;
       prefixLength = 24;
     }
   ];
-  networking.interfaces.enp3s0.useDHCP = false;
+  networking.interfaces.enp2s0.useDHCP = false;
 
   networking.defaultGateway = vars.defaultGateway;
   networking.nameservers = vars.nameservers;
@@ -269,7 +269,7 @@ in
   # };
 
   # Load network secrets into systemd services
-  systemd.services."network-addresses-enp3s0".serviceConfig.EnvironmentFile =
+  systemd.services."network-addresses-enp2s0".serviceConfig.EnvironmentFile =
     lib.mkForce
       config.sops.secrets."k8s-node04/network_env".path;
   systemd.services.network-setup.serviceConfig.EnvironmentFile =
