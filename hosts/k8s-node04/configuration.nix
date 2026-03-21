@@ -47,6 +47,10 @@ in
       mode = "0600";
       owner = "root";
     };
+    secrets."k8s-node04/network_env" = {
+      mode = "0400";
+      owner = "root";
+    };
     secrets."ssh_keys/k8s-node04_host_private" = {
       mode = "0600";
       owner = "root";
@@ -243,6 +247,7 @@ in
       prefixLength = 24;
     }
   ];
+  networking.interfaces.enp3s0.useDHCP = false;
 
   networking.defaultGateway = vars.defaultGateway;
   networking.nameservers = vars.nameservers;
@@ -271,5 +276,16 @@ in
   #   device = "/dev/disk/by-uuid/57f18cec-59c3-4343-8a5a-180acdc3f2b1";
   #   fsType = "ext4";
   # };
+
+  # Load network secrets into systemd services
+  systemd.services."network-addresses-enp3s0".serviceConfig.EnvironmentFile =
+    lib.mkForce
+      config.sops.secrets."k8s-node04/network_env".path;
+  systemd.services.network-setup.serviceConfig.EnvironmentFile =
+    lib.mkForce
+      config.sops.secrets."k8s-node04/network_env".path;
+  systemd.services.k3s.serviceConfig.EnvironmentFile =
+    lib.mkForce
+      config.sops.secrets."k8s-node04/network_env".path;
 
 }
