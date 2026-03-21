@@ -10,7 +10,7 @@
     modelId = "unsloth/Qwen3.5-35B-A3B-GGUF";
     filename = "Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf";
     extraProperties = {
-      "ctx-size" = "65536";
+      "ctx-size" = "98304";
     };
     mmproj = "mmproj-F32.gguf";
   };
@@ -18,14 +18,21 @@
     modelId = "mradermacher/MiroThinker-v1.5-30B-GGUF";
     filename = "MiroThinker-v1.5-30B.Q4_K_M.gguf";
     extraProperties = {
-      "ctx-size" = "32768";
+      "ctx-size" = "65536";
     };
   };
-  "Qwen3-coder-Next" = {
-    modelId = "unsloth/Qwen3-Coder-Next-GGUF";
-    filename = "Qwen3-Coder-Next-Q4_K_M.gguf";
+  "Qwen3.5-122B-A10B" = {
+    modelId = "unsloth/Qwen3.5-122B-A10B-GGUF";
+    filename = "Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M-00001-of-00003.gguf";
     extraProperties = {
-      "ctx-size" = "65386";
+      "ctx-size" = "120000";
     };
   };
+  # "Mistral-Small-4-119B-2603" = {
+  #   modelId = "unsloth/Mistral-Small-4-119B-2603-GGUF";
+  #   filename = "UD-Q4_K_XL/Mistral-Small-4-119B-2603-UD-Q4_K_XL-00001-of-00003.gguf";
+  #   extraProperties = {
+  #     "ctx-size" = "65536";
+  #   };
+  # };
 }

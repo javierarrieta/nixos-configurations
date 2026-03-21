@@ -142,3 +142,48 @@
   - `services.comin.remotes.*.poller.period`: Polling interval in seconds (default: 60)
   - `services.comin.hostname`: Machine name (defaults to `networking.hostName`)
 - **Note**: Do not use `settings` block - use direct options like `poller.period` instead
+
+### Kubernetes Node Configuration (k3s)
+- **Rsyslog Configuration**: Use `services.rsyslogd` module instead of `environment.etc` for cleaner configuration:
+  ```nix
+  services.rsyslogd = {
+    enable = true;
+    extraConfig = ''
+      $ModLoad imuxsock
+      $ModLoad imjournal
+      $WorkDirectory /var/spool/rsyslog
+      $ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
+      $FileOwner root
+      $FileGroup adm
+      $FileCreateMode 0640
+      $DirCreateMode 0755
+      $UMask 0022
+      $WorkDirectoryCreateMode 0755
+
+      *.* @@192.168.0.41:514
+    '';
+  };
+  ```
+- **Kubelet Configuration**: K3s bundles kubelet, configure via `k3sOptions.extraFlags`:
+  ```nix
+  k3sOptions = {
+    enable = true;
+    role = "agent";
+    extraFlags = toString [
+      "--kubelet-arg pod-max-pids=500"
+    ];
+  };
+  ```
+- **State Version**: Match `system.stateVersion` with current NixOS release and home-manager version (e.g., "25.11")
+- **SMART Monitoring**: Enable `services.smartd.enable = true` for disk health monitoring (don't just install smartmontools)
+- **Prometheus**: Node exporter uses default port 9100 unless explicitly changed
+- **Kernel Params**: Add cgroup support for Kubernetes:
+  ```nix
+  boot.kernelParams = [
+    "overlay.override_cgroup=1"
+    "cgroup.no_restrict=1"
+  ];
+  ```
+- **Firewall**: Kubernetes nodes with MetalLB should keep firewall disabled due to dynamic ports and ARP/BGP protocols
+- **Secret Binding**: Don't bind services to secrets they don't need (e.g., rsyslog doesn't need network_env)
+- **Log Rotation**: Configure rsyslog file permissions and ownership via `extraConfig` to prevent work directory filling up
