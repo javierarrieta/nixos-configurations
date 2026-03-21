@@ -279,4 +279,16 @@ in
     lib.mkForce
       config.sops.secrets."k8s-node04/network_env".path;
 
+  services.comin = {
+    enable = true;
+    remotes = [
+      {
+        name = "origin";
+        url = "https://github.com/javierarrieta/nixos-configurations.git";
+        branches.main.name = "main";
+        poller.period = 900;
+      }
+    ];
+  };
+
 }
