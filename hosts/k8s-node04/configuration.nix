@@ -289,7 +289,7 @@ in
         name = "origin";
         url = "https://github.com/javierarrieta/nixos-configurations.git";
         branches.main.name = "main";
-        poller.period = 450;
+        poller.period = 900;
       }
     ];
   };
