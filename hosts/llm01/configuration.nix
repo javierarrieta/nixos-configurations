@@ -242,6 +242,7 @@ in
       "llama-cpp-config.service"
     ];
     requires = [ "llama-cpp-config.service" ];
+    restartTriggers = [ (builtins.toJSON models) ];
     environment = {
       HSA_OVERRIDE_GFX_VERSION = "11.5.0";
       HSA_ENABLE_SDMA = "0";
@@ -256,7 +257,7 @@ in
       LimitMEMLOCK = "infinity";
       WorkingDirectory = "/opt/llm/models";
       CacheDirectory = "llama.cpp";
-      ExecStart = "${llamaPackage}/bin/llama-server -v --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --flash-attn on --no-mmap --offline -ngl 99 --threads 16";
+      ExecStart = "${llamaPackage}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --flash-attn on --no-mmap --offline -ngl 99 --threads 16";
       Restart = "on-failure";
       RestartSec = "5s";
     };
@@ -293,6 +294,7 @@ in
     description = "Download llama-cpp models from HuggingFace";
     wantedBy = [ "multi-user.target" ];
     after = [ "network.target" ];
+    restartTriggers = [ (builtins.toJSON models) ];
     serviceConfig = {
       Type = "oneshot";
       User = "ollama";
@@ -339,6 +341,7 @@ in
     wantedBy = [ "multi-user.target" ];
     after = [ "llama-cpp-download-models.service" ];
     requires = [ "llama-cpp-download-models.service" ];
+    restartTriggers = [ (builtins.toJSON models) ];
     serviceConfig = {
       Type = "oneshot";
       User = "ollama";
