@@ -115,6 +115,7 @@
           ./hosts/k8s-node03
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
+          comin.nixosModules.comin
         ];
       };
 

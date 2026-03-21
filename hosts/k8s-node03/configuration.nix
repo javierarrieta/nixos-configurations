@@ -244,6 +244,7 @@ in
       prefixLength = 24;
     }
   ];
+  networking.interfaces.enp3s0.useDHCP = false;
 
   networking.defaultGateway = vars.defaultGateway;
   networking.nameservers = vars.nameservers;
@@ -296,4 +297,16 @@ in
   systemd.services.promtail.serviceConfig.EnvironmentFile =
     lib.mkForce
       config.sops.secrets."k8s-node03/network_env".path;
+
+  services.comin = {
+    enable = true;
+    remotes = [
+      {
+        name = "origin";
+        url = "https://github.com/javierarrieta/nixos-configurations.git";
+        branches.main.name = "main";
+        poller.period = 900;
+      }
+    ];
+  };
 }
