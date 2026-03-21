@@ -3,7 +3,7 @@
   disko.devices = {
     disk = {
       disk0 = {
-        device = "/dev/disk/by-id/ata-XXX_XXX";
+        device = "/dev/disk/by-id/ata-M.2_SSD_512GB_GSID24C0400225";
         type = "disk";
         content = {
           type = "gpt";
@@ -24,9 +24,17 @@
             root = {
               size = "50G";
               content = {
-                type = "filesystem";
-                format = "ext4";
-                mountpoint = "/";
+                type = "luks";
+                name = "disk0-root";
+                passwordFile = "/tmp/disko-password";
+                settings = {
+                  allowDiscards = true;
+                };
+                content = {
+                  type = "filesystem";
+                  format = "ext4";
+                  mountpoint = "/";
+                };
               };
             };
             swap = {
@@ -38,9 +46,17 @@
             longhorn = {
               size = "350G";
               content = {
-                type = "filesystem";
-                format = "ext4";
-                mountpoint = "/var/lib/longhorn";
+                type = "luks";
+                name = "disk0-longhorn";
+                passwordFile = "/tmp/disko-password";
+                settings = {
+                  allowDiscards = true;
+                };
+                content = {
+                  type = "filesystem";
+                  format = "ext4";
+                  mountpoint = "/var/lib/longhorn";
+                };
               };
             };
             containerd = {
