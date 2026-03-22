@@ -1,8 +1,7 @@
-{
-  config,
-  lib,
-  pkgs,
-  ...
+{ config
+, lib
+, pkgs
+, ...
 }:
 
 let
@@ -44,6 +43,18 @@ in
   ];
 
   networking.hostName = vars.hostname;
+
+  networking.interfaces.eth0.ipv4.addresses = [
+    {
+      address = vars.ipAddress;
+      prefixLength = 24;
+    }
+  ];
+  networking.interfaces.eth0.useDHCP = false;
+  networking.defaultGateway = vars.defaultGateway;
+  networking.nameservers = vars.nameservers;
+
+  networking.firewall.enable = false;
 
   time.timeZone = "UTC";
   i18n.defaultLocale = "en_US.UTF-8";
