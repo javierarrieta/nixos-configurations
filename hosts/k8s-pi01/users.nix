@@ -22,6 +22,8 @@
     ];
   };
 
+  security.sudo.wheelNeedsPassword = false;
+
   systemd.tmpfiles.rules = [
     "d /home/javier/.ssh 0700 javier javier -"
   ];
