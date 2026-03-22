@@ -4,6 +4,7 @@
   pkgs,
   unstablePkgs,
   unstable,
+  nix-sweep,
   home-manager,
   ...
 }:
@@ -382,4 +383,12 @@ in
   };
 
   system.stateVersion = "25.11";
+
+  services.nix-sweep = {
+    enable = true;
+    interval = "daily";
+    removeOlder = "7d";
+    keepMin = 10;
+  };
+
 }

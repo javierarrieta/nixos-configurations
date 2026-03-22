@@ -6,6 +6,7 @@
   config,
   lib,
   pkgs,
+  nix-sweep,
   ...
 }:
 let
@@ -309,4 +310,12 @@ in
       }
     ];
   };
+
+  services.nix-sweep = {
+    enable = true;
+    interval = "daily";
+    removeOlder = "7d";
+    keepMin = 10;
+  };
+
 }

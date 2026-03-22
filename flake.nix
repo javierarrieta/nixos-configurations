@@ -52,6 +52,7 @@
             unstable
             home-manager
             comfyui-nix
+            nix-sweep
             ;
         }
         // (mkExtraArgs "x86_64-linux");
@@ -68,12 +69,13 @@
           home-manager.nixosModules.home-manager
           comin.nixosModules.comin
           comfyui-nix.nixosModules.default
+          nix-sweep.nixosModules.default
         ];
       };
 
       nixosConfigurations.newhost = nixpkgs.lib.nixosSystem {
         specialArgs = {
-          inherit unstable home-manager;
+          inherit unstable home-manager nix-sweep;
         }
         // (mkExtraArgs "x86_64-linux");
         modules = [
@@ -83,6 +85,7 @@
           ./hosts/newhost
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
+          nix-sweep.nixosModules.default
         ];
       };
 
@@ -105,7 +108,7 @@
 
       nixosConfigurations.k8s-node03 = nixpkgs.lib.nixosSystem {
         specialArgs = {
-          inherit unstable home-manager;
+          inherit unstable home-manager nix-sweep;
         }
         // (mkExtraArgs "x86_64-linux");
         modules = [
@@ -116,13 +119,14 @@
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           comin.nixosModules.comin
+          nix-sweep.nixosModules.default
         ];
       };
 
       nixosConfigurations.k8s-node04 = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         specialArgs = {
-          inherit unstable home-manager;
+          inherit unstable home-manager nix-sweep;
         }
         // (mkExtraArgs "x86_64-linux");
         modules = [
@@ -131,6 +135,7 @@
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           comin.nixosModules.comin
+          nix-sweep.nixosModules.default
         ];
       };
     };

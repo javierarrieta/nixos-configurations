@@ -3,6 +3,7 @@
   lib,
   pkgs,
   unstable,
+  nix-sweep,
   home-manager,
   ...
 }:
@@ -82,4 +83,12 @@
   nixpkgs.config.allowUnfree = true;
 
   system.stateVersion = "25.11";
+
+  services.nix-sweep = {
+    enable = true;
+    interval = "daily";
+    removeOlder = "7d";
+    keepMin = 10;
+  };
+
 }

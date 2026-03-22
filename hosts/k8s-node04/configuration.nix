@@ -6,6 +6,7 @@
   config,
   lib,
   pkgs,
+  nix-sweep,
   ...
 }:
 let
@@ -293,6 +294,13 @@ in
         poller.period = 900;
       }
     ];
+  };
+
+  services.nix-sweep = {
+    enable = true;
+    interval = "daily";
+    removeOlder = "7d";
+    keepMin = 10;
   };
 
 }
