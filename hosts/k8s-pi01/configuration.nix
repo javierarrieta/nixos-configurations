@@ -1,11 +1,12 @@
-{ config
-, lib
-, pkgs
-, unstable
-, unstablepkgs
-, home-manager
-, llama-cpp
-, ...
+{
+  config,
+  lib,
+  pkgs,
+  unstable,
+  unstablepkgs,
+  home-manager,
+  llama-cpp,
+  ...
 }:
 let
   vars = import ./vars.nix {
@@ -169,45 +170,29 @@ in
     util-linux
   ];
 
-  services.promtail = {
-    enable = true;
-    configuration = {
-      server = {
-        http_listen_port = 3031;
-        grpc_listen_port = 0;
-      };
-      positions = {
-        filename = "/tmp/positions.yaml";
-      };
-      clients = [ vars.lokiPromtailClient ];
-      scrape_configs = [
-        {
-          job_name = "journal";
-          journal = {
-            json = false;
-            max_age = "1h";
-            labels = {
-              job = "systemd-journal";
-              host = vars.hostname;
-            };
-          };
-          relabel_configs = [
-            {
-              source_labels = [ "__journal__systemd_unit" ];
-              target_label = "unit";
-            }
-          ];
-        }
-      ];
-    };
-    extraFlags = [
-      "-config.expand-env=true"
-    ];
-  };
-
   systemd.tmpfiles.rules = [
     "L+ /usr/local/bin - - - - /run/current-system/sw/bin/"
+    "f /var/log/rsyslog.log 0644 root root - -"
+    "f /var/spool/rsyslog/* 0640 root adm - -"
   ];
+
+  services.rsyslogd = {
+    enable = true;
+    extraConfig = ''
+      $ModLoad imuxsock
+      $ModLoad imjournal
+      $WorkDirectory /var/spool/rsyslog
+      $ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
+      $FileOwner root
+      $FileGroup adm
+      $FileCreateMode 0640
+      $DirCreateMode 0755
+      $UMask 0022
+      $WorkDirectoryCreateMode 0755
+
+      *.* @@192.168.0.41:514
+    '';
+  };
 
   hardware.enableRedistributableFirmware = true;
 
