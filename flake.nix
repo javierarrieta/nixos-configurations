@@ -73,22 +73,6 @@
         ];
       };
 
-      nixosConfigurations.newhost = nixpkgs.lib.nixosSystem {
-        specialArgs = {
-          inherit unstable home-manager nix-sweep;
-        }
-        // (mkExtraArgs "x86_64-linux");
-        modules = [
-          {
-            nixpkgs.hostPlatform.system = "x86_64-linux";
-          }
-          ./hosts/newhost
-          sops-nix.nixosModules.sops
-          home-manager.nixosModules.home-manager
-          nix-sweep.nixosModules.default
-        ];
-      };
-
       nixosConfigurations.ryzen7 = nixpkgs.lib.nixosSystem {
         specialArgs = {
           inherit unstable home-manager nix-sweep;
@@ -124,12 +108,14 @@
       };
 
       nixosConfigurations.k8s-node04 = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
         specialArgs = {
           inherit unstable home-manager nix-sweep;
         }
         // (mkExtraArgs "x86_64-linux");
         modules = [
+          {
+            nixpkgs.hostPlatform.system = "x86_64-linux";
+          }
           ./hosts/k8s-node04
           disko.nixosModules.disko
           sops-nix.nixosModules.sops
