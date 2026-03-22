@@ -18,6 +18,8 @@
     "sdhci_pci"
   ];
 
+  boot.initrd.allowMissingModules = true;
+
   boot.initrd.kernelModules = [ ];
   boot.kernelModules = [ ];
   boot.extraModulePackages = [ ];
