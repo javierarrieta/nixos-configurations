@@ -124,5 +124,83 @@
           nix-sweep.nixosModules.default
         ];
       };
+
+      nixosConfigurations.k8s-pi01 = nixpkgs.lib.nixosSystem {
+        system = "aarch64-linux";
+        specialArgs = {
+          inherit unstable home-manager;
+        }
+        // (mkExtraArgs "aarch64-linux");
+        modules = [
+          ./hosts/k8s-pi01
+          sops-nix.nixosModules.sops
+          home-manager.nixosModules.home-manager
+          comin.nixosModules.comin
+        ];
+      };
+
+      nixosConfigurations.k8s-pi01-minimal = nixpkgs.lib.nixosSystem {
+        system = "aarch64-linux";
+        specialArgs = {
+          inherit unstable home-manager;
+        }
+        // (mkExtraArgs "aarch64-linux");
+        modules = [
+          ./hosts/k8s-pi01/minimal-image.nix
+          comin.nixosModules.comin
+        ];
+      };
+
+      packages.x86_64-linux.sd-image-k8s-pi01 =
+        (self.nixosConfigurations.k8s-pi01.extendModules {
+
+          modules = [
+
+            { nixpkgs.buildPlatform.system = "x86_64-linux"; }
+
+            "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
+
+          ];
+
+        }).config.system.build.sdImage;
+
+      packages.x86_64-linux.sd-image-k8s-pi01-minimal =
+        (self.nixosConfigurations.k8s-pi01-minimal.extendModules {
+
+          modules = [
+
+            {
+              nixpkgs.buildPlatform.system = "x86_64-linux";
+              nixpkgs.hostPlatform.system = "aarch64-linux";
+              nixpkgs.overlays = [ comin.overlays.default ];
+            }
+
+            "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
+
+          ];
+
+        }).config.system.build.sdImage;
+
+      packages.aarch64-darwin.sd-image-k8s-pi01 =
+        (self.nixosConfigurations.k8s-pi01.extendModules {
+
+          modules = [
+
+            "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
+
+          ];
+
+        }).config.system.build.sdImage;
+
+      packages.aarch64-darwin.sd-image-k8s-pi01-minimal =
+        (self.nixosConfigurations.k8s-pi01-minimal.extendModules {
+
+          modules = [
+
+            "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
+
+          ];
+
+        }).config.system.build.sdImage;
     };
 }

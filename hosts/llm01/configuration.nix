@@ -81,6 +81,8 @@ in
   boot.initrd.systemd.enable = true;
   security.tpm2.enable = true; # Enables TPM2 userspace tools
 
+  boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
+
   hardware.graphics.enable = true;
   hardware.enableRedistributableFirmware = true;
 

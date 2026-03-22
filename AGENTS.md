@@ -187,3 +187,160 @@
 - **Firewall**: Kubernetes nodes with MetalLB should keep firewall disabled due to dynamic ports and ARP/BGP protocols
 - **Secret Binding**: Don't bind services to secrets they don't need (e.g., rsyslog doesn't need network_env)
 - **Log Rotation**: Configure rsyslog file permissions and ownership via `extraConfig` to prevent work directory filling up
+
+### ComfyUI Installation
+- **Flake Setup**: Use `utensils/comfyui-nix` flake for ComfyUI on NixOS
+  - Add to flake inputs: `comfyui-nix.url = "github:utensils/comfyui-nix"`
+  - Add overlay: `nixpkgs.overlays = [ comfyui-nix.overlays.default ]`
+  - Add module: `comfyui-nix.nixosModules.default` to host modules
+- **Service Configuration**:
+  ```nix
+  services.comfyui = {
+    enable = true;
+    gpuSupport = "cuda";  # or "rocm" for AMD GPUs
+    enableManager = true;
+    listenAddress = "0.0.0.0";
+    openFirewall = true;
+  };
+  ```
+- **GPU Support**:
+  - CUDA: Use `gpuSupport = "cuda"` for NVIDIA GPUs (all architectures supported)
+  - ROCm: Use `gpuSupport = "rocm"` for AMD GPUs (tested on gfx1100/7900XTX)
+  - Apple Silicon: Base `comfy-ui` package automatically uses Metal
+- **Data Directory**: Default is `/var/lib/comfyui` for system service
+- **Built-in Custom Nodes**: The flake includes curated custom nodes (Impact Pack, rgthree-comfy, KJNodes, ComfyUI-GGUF, etc.)
+- **Reference**: https://github.com/utensils/comfyui-nix
+
+### Log Forwarding Options
+- **Rsyslog**: For simple log forwarding to a syslog server:
+  ```nix
+  services.rsyslogd = {
+    enable = true;
+    extraConfig = ''
+      $ModLoad imuxsock
+      $ModLoad imjournal
+      $WorkDirectory /var/spool/rsyslog
+      $ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
+      *.* @@192.168.0.41:514
+    '';
+  };
+  ```
+  - Note: Service is `rsyslogd`, not `rsyslog`
+  - Simpler than promtail for basic log aggregation
+- **Promtail**: For advanced log forwarding to Loki (as configured in k8s-node03)
+  - More complex but provides structured logging with labels
+
+### Raspberry Pi 4 / ARM64 Configuration
+- **SD Image Building**: See `hosts/k8s-pi01/README.md` for detailed instructions on building SD card images
+- **Platform**: Use `system = "aarch64-linux"` in flake.nix for Raspberry Pi
+- **Kernel**: Use `pkgs.linuxPackages_rpi4` for Raspberry Pi 4 optimized kernel
+  ```nix
+  boot.kernelPackages = pkgs.linuxPackages_rpi4;
+  ```
+- **Bootloader**: Use extlinux-compatible bootloader (no GRUB on ARM):
+  ```nix
+  boot.loader.grub.enable = false;
+  boot.loader.generic-extlinux-compatible.enable = true;
+  ```
+- **Kernel Parameters**: Add for Raspberry Pi 4:
+  ```nix
+  boot.kernelParams = [
+    "8250.nr_uarts=1"
+    "console=ttyAMA0,115200"
+    "console=tty1"
+  ];
+  ```
+- **Filesystem**: SD card uses label-based mounting:
+  ```nix
+  fileSystems."/" = {
+    device = "/dev/disk/by-label/NIXOS_SD";
+    fsType = "ext4";
+  };
+  ```
+- **Additional Packages**: Include `pkgs.libraspberrypi` for Raspberry Pi firmware/tools
+
+### SD Image Generation
+- **Tool**: Use `nixos-generators` for cross-compiling NixOS images
+- **Flake Input**:
+  ```nix
+  nixos-generators = {
+    url = "github:nix-community/nixos-generators";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+  ```
+- **Warning**: nixos-generators is deprecated (upstreamed into nixpkgs as of NixOS 25.05)
+- **Cross-Compilation Packages**:
+  - For building on Linux (x86_64): `packages.x86_64-linux.sd-image-k8s-pi01`
+  - For building on Mac (aarch64-darwin): `packages.aarch64-darwin.sd-image-k8s-pi01`
+- **Output Format**:
+  ```nix
+  format = "sd-aarch64";  # For SD card images
+  ```
+- **Configuration Example**:
+  ```nix
+  packages.x86_64-linux.sd-image-k8s-pi01 = nixos-generators.nixosGenerate {
+    system = "aarch64-linux";
+    modules = [
+      ./hosts/k8s-pi01
+      sops-nix.nixosModules.sops
+      home-manager.nixosModules.home-manager
+    ];
+    format = "sd-aarch64";
+  };
+  ```
+- **Building**:
+  ```bash
+  nix build .#packages.x86_64-linux.sd-image-k8s-pi01
+  # Result: ./result/sd-image/*.img.zst (compressed)
+  ```
+
+### AGE Encryption Key Management
+- **Age Key Generation**: Generate local AGE key for SOPS encryption without SSH key dependencies
+  ```bash
+  age-keygen -o ~/.config/sops/age/keys.txt
+  # Output shows both public and private key
+  ```
+- **Adding to .sops.yaml**: Add the public key to the age recipients list:
+  ```yaml
+  creation_rules:
+    - path_regex: secrets\.ya?ml$
+      key_groups:
+        - age:
+            - "age1YOUR_PUBLIC_KEY_HERE"  # Your local development AGE key
+            # ... other recipients
+  ```
+- **Environment Variable**: Set `SOPS_AGE_KEY_FILE` for SOPS operations:
+  ```bash
+  export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
+  ```
+- **SOPS Operations with AGE Key**:
+  - Decrypt: `sops -d secrets.yaml`
+  - Encrypt: `sops -e secrets.yaml` (with .sops.yaml config)
+  - Encrypt custom file: `sops --config /dev/null --encrypt --age <public_key> --input-type yaml --output secrets.yaml secrets.dec.yaml`
+- **Benefits over SSH Keys**:
+   - No passphrase prompts (age keys don't require passphrases by default)
+   - Works better in non-interactive environments (CI/agents)
+   - Separate from SSH authentication keys
+
+### SD Image Cross-Compilation Issues with SOPS
+- **Problem**: When cross-compiling SD images (e.g., aarch64-darwin → aarch64-linux), the build sandbox cannot access SOPS secrets, causing build failures with "Undefined error: 0"
+- **Symptoms**:
+  - `nixos-rebuild build-image` fails accessing secrets during cross-compilation
+  - Error message: `executing '/nix/store/.../bin/bash': Undefined error: 0`
+- **Solution 1 - Build on Target Platform**:
+  - Run the build command on a Linux machine (x86_64 or aarch64) where SOPS can access your age key:
+    ```bash
+    export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
+    nixos-rebuild build-image --flake .#k8s-pi01 --image-variant sd-card
+    ```
+  - This works because `nixos-rebuild build-image` runs on the target system where SOPS environment is available
+- **Solution 2 - Bootstrap Image + Comin**:
+  - Create a minimal image configuration without SOPS dependencies (like `minimal-image.nix`)
+  - Build the minimal image on any platform:
+    ```bash
+    nixos-rebuild build-image --flake .#k8s-pi01-minimal --image-variant sd-card
+    ```
+  - Flash and boot the Pi, then let Comin deploy the full configuration with SOPS secrets
+  - This works because Comin runs on the target machine where secrets are properly accessible
+- **Note**: `nixos-generators` is deprecated; use `nixos-rebuild build-image` instead
+

@@ -8,6 +8,7 @@ creation_rules:
           - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMXtQHWgKc2ZXb0R06P2HUBuNeO1it8HWu12OLHP8vgB llm01"
           - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPGe70V1923+UAbbB9himWWvqjv+vvEp9HE3J7j4KJvp ryzen7"
           - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMS+VBOhEKYOEc+SSITquXS7NHsQko5Rwr0WwwCZK99c k8s-node03"
+          - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILqHhvkuxO21tW+rsT7LgPmxuvwAOHgnDT+L9gh6KFtE k8s-pi01"
           # Bootstrap key
           - age1rlvgte0l7225vqdusvkzmdqmsyfd3u255rfy7ku93xx99k4vldsqhxnyxx
 
