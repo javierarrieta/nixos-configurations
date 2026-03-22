@@ -1,4 +1,4 @@
-# LLM01 Bootstrap Guide
+# k8s-node04 Bootstrap Guide
 
 ## Prerequisites
 
@@ -26,7 +26,7 @@ AGE-PRIVATE-KEY-HERE
 EOF
 
 # 5. Run nix-anywhere with the bootstrap key
-nix --extra-experimental-features "nix-command flakes" run github:nix-community/nixos-anywhere -- --flake .#llm01 --target-host nixos@<ip_addr> --build-on-remote --extra-files <deployment_dir>
+nix --extra-experimental-features "nix-command flakes" run github:nix-community/nixos-anywhere -- --flake .#k8s-node04 --target-host nixos@<ip_addr> --build-on-remote --extra-files <deployment_dir>
 
 # 6. Clean up local key file
 rm sops-key.txt
@@ -56,7 +56,7 @@ git clone https://github.com/javierarrieta/nixos-configurations.git $HOME/nixos-
 cd $HOME/nixos-configurations
 
 # 5. Mount your filesystem (if using disko, it will be at /mnt)
-# If using disko: sudo disko --mode mount --flake .#llm01
+# If using disko: sudo disko --mode mount --flake .#k8s-node04
 
 # 6. CRITICAL: Create age key file on the mounted filesystem
 mkdir -p /mnt/var/lib/sops-nix
@@ -64,7 +64,7 @@ cp /tmp/age-key /mnt/var/lib/sops-nix/key.txt
 chmod 600 /mnt/var/lib/sops-nix/key.txt
 
 # 7. Install NixOS
-sudo nixos-install --flake .#llm01
+sudo nixos-install --flake .#k8s-node04
 
 # 8. Reboot and clean up temporary files
 sudo reboot
@@ -73,7 +73,7 @@ sudo reboot
 sudo rm /var/lib/sops-nix/key.txt
 ```
 
-**Why this is necessary**: The configuration stores SSH host keys as SOPS secrets (`ssh_keys/llm01_host_private` and `ssh_keys/llm01_host_public`). During `nixos-install`, sops-nix needs to decrypt these secrets to place them at `/etc/ssh/ssh_host_ed25519_key`. However, sops-nix also needs either:
+**Why this is necessary**: The configuration stores SSH host keys as SOPS secrets (`ssh_keys/k8s-node04_host_private` and `ssh_keys/k8s-node04_host_public`). During `nixos-install`, sops-nix needs to decrypt these secrets to place them at `/etc/ssh/ssh_host_ed25519_key`. However, sops-nix also needs either:
 - The age key file at `/var/lib/sops-nix/key.txt`, OR
 - SSH host keys to use for decryption (but these don't exist yet!)
 
@@ -82,22 +82,21 @@ By placing the bootstrap age key directly on the mounted filesystem before insta
 ## Important Notes
 
 - **Disk Setup**: This configuration uses disko for automated disk partitioning with two encrypted partitions:
-  - `disk0-root` - mounted at `/` (root filesystem, 120GB)
-  - `disk0-llm` - mounted at `/opt/llm` (LLM models, remaining space)
-- **TPM2 Auto-unlock**: Both LUKS partitions are configured for TPM2 auto-unlock (`crypttabExtraOpts = [ "tpm2-device=auto" ]`). You must enroll the LUKS key in TPM2 after installation for automatic unlocking on boot.
+  - `disk0-root` - mounted at `/` (root filesystem, 50GB)
+  - `disk0-longhorn` - mounted at `/var/lib/longhorn` (Longhorn storage, 350GB)
+  It also creates an unencrypted partition for containerd (`/var/lib/containerd`, remaining space) and an 8GB swap partition.
 - **Secrets**: SOPS secrets are encrypted. Make sure your age key is available when running sops-nix.
-- **Hardware**: The configuration includes AMD GPU optimizations and ROCm support.
 
 ## After Installation
 
 1. Reboot: `sudo reboot`
-2. Enroll LUKS passwords in TPM2 for automatic unlocking:
+2. (Optional) Enroll LUKS passwords in TPM2 for automatic unlocking:
    ```bash
    # For root partition (/)
-   sudo systemd-cryptenroll --tpm2-device=auto /dev/disk/by-partlabel/disk-disk0-luks-root
+   sudo systemd-cryptenroll --tpm2-device=auto /dev/disk/by-partlabel/disk-disk0-root
 
-   # For LLM partition (/opt/llm)
-   sudo systemd-cryptenroll --tpm2-device=auto /dev/disk/by-partlabel/disk-disk0-luks-llm
+   # For Longhorn partition (/var/lib/longhorn)
+   sudo systemd-cryptenroll --tpm2-device=auto /dev/disk/by-partlabel/disk-disk0-longhorn
    ```
 3. Remove the bootstrap age key (if using manual bootstrap):
    ```bash
@@ -105,16 +104,14 @@ By placing the bootstrap age key directly on the mounted filesystem before insta
    ```
 4. The system will use persistent SSH host keys from secrets
 5. WireGuard and other services will start automatically
-6. Open WebUI will be available on port 8080
-7. ComfyUI will be available on port 8188
-8. llama-cpp server will be available on port 8001
+6. k3s agent service will start and join the cluster (if token and network are configured correctly)
 
 ## Troubleshooting
 
 ### Nix Anywhere fails with "flake not found"
 - Verify your repository URL is correct
-- Check that `llm01` exists in the flake's `nixosConfigurations`
-- Test evaluation locally: `nix eval .#nixosConfigurations.llm01.config.system.build.toplevel`
+- Check that `k8s-node04` exists in the flake's `nixosConfigurations`
+- Test evaluation locally: `nix eval .#nixosConfigurations.k8s-node04.config.system.build.toplevel`
 
 ### SOPS decryption errors during installation
 
@@ -130,7 +127,7 @@ nix-anywhere --extra-files sops-key.txt:/var/lib/sops-nix/key.txt ...
 mkdir -p /mnt/var/lib/sops-nix
 cp /tmp/age-key /mnt/var/lib/sops-nix/key.txt
 chmod 600 /mnt/var/lib/sops-nix/key.txt
-sudo nixos-install --flake .#llm01
+sudo nixos-install --flake .#k8s-node04
 ```
 
 **Other SOPS issues**:
@@ -138,8 +135,8 @@ sudo nixos-install --flake .#llm01
 - The bootstrap age key is: `age1rlvgte0l7225vqdusvkzmdqmsyfd3u255rfy7ku93xx99k4vldsqhxnyxx`
 
 ### Disk partitioning issues
-- Review `./hosts/llm01/disko.nix` before running
-- Use `sudo nixos-install --flake .#llm01 --dry-run` to preview changes
+- Review `./hosts/k8s-node04/disko.nix` before running
+- Use `sudo nixos-install --flake .#k8s-node04 --dry-run` to preview changes
 
 ### TPM2 auto-unlock not working
 
@@ -154,12 +151,12 @@ systemd-cryptenroll --tpm2-device=list
 # Enroll root partition
 sudo systemd-cryptenroll --tpm2-device=auto /dev/mapper/disk0-root
 
-# Enroll LLM partition
-sudo systemd-cryptenroll --tpm2-device=auto /dev/mapper/disk0-llm
+# Enroll Longhorn partition
+sudo systemd-cryptenroll --tpm2-device=auto /dev/mapper/disk0-longhorn
 
 # Verify enrollment
 sudo systemd-cryptenroll /dev/mapper/disk0-root
-sudo systemd-cryptenroll /dev/mapper/disk0-llm
+sudo systemd-cryptenroll /dev/mapper/disk0-longhorn
 ```
 
 **Note**: TPM2 auto-unlock requires the same hardware and firmware configuration as when the key was enrolled. Changing hardware or firmware updates may require re-enrollment.

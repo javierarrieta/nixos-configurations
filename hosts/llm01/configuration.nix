@@ -2,16 +2,15 @@
   config,
   lib,
   pkgs,
+  unstablePkgs,
   unstable,
-  unstablepkgs,
+  nix-sweep,
   home-manager,
-  llama-cpp,
   ...
 }:
 let
-  # This points to the specific Vulkan package from the flake
-  llamaPackage = llama-cpp.packages.${pkgs.stdenv.hostPlatform.system}.vulkan;
   models = import ./llm-models.nix;
+  llamaPackage = unstablePkgs.llama-cpp-vulkan;
 in
 {
   imports = [
@@ -142,11 +141,12 @@ in
     pkgs.python311Packages.huggingface-hub
     pkgs.nix-tree
     pkgs.nix-index
+    pkgs.qemu
 
-    unstablepkgs.rocmPackages.rocm-smi
-    unstablepkgs.rocmPackages.clr
+    unstablePkgs.rocmPackages.rocm-smi
+    unstablePkgs.rocmPackages.clr
 
-    llamaPackage
+    unstablePkgs.llama-cpp-vulkan
   ];
 
   time.timeZone = "Utc";
@@ -178,6 +178,7 @@ in
     shell = pkgs.zsh;
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJAxtDTZvN/YqOQC1nOGahb/qLp35iYnBTPaGld6/N6k javier@Javiers-MacBook-Air.local"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKhwR+SbHJQR8mSFe5UvBVNlcuG6vpXLU6K+4Rh3z25N javier@DESKTOP-9N12DRJ"
     ];
   };
 
@@ -191,6 +192,8 @@ in
   };
 
   users.groups.ollama = { };
+
+  security.sudo.wheelNeedsPassword = false; # TODO: Remove when issues with passwords are resolved
 
   services = {
     openssh = {
@@ -225,13 +228,6 @@ in
       '';
     };
 
-    open-webui = {
-      enable = true;
-      openFirewall = true;
-      host = "0.0.0.0";
-      package = unstablepkgs.open-webui;
-    };
-
     comfyui = {
       enable = true;
       gpuSupport = "rocm";
@@ -249,6 +245,7 @@ in
       "llama-cpp-config.service"
     ];
     requires = [ "llama-cpp-config.service" ];
+    restartTriggers = [ (builtins.toJSON models) ];
     environment = {
       HSA_OVERRIDE_GFX_VERSION = "11.5.0";
       HSA_ENABLE_SDMA = "0";
@@ -263,7 +260,7 @@ in
       LimitMEMLOCK = "infinity";
       WorkingDirectory = "/opt/llm/models";
       CacheDirectory = "llama.cpp";
-      ExecStart = "${llamaPackage}/bin/llama-server -v --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --flash-attn on --no-mmap --offline -ngl 99 --threads 16";
+      ExecStart = "${llamaPackage}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --flash-attn on --no-mmap --offline -ngl 99 --threads 16";
       Restart = "on-failure";
       RestartSec = "5s";
     };
@@ -285,13 +282,14 @@ in
       "nix-command"
       "flakes"
     ];
-    download-buffer-size = 67108864;
+    download-buffer-size = 536870912;
   };
   nixpkgs.config.allowUnfree = true;
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
 
   systemd.tmpfiles.rules = [
-    "d /opt/llm/models/llama-cpp 0755 ollama ollama -"
+    "d /opt/llm 0755 ollama ollama -"
+    "Z /opt/llm - ollama ollama -"
     "d /home/javier/.ssh 0700 javier javier -"
   ];
 
@@ -299,6 +297,7 @@ in
     description = "Download llama-cpp models from HuggingFace";
     wantedBy = [ "multi-user.target" ];
     after = [ "network.target" ];
+    restartTriggers = [ (builtins.toJSON models) ];
     serviceConfig = {
       Type = "oneshot";
       User = "ollama";
@@ -319,10 +318,16 @@ in
               modelId = config.modelId;
               filename = config.filename;
               mmproj = config.mmproj or null;
+              matchSplit = builtins.match "(.*)-[0-9]+-of-[0-9]+\\.gguf" filename;
+              downloadArgs =
+                if matchSplit != null then
+                  "--include \"${builtins.head matchSplit}-*-of-*.gguf\""
+                else
+                  "\"${filename}\"";
             in
             ''
               echo "Downloading ${entry-name} from ${modelId}..."
-              ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${filename}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+              ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" ${downloadArgs} --local-dir /opt/llm/models/llama-cpp --repo-type model
               ${lib.optionalString (mmproj != null) ''
                 echo "Downloading mmproj for ${entry-name}..."
                 ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${mmproj}" --local-dir /opt/llm/models/llama-cpp --repo-type model
@@ -339,6 +344,7 @@ in
     wantedBy = [ "multi-user.target" ];
     after = [ "llama-cpp-download-models.service" ];
     requires = [ "llama-cpp-download-models.service" ];
+    restartTriggers = [ (builtins.toJSON models) ];
     serviceConfig = {
       Type = "oneshot";
       User = "ollama";
@@ -379,4 +385,12 @@ in
   };
 
   system.stateVersion = "25.11";
+
+  services.nix-sweep = {
+    enable = true;
+    interval = "daily";
+    removeOlder = "7d";
+    keepMin = 10;
+  };
+
 }
