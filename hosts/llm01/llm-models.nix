@@ -21,13 +21,20 @@
       "ctx-size" = "65536";
     };
   };
-  "Qwen3.5-122B-A10B" = {
-    modelId = "unsloth/Qwen3.5-122B-A10B-GGUF";
-    filename = "Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M-00001-of-00003.gguf";
+  "Nemotron-Cascade-2-30B-A3B" = {
+    modelId = "mradermacher/Nemotron-Cascade-2-30B-A3B-i1-GGUF";
+    filename = "Nemotron-Cascade-2-30B-A3B.i1-Q4_K_M.gguf";
     extraProperties = {
       "ctx-size" = "120000";
     };
   };
+  # "Qwen3.5-122B-A10B" = {
+  #   modelId = "unsloth/Qwen3.5-122B-A10B-GGUF";
+  #   filename = "Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M-00001-of-00003.gguf";
+  #   extraProperties = {
+  #     "ctx-size" = "120000";
+  #   };
+  # };
   # "Mistral-Small-4-119B-2603" = {
   #   modelId = "unsloth/Mistral-Small-4-119B-2603-GGUF";
   #   filename = "UD-Q4_K_XL/Mistral-Small-4-119B-2603-UD-Q4_K_XL-00001-of-00003.gguf";
