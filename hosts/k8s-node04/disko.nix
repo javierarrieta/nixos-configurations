@@ -26,9 +26,11 @@
               content = {
                 type = "luks";
                 name = "disk0-root";
+                extraOpenArgs = [ ];
                 passwordFile = "/tmp/disko-password";
                 settings = {
                   allowDiscards = true;
+                  crypttabExtraOpts = [ "tpm2-device=auto" ];
                 };
                 content = {
                   type = "filesystem";
@@ -48,9 +50,11 @@
               content = {
                 type = "luks";
                 name = "disk0-longhorn";
+                extraOpenArgs = [ ];
                 passwordFile = "/tmp/disko-password";
                 settings = {
                   allowDiscards = true;
+                  crypttabExtraOpts = [ "tpm2-device=auto" ];
                 };
                 content = {
                   type = "filesystem";
