@@ -301,7 +301,6 @@ in
       fsType = "nfs";
       options = [
         "defaults"
-        "nfs4"
         "rw"
         "soft"
         "intr"
