@@ -257,7 +257,7 @@ in
       openFirewall = true;
       createUser = false;
       dataDir = "/opt/llm/comfyui";
-      requiresMounts = [ "/opt/llm/comfyui" ];
+      requiresMounts = [ "/opt-llm-comfyui.mount" ];
     };
   };
 
