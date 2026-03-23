@@ -258,6 +258,15 @@ in
       createUser = false;
       dataDir = "/opt/llm/comfyui";
       requiresMounts = [ "opt-llm-comfyui.mount" ];
+      rocmOverrideGfxVersion = "11.0.0";
+      environment = {
+        HIP_VISIBLE_DEVICES = "0";
+        HSA_OVERRIDE_GFX_VERSION="11.5.1";
+        GPU_MAX_HEAP_SIZE="100";
+        GPU_MAX_ALLOC_PERCENT="100";
+        AMD_LOG_LEVEL="0";
+        FLASH_ATTENTION_TRITON_AMD_ENABLE="1";
+      };
     };
   };
 
