@@ -305,20 +305,6 @@ in
   nixpkgs.config.allowUnfree = true;
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
 
-  fileSystems."/var/lib/comfyui" = {
-    device = "192.168.0.6:/mnt/tank/ComfyUI";
-    type = "nfs";
-    options = [
-      "defaults"
-      "nfs4"
-      "rw"
-      "soft"
-      "intr"
-      "timeo=50"
-      "retrans=2"
-    ];
-  };
-
   systemd.tmpfiles.rules = [
     "d /opt/llm 0755 ollama ollama -"
     "Z /opt/llm - ollama ollama -"
@@ -402,6 +388,20 @@ in
         EOF
       '';
     };
+  };
+
+  fileSystems."/var/lib/comfyui" = {
+    device = "192.168.0.6:/mnt/tank/ComfyUI";
+    type = "nfs";
+    options = [
+      "defaults"
+      "nfs4"
+      "rw"
+      "soft"
+      "intr"
+      "timeo=50"
+      "retrans=2"
+    ];
   };
 
   services.comin = {
