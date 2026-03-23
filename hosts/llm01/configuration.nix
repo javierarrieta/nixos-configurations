@@ -208,7 +208,7 @@ in
     comfyui = {
       gid = 27001;
     };
-  }
+  };
   security.sudo.wheelNeedsPassword = false; # TODO: Remove when issues with passwords are resolved
 
   services = {
