@@ -258,7 +258,6 @@ in
       createUser = false;
       dataDir = "/opt/llm/comfyui";
       requiresMounts = [ "opt-llm-comfyui.mount" ];
-      rocmOverrideGfxVersion = "11.0.0";
       environment = {
         HIP_VISIBLE_DEVICES = "0";
         HSA_OVERRIDE_GFX_VERSION="11.5.1";
