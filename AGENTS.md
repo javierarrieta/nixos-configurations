@@ -322,6 +322,19 @@
    - Works better in non-interactive environments (CI/agents)
    - Separate from SSH authentication keys
 
+### Filesystem Mounts
+- **fileSystems**: Must be defined at top-level of configuration (not inside `services` or other blocks)
+- **Correct syntax**: Use `fsType` not `type`:
+  ```nix
+  fileSystems = {
+    "/mount/point" = {
+      device = "server:/path";
+      fsType = "nfs";  # NOT "type"
+      options = [ "defaults" "nfs4" "rw" ];
+    };
+  };
+  ```
+
 ### SD Image Cross-Compilation Issues with SOPS
 - **Problem**: When cross-compiling SD images (e.g., aarch64-darwin → aarch64-linux), the build sandbox cannot access SOPS secrets, causing build failures with "Undefined error: 0"
 - **Symptoms**:

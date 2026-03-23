@@ -295,6 +295,22 @@ in
 
   networking.firewall.allowedTCPPorts = [ 8001 ];
 
+  fileSystems = {
+    "/var/lib/comfyui" = {
+      device = "192.168.0.6:/mnt/tank/ComfyUI";
+      fsType = "nfs";
+      options = [
+        "defaults"
+        "nfs4"
+        "rw"
+        "soft"
+        "intr"
+        "timeo=50"
+        "retrans=2"
+      ];
+    };
+  };
+
   nix.settings = {
     experimental-features = [
       "nix-command"
@@ -388,20 +404,6 @@ in
         EOF
       '';
     };
-  };
-
-  fileSystems."/var/lib/comfyui" = {
-    device = "192.168.0.6:/mnt/tank/ComfyUI";
-    type = "nfs";
-    options = [
-      "defaults"
-      "nfs4"
-      "rw"
-      "soft"
-      "intr"
-      "timeo=50"
-      "retrans=2"
-    ];
   };
 
   services.comin = {
