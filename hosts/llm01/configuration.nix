@@ -85,8 +85,11 @@ in
 
   hardware.graphics.enable = true;
   hardware.enableRedistributableFirmware = true;
-
-  boot.initrd.kernelModules = [ "amdgpu" ];
+  boot.initrd.kernelModules = [                                                                                                                                                                                        
+    "amdgpu"                                                                                                                                                                                                           
+    "nfs"                                                                                                                                                                                                              
+    "nfs4"                                                                                                                                                                                                             
+  ];      
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelParams = [
     "amdgpu.sched_policy=2"
@@ -252,6 +255,9 @@ in
       enableManager = true;
       listenAddress = "0.0.0.0";
       openFirewall = true;
+      createUser = false;
+      dataDir = "/opt/llm/comfyui";
+      requiresMounts = [ "/opt/llm/comfyui" ];
     };
   };
 
@@ -296,9 +302,9 @@ in
   networking.firewall.allowedTCPPorts = [ 8001 ];
 
   fileSystems = {
-    "/var/lib/comfyui" = {
+    "/opt/llm/comfyui" = {
       device = "192.168.0.6:/mnt/tank/ComfyUI";
-      fsType = "nfs";
+      fsType = "nfs4";
       options = [
         "defaults"
         "rw"
