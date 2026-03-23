@@ -328,6 +328,7 @@ in
 
   systemd.tmpfiles.rules = [
     "d /opt/llm 0755 ollama ollama -"
+    "d /opt/llm/comfyui 0755 comfyui comfyui -"
     "Z /opt/llm - ollama ollama -"
     "d /home/javier/.ssh 0700 javier javier -"
   ];
