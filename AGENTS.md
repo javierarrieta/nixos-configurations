@@ -52,6 +52,53 @@
     - `jq ... file.json > new.json`
     - `cat new.json | yq -y . > new.yaml`
 
+### Creating a New Host
+**Complete Checklist for New Host Setup:**
+1. **Create host directory**: `mkdir -p hosts/<hostname>`
+2. **Create all required files** (do not skip any):
+   - `configuration.nix` - Main NixOS configuration
+   - `default.nix` - Required by NixOS for host lookup (see below)
+   - `hardware-configuration.nix` - Hardware scan results
+   - `vars.nix` - Variables (hostname, IP addresses, k3s options)
+   - `users.nix` - User accounts and SSH keys
+   - `home-manager.nix` - Home-manager per-host config (even if empty)
+3. **Add to `secrets.yaml`**: Create `<hostname>/network_env` secret with:
+   ```
+   IP_ADDRESS=192.168.0.X
+   DEFAULT_GATEWAY=192.168.0.1
+   DNS1=192.168.0.1
+   DNS2=192.168.0.41
+   ```
+4. **Add to `flake.nix`**: Add `nixosConfigurations.<hostname>` entry with correct modules
+5. **Track with Git**: `git add hosts/<hostname>` before evaluation
+
+**Required Files:**
+- `default.nix` (in host directory):
+  ```nix
+  { ... }:
+  {
+    imports = [
+      ./configuration.nix
+      ./hardware-configuration.nix
+    ];
+  }
+  ```
+- `home-manager.nix` (can be empty):
+  ```nix
+  { config, pkgs, lib, userOptions, ... }:
+  {
+    programs.fish = {
+      shellAliases = {
+        "nixos-apply" =
+          "cd $HOME/code/nixos-configurations && git pull --ff-only && sudo nixos-rebuild switch --flake .#<hostname> ; cd -";
+      };
+    };
+  }
+  ```
+- **Critical**: Without `default.nix`, NixOS fails with "opening file '/nix/store/.../hosts/hostname/default.nix': No such file or directory"
+- **Critical**: Without `home-manager.nix`, evaluation may fail with module errors
+- **Critical**: Must `git add` host directory before evaluation; untracked directories cause "path does not exist" errors
+
 ### Host Management & Renaming
 - **Host Renaming Process**: When renaming a host (e.g., `nixos` → `llm01`):
   1. Update `flake.nix`: Change `nixosConfigurations.oldname` to `nixosConfigurations.newname` and update `./hosts/oldname` to `./hosts/newname`
