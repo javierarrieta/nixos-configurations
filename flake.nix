@@ -199,6 +199,7 @@
               nixpkgs.buildPlatform.system = "x86_64-linux";
               nixpkgs.hostPlatform.system = "aarch64-linux";
               nixpkgs.overlays = [ comin.overlays.default ];
+              networking.hostName = "k8s-pi01";
             }
 
             "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
@@ -222,6 +223,10 @@
         (self.nixosConfigurations.k8s-pi01-minimal.extendModules {
 
           modules = [
+
+            {
+              networking.hostName = "k8s-pi01";
+            }
 
             "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
 
@@ -262,6 +267,7 @@
               nixpkgs.buildPlatform.system = "x86_64-linux";
               nixpkgs.hostPlatform.system = "aarch64-linux";
               nixpkgs.overlays = [ comin.overlays.default ];
+              networking.hostName = "k8s-pi02";
             }
 
             "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
@@ -274,6 +280,10 @@
         (self.nixosConfigurations.k8s-pi02-minimal.extendModules {
 
           modules = [
+
+            {
+              networking.hostName = "k8s-pi02";
+            }
 
             "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
 
