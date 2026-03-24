@@ -127,9 +127,9 @@ in
     xfsprogs
     age
     sops
-    promtail
     neovim
     btop
+    rsyslog
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
@@ -194,40 +194,22 @@ in
     utillinux # mount, umount, blkid
   ];
 
-  services.promtail = {
+  services.rsyslogd = {
     enable = true;
-    configuration = {
-      server = {
-        http_listen_port = 3031;
-        grpc_listen_port = 0;
-      };
-      positions = {
-        filename = "/tmp/positions.yaml";
-      };
-      clients = [ vars.lokiPromtailClient ];
-      scrape_configs = [
-        {
-          job_name = "journal";
-          journal = {
-            json = false;
-            max_age = "1h";
-            labels = {
-              job = "systemd-journal";
-              host = vars.hostname;
-            };
-          };
-          relabel_configs = [
-            {
-              source_labels = [ "__journal__systemd_unit" ];
-              target_label = "unit";
-            }
-          ];
-        }
-      ];
-    };
-    extraFlags = [
-      "-config.expand-env=true"
-    ];
+    extraConfig = ''
+      $ModLoad imuxsock
+      $ModLoad imjournal
+      $WorkDirectory /var/spool/rsyslog
+      $ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
+      $FileOwner root
+      $FileGroup adm
+      $FileCreateMode 0640
+      $DirCreateMode 0755
+      $UMask 0022
+      $WorkDirectoryCreateMode 0755
+
+      *.* @@192.168.0.41:514
+    '';
   };
 
   systemd.tmpfiles.rules = [
@@ -293,9 +275,6 @@ in
     lib.mkForce
       config.sops.secrets."k8s-node03/network_env".path;
   systemd.services.k3s.serviceConfig.EnvironmentFile =
-    lib.mkForce
-      config.sops.secrets."k8s-node03/network_env".path;
-  systemd.services.promtail.serviceConfig.EnvironmentFile =
     lib.mkForce
       config.sops.secrets."k8s-node03/network_env".path;
 

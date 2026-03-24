@@ -20,8 +20,4 @@
     tokenFile = config.sops.secrets."k3s_token".path;
     serverAddr = "https://$SERVER_ADDR:6443";
   };
-
-  lokiPromtailClient = {
-    url = "$LOKI_URL";
-  };
 }
