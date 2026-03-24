@@ -56,21 +56,42 @@
 **Complete Checklist for New Host Setup:**
 1. **Create host directory**: `mkdir -p hosts/<hostname>`
 2. **Create all required files** (do not skip any):
-   - `configuration.nix` - Main NixOS configuration
-   - `default.nix` - Required by NixOS for host lookup (see below)
-   - `hardware-configuration.nix` - Hardware scan results
-   - `vars.nix` - Variables (hostname, IP addresses, k3s options)
-   - `users.nix` - User accounts and SSH keys
-   - `home-manager.nix` - Home-manager per-host config (even if empty)
-3. **Add to `secrets.yaml`**: Create `<hostname>/network_env` secret with:
-   ```
-   IP_ADDRESS=192.168.0.X
-   DEFAULT_GATEWAY=192.168.0.1
-   DNS1=192.168.0.1
-   DNS2=192.168.0.41
-   ```
-4. **Add to `flake.nix`**: Add `nixosConfigurations.<hostname>` entry with correct modules
-5. **Track with Git**: `git add hosts/<hostname>` before evaluation
+    - `configuration.nix` - Main NixOS configuration
+    - `default.nix` - Required by NixOS for host lookup (see below)
+    - `hardware-configuration.nix` - Hardware scan results
+    - `vars.nix` - Variables (hostname, IP addresses, k3s options)
+    - `users.nix` - User accounts and SSH keys
+    - `home-manager.nix` - Home-manager per-host config (even if empty)
+3. **Generate SSH host keys** for persistent SSH fingerprints:
+    ```bash
+    ssh-keygen -t ed25519 -f <hostname>_host_key -N "" -C "<hostname>"
+    ```
+4. **Add to `secrets.yaml`**: Create `<hostname>/network_env` secret with:
+    ```
+    IP_ADDRESS=192.168.0.X
+    DEFAULT_GATEWAY=192.168.0.1
+    DNS1=192.168.0.1
+    DNS2=192.168.0.41
+    ```
+5. **Add SSH host keys to `secrets.yaml`**:
+    ```yaml
+    ssh_keys/<hostname>_host_private: |
+        -----BEGIN OPENSSH PRIVATE KEY-----
+        ... (private key content with trailing newline)
+        -----END OPENSSH PRIVATE KEY-----
+    ssh_keys/<hostname>_host_public: ssh-ed25519 ... (public key)
+    ```
+5. **Add SSH host keys to `.sops.yaml`**: **CRITICAL** - Add the new host public key to the age recipients list in `.sops.yaml` for encryption to work:
+    ```yaml
+    creation_rules:
+      - path_regex: secrets\.ya?ml$
+        key_groups:
+          - age:
+              # ... existing recipients
+              - "ssh-ed25519 <public_key> <hostname>"  # Add new host
+    ```
+6. **Add to `flake.nix`**: Add `nixosConfigurations.<hostname>` entry with correct modules
+7. **Track with Git**: `git add hosts/<hostname>` before evaluation
 
 **Required Files:**
 - `default.nix` (in host directory):

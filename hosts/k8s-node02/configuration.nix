@@ -189,7 +189,7 @@ in
     openiscsi
     e2fsprogs # mkfs.ext4
     xfsprogs # mkfs.xfs
-    utillinux # mount, umount, blkid
+    util-linux # mount, umount, blkid
   ];
 
   services.rsyslogd = {
