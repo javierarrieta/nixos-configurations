@@ -18,6 +18,6 @@
       "--node-label cpu=n100"
     ];
     tokenFile = config.sops.secrets."k3s_token".path;
-    serverAddr = "https://$SERVER_ADDR:6443";
+    serverAddr = "https://192.168.0.11:6443";
   };
 }
