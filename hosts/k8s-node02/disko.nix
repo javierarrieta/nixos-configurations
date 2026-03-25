@@ -3,7 +3,7 @@
   disko.devices = {
     disk = {
       disk0 = {
-        device = "/dev/disk/by-id/ata-M.2_SSD_512GB_GSID24C0400225";
+        device = "/dev/disk/by-id/ata-N900-512_RNG00000000000003041";
         type = "disk";
         content = {
           type = "gpt";
@@ -22,7 +22,7 @@
               };
             };
             root = {
-              size = "50G";
+              size = "70G";
               content = {
                 type = "luks";
                 name = "disk0-root";
@@ -46,7 +46,7 @@
               };
             };
             longhorn = {
-              size = "350G";
+              size = "250G";
               content = {
                 type = "luks";
                 name = "disk0-longhorn";
