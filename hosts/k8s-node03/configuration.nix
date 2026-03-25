@@ -17,6 +17,7 @@ in
     # Include the results of the hardware scan.
     ./hardware-configuration.nix
     ./users.nix
+    ./disko.nix
   ];
 
   sops = {
