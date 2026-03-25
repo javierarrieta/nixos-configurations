@@ -100,6 +100,7 @@
             nixpkgs.hostPlatform.system = "x86_64-linux";
           }
           ./hosts/k8s-node01
+          disko.nixosModules.disko
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           comin.nixosModules.comin
@@ -117,6 +118,7 @@
             nixpkgs.hostPlatform.system = "x86_64-linux";
           }
           ./hosts/k8s-node02
+          disko.nixosModules.disko
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           comin.nixosModules.comin
@@ -134,6 +136,7 @@
             nixpkgs.hostPlatform.system = "x86_64-linux";
           }
           ./hosts/k8s-node03
+          disko.nixosModules.disko
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           comin.nixosModules.comin
