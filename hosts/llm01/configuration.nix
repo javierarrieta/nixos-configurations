@@ -170,6 +170,7 @@ in
   };
 
   users = {
+    mutableUsers = true;
     users = {
       javier = {
         isNormalUser = true;
