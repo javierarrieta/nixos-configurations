@@ -47,7 +47,7 @@ in
       mode = "0600";
       owner = "root";
     };
-    secrets."k8s-node03/network_env" = {
+    secrets."k8s-node01/network_env" = {
       mode = "0400";
       owner = "root";
     };
@@ -271,13 +271,13 @@ in
   # Load network secrets into systemd services
   systemd.services."network-addresses-enp3s0".serviceConfig.EnvironmentFile =
     lib.mkForce
-      config.sops.secrets."k8s-node03/network_env".path;
+      config.sops.secrets."k8s-node01/network_env".path;
   systemd.services.network-setup.serviceConfig.EnvironmentFile =
     lib.mkForce
-      config.sops.secrets."k8s-node03/network_env".path;
+      config.sops.secrets."k8s-node01/network_env".path;
   systemd.services.k3s.serviceConfig.EnvironmentFile =
     lib.mkForce
-      config.sops.secrets."k8s-node03/network_env".path;
+      config.sops.secrets."k8s-node01/network_env".path;
 
   services.comin = {
     enable = true;
