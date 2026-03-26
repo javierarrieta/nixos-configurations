@@ -198,6 +198,24 @@
         ];
       };
 
+      nixosConfigurations.k8s-server01 = nixpkgs.lib.nixosSystem {
+        specialArgs = {
+          inherit unstable home-manager nix-sweep;
+        }
+        // (mkExtraArgs "x86_64-linux");
+        modules = [
+          {
+            nixpkgs.hostPlatform.system = "x86_64-linux";
+          }
+          ./hosts/k8s-server01
+          disko.nixosModules.disko
+          sops-nix.nixosModules.sops
+          home-manager.nixosModules.home-manager
+          comin.nixosModules.comin
+          nix-sweep.nixosModules.default
+        ];
+      };
+
       nixosConfigurations.k8s-pi01 = nixpkgs.lib.nixosSystem {
         system = "aarch64-linux";
         specialArgs = {
