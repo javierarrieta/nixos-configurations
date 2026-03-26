@@ -3,7 +3,7 @@
   disko.devices = {
     disk = {
       disk0 = {
-        device = "/dev/disk/by-id/ata-N900-512_RNG00000000000001240";
+        device = "/dev/disk/by-id/XXXXXXXXXX";
         type = "disk";
         content = {
           type = "gpt";
@@ -43,24 +43,6 @@
               size = "8G";
               content = {
                 type = "swap";
-              };
-            };
-            longhorn = {
-              size = "250G";
-              content = {
-                type = "luks";
-                name = "disk0-longhorn";
-                extraOpenArgs = [ ];
-                passwordFile = "/tmp/disko-password";
-                settings = {
-                  allowDiscards = true;
-                  crypttabExtraOpts = [ "tpm2-device=auto" ];
-                };
-                content = {
-                  type = "filesystem";
-                  format = "ext4";
-                  mountpoint = "/var/lib/longhorn";
-                };
               };
             };
             containerd = {
