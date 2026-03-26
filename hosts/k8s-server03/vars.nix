@@ -12,7 +12,7 @@
     enable = true;
     role = "server";
     extraFlags = toString [
-      "--advertise-address 192.168.0.13"
+      "--advertise-address $IP_ADDRESS"
       "--cluster-cidr 10.42.0.0/16"
       "--service-cidr 10.43.0.0/16"
     ];

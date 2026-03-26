@@ -295,8 +295,6 @@
   ```
   - Note: Service is `rsyslogd`, not `rsyslog`
   - Simpler than promtail for basic log aggregation
-- **Promtail**: For advanced log forwarding to Loki (as configured in k8s-node03)
-  - More complex but provides structured logging with labels
 
 ### Raspberry Pi 4 / ARM64 Configuration
 - **SD Image Building**: See `hosts/k8s-pi01/README.md` for detailed instructions on building SD card images
