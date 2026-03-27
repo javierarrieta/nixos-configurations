@@ -66,6 +66,7 @@ in
   # Use the systemd-boot EFI boot loader.
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
+  boot.initrd.systemd.enable = true;
 
   # boot.loader.grub.device = "/dev/sda";   # (for BIOS systems only)
 
@@ -131,6 +132,7 @@ in
     neovim
     btop
     rsyslog
+    tpm2-tss # Provides systemd-cryptenroll
   ];
 
   # Some programs need SUID wrappers, can be configured further or are
