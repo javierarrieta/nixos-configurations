@@ -229,6 +229,7 @@ in
     }
   ];
   networking.interfaces.enp3s0.useDHCP = false;
+  networking.interfaces.enp1s0.useDHCP = false;
 
   networking.defaultGateway = vars.defaultGateway;
   networking.nameservers = vars.nameservers;
