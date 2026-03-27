@@ -16,7 +16,7 @@
      "--disable=servicelb"
      "--node-taint=node-role.kubernetes.io/master=true:NoSchedule"
     ];
-    tokenFile = config.sops.secrets."k3s_token".path;
-    clusterInit = true;
+    tokenFile = config.sops.secrets."k3s_token".path;    
+    serverAddr = "https://192.168.0.11:6443";
   };
 }
