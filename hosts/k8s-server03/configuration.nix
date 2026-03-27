@@ -173,21 +173,6 @@ in
     };
   };
 
-  home-manager = {
-    backupFileExtension = "orig";
-    useGlobalPkgs = true;
-    useUserPackages = true;
-    users.javier = {
-      imports = [
-        ../../modules/home-manager/base.nix
-        ./home-manager.nix
-      ];
-      home.stateVersion = "25.11";
-      home.username = "javier";
-      home.homeDirectory = "/home/javier";
-    };
-  };
-
   services.k3s = vars.k3sOptions;
 
   systemd.services.k3s.path = with pkgs; [
@@ -271,7 +256,7 @@ in
   # };
 
   # Load network secrets into systemd services
-  systemd.services."network-addresses-enp3s0".serviceConfig.EnvironmentFile =
+  systemd.services."network-addresses-enp2s0".serviceConfig.EnvironmentFile =
     lib.mkForce
       config.sops.secrets."k8s-server03/network_env".path;
   systemd.services.network-setup.serviceConfig.EnvironmentFile =
