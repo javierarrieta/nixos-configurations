@@ -28,6 +28,13 @@
       "ctx-size" = "120000";
     };
   };
+  "Qwen3.5-27B" = {
+    modelId = "Jackrong/Qwen3.5-27B-Claude-4.6-Opus-Reasoning-Distilled-GGUF";
+    filename = "Qwen3.5-27B.Q8_0.gguf";
+    extraProperties = {
+      "ctx-size" = "120000";
+    };
+  };
   # "Qwen3.5-122B-A10B" = {
   #   modelId = "unsloth/Qwen3.5-122B-A10B-GGUF";
   #   filename = "Q4_K_M/Qwen3.5-122B-A10B-Q4_K_M-00001-of-00003.gguf";
