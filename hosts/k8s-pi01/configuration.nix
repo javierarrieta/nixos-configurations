@@ -20,7 +20,7 @@ in
 {
   imports = [
     ./hardware-configuration.nix
-    ./users.nix
+    ../../common/users.nix
   ];
 
   sops = {

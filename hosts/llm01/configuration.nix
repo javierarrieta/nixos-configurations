@@ -16,7 +16,7 @@ in
   imports = [
     ./disko.nix
     ./hardware-configuration.nix
-    ./users.nix
+    ../../common/users.nix
   ];
 
   sops = {
@@ -105,8 +105,6 @@ in
     options ttm pages_limit=31457280
     options ttm page_pool_size=27525120
   '';
-
-  programs.zsh.enable = true;
 
   networking.networkmanager.enable = true;
 

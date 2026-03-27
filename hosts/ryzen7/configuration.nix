@@ -14,6 +14,7 @@
 
 {
   imports = [
+    ../../common/users.nix
     # Include the results of the hardware scan.
     ./hardware-configuration.nix
   ];
@@ -136,8 +137,6 @@
     };
   };
 
-  programs.zsh.enable = true;
-
   home-manager = {
     backupFileExtension = "orig";
     useGlobalPkgs = true;
@@ -156,21 +155,6 @@
   systemd.tmpfiles.rules = [
     "d /home/javier/.ssh 0700 javier javier -"
   ];
-
-  users.users.javier = {
-    isNormalUser = true;
-    hashedPasswordFile = config.sops.templates."javier-password".path;
-    extraGroups = [
-      "wheel"
-      "networkmanager"
-      "render"
-      "video"
-    ];
-    shell = pkgs.zsh;
-    openssh.authorizedKeys.keys = [
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJAxtDTZvN/YqOQC1nOGahb/qLp35iYnBTPaGld6/N6k javier@Javiers-MacBook-Air.local"
-    ];
-  };
 
   users.users.ollama = {
     isSystemUser = true;
