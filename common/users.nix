@@ -7,7 +7,8 @@
 
 {
   programs.zsh.enable = true;
-  
+
+  users.mutableUsers = false;
   users.users.javier = {
     isNormalUser = true;
     hashedPasswordFile = config.sops.templates."javier-password".path;
