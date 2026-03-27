@@ -16,6 +16,7 @@ in
   imports = [
     ./disko.nix
     ./hardware-configuration.nix
+    ./users.nix
   ];
 
   sops = {
@@ -85,11 +86,11 @@ in
 
   hardware.graphics.enable = true;
   hardware.enableRedistributableFirmware = true;
-  boot.initrd.kernelModules = [                                                                                                                                                                                        
-    "amdgpu"                                                                                                                                                                                                           
-    "nfs"                                                                                                                                                                                                              
-    "nfs4"                                                                                                                                                                                                             
-  ];      
+  boot.initrd.kernelModules = [
+    "amdgpu"
+    "nfs"
+    "nfs4"
+  ];
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelParams = [
     "amdgpu.sched_policy=2"
@@ -169,51 +170,6 @@ in
     };
   };
 
-  users = {
-    mutableUsers = true;
-    users = {
-      javier = {
-        isNormalUser = true;
-        hashedPasswordFile = config.sops.templates."javier-password".path;
-        extraGroups = [
-          "wheel"
-          "networkmanager"
-          "render"
-          "video"
-        ];
-        shell = pkgs.zsh;
-        openssh.authorizedKeys.keys = [
-          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJAxtDTZvN/YqOQC1nOGahb/qLp35iYnBTPaGld6/N6k javier@Javiers-MacBook-Air.local"
-          "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKhwR+SbHJQR8mSFe5UvBVNlcuG6vpXLU6K+4Rh3z25N javier@DESKTOP-9N12DRJ"
-        ];
-      };
-      ollama = {
-        isSystemUser = true;
-        group = "ollama";
-        extraGroups = [
-          "render"
-          "video"
-        ];
-      };
-      comfyui = {
-        isSystemUser = true;
-        group = "comfyui";
-        uid = 27001;
-        extraGroups = [
-          "render"
-          "video"
-        ];
-      };
-    };
-    groups = {
-      ollama = {
-        
-      };
-      comfyui = {
-        gid = 27001;
-      };
-    };
-  };
   security.sudo.wheelNeedsPassword = false; # TODO: Remove when issues with passwords are resolved
 
   services = {
@@ -260,11 +216,11 @@ in
       requiresMounts = [ "opt-llm-comfyui.mount" ];
       environment = {
         HIP_VISIBLE_DEVICES = "0";
-        HSA_OVERRIDE_GFX_VERSION="11.5.1";
-        GPU_MAX_HEAP_SIZE="100";
-        GPU_MAX_ALLOC_PERCENT="100";
-        AMD_LOG_LEVEL="0";
-        FLASH_ATTENTION_TRITON_AMD_ENABLE="1";
+        HSA_OVERRIDE_GFX_VERSION = "11.5.1";
+        GPU_MAX_HEAP_SIZE = "100";
+        GPU_MAX_ALLOC_PERCENT = "100";
+        AMD_LOG_LEVEL = "0";
+        FLASH_ATTENTION_TRITON_AMD_ENABLE = "1";
       };
     };
   };
