@@ -149,14 +149,14 @@ sudo nixos-install --flake .#k8s-node04
 systemd-cryptenroll --tpm2-device=list
 
 # Enroll root partition
-sudo systemd-cryptenroll --tpm2-device=auto /dev/mapper/disk0-root
+sudo systemd-cryptenroll --tpm2-device=auto /dev/disk/by-partlabel/disk-disk0-root
 
 # Enroll Longhorn partition
-sudo systemd-cryptenroll --tpm2-device=auto /dev/mapper/disk0-longhorn
+sudo systemd-cryptenroll --tpm2-device=auto /dev/disk/by-partlabel/disk-disk0-longhorn
 
 # Verify enrollment
-sudo systemd-cryptenroll /dev/mapper/disk0-root
-sudo systemd-cryptenroll /dev/mapper/disk0-longhorn
+sudo systemd-cryptenroll /dev/disk/by-partlabel/disk-disk0-root
+sudo systemd-cryptenroll /dev/disk/by-partlabel/disk-disk0-longhorn
 ```
 
 **Note**: TPM2 auto-unlock requires the same hardware and firmware configuration as when the key was enrolled. Changing hardware or firmware updates may require re-enrollment.
