@@ -178,6 +178,8 @@ in
       settings = {
         PermitRootLogin = "no";
         PasswordAuthentication = true;
+        PubkeyAuthentication = true;
+        ChallengeResponseAuthentication = false;
       };
       hostKeys = [
         {
