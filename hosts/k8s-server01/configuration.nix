@@ -271,7 +271,7 @@ in
   # };
 
   # Load network secrets into systemd services
-  systemd.services."network-addresses-enp3s0".serviceConfig.EnvironmentFile =
+  systemd.services."network-addresses-enp2s0".serviceConfig.EnvironmentFile =
     lib.mkForce
       config.sops.secrets."k8s-server01/network_env".path;
   systemd.services.network-setup.serviceConfig.EnvironmentFile =
