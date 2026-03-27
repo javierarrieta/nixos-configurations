@@ -11,7 +11,7 @@ creation_rules:
           - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILqHhvkuxO21tW+rsT7LgPmxuvwAOHgnDT+L9gh6KFtE k8s-pi01"
           - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC4Qqjk15y9JeenuMnCmqcxFTYTFk5Xc55cyoXdsrkRc k8s-pi02"
           - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE2xgDcO78ctx94yq2IvuwNUrFk9+/7vm/FW6gI+i8Ac k8s-node01"
-          - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICcUQ1QEWVkAEMi51YEQiOA71C2oR8RR7Ig0aMSfcXo/ k8s-node02"
+          - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKJibYC2WSlbn9Un29EmhWD37FyUvMYuBq+PAeQ8DX8R k8s-node02"
           - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGU2fCGB/pW8tTU425z5pdhVCVXyvKICFLXrSbo3r5XS k8s-server03"
           - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEKGhcAtq+9tuPkMlprvfocL6kx8dG4GezfpdB1/Rj2v k8s-server02"
           - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ5Dvi1rD9iVwCaf6gsZiEqpIjjFyInSZ1qOtdf+QSeH k8s-server01"
