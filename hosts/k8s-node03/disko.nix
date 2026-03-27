@@ -22,7 +22,7 @@
               };
             };
             root = {
-              size = "70G";
+              size = "120G";
               content = {
                 type = "luks";
                 name = "disk0-root";
@@ -46,7 +46,7 @@
               };
             };
             longhorn = {
-              size = "250G";
+              size = "100%";
               content = {
                 type = "luks";
                 name = "disk0-longhorn";
@@ -61,14 +61,6 @@
                   format = "ext4";
                   mountpoint = "/var/lib/longhorn";
                 };
-              };
-            };
-            containerd = {
-              size = "100%";
-              content = {
-                type = "filesystem";
-                format = "ext4";
-                mountpoint = "/var/lib/containerd";
               };
             };
           };

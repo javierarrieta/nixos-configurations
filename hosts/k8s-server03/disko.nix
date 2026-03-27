@@ -21,8 +21,14 @@
                 ];
               };
             };
+            swap = {
+              size = "8G";
+              content = {
+                type = "swap";
+              };
+            };
             root = {
-              size = "70G";
+              size = "100%";
               content = {
                 type = "luks";
                 name = "disk0-root";
@@ -37,20 +43,6 @@
                   format = "ext4";
                   mountpoint = "/";
                 };
-              };
-            };
-            swap = {
-              size = "8G";
-              content = {
-                type = "swap";
-              };
-            };
-            containerd = {
-              size = "100%";
-              content = {
-                type = "filesystem";
-                format = "ext4";
-                mountpoint = "/var/lib/containerd";
               };
             };
           };
