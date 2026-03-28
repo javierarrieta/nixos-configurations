@@ -17,6 +17,6 @@
      "--node-taint=node-role.kubernetes.io/master=true:NoSchedule"
     ];
     tokenFile = config.sops.secrets."k3s_token".path;    
-    serverAddr = "https://192.168.0.11:6443";
+    serverAddr = "https://192.168.0.12:6443";
   };
 }
