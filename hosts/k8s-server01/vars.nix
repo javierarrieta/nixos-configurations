@@ -12,11 +12,11 @@
     enable = true;
     role = "server";
     extraFlags = toString [
-      "--advertise-address $IP_ADDRESS"
-      "--cluster-cidr 10.42.0.0/16"
-      "--service-cidr 10.43.0.0/16"
+     "--disable=traefik"
+     "--disable=servicelb"
+     "--node-taint=node-role.kubernetes.io/master=true:NoSchedule"
     ];
     tokenFile = config.sops.secrets."k3s_token".path;
-    serverAddr = "https://192.168.0.11:6443";
+    serverAddr = "https://192.168.0.12:6443";
   };
 }
