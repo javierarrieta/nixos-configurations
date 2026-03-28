@@ -1,6 +1,6 @@
 { config, pkgs }:
 {
-  hostname = "k8s-server03";
+  hostname = "k8s-server03a";
   ipAddress = "$IP_ADDRESS";
   defaultGateway = "$DEFAULT_GATEWAY";
   nameservers = [
