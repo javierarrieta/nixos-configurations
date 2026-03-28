@@ -3,7 +3,7 @@
   disko.devices = {
     disk = {
       disk0 = {
-        device = "/dev/disk/by-id/ata-N900-512_RNG00000000000001240";
+        device = "/dev/disk/by-id/mmc-MMC128_0x6d9d230b";
         type = "disk";
         content = {
           type = "gpt";
