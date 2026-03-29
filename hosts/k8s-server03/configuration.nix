@@ -146,6 +146,7 @@ in
 
   # List services that you want to enable:
 
+  boot.kernelModules = [ "dm_crypt" ];
   boot.supportedFilesystems = [ "nfs" ];
   services.rpcbind.enable = true;
   # Enable the OpenSSH daemon.
@@ -176,10 +177,11 @@ in
   services.k3s = vars.k3sOptions;
 
   systemd.services.k3s.path = with pkgs; [
-    openiscsi
+    openiscsi # longhorn
     e2fsprogs # mkfs.ext4
     xfsprogs # mkfs.xfs
     util-linux # mount, umount, blkid
+    cryptsetup # longhorn
   ];
 
   services.rsyslogd = {
