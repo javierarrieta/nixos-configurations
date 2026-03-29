@@ -165,24 +165,37 @@ in
     };
   };
 
-  users.users.ollama = {
-    isSystemUser = true;
-    group = "ollama";
-    extraGroups = [
-      "render"
-      "video"
-    ];
+
+
+  users.users = {
+    ollama = {
+      isSystemUser = true;
+      group = "ollama";
+      uid = 27002;
+      extraGroups = [
+        "render"
+        "video"
+      ];
+    };
+    comfyui = {
+      isSystemUser = true;
+      group = "comfyui";
+      uid = 27001;
+      extraGroups = [
+        "render"
+        "video"
+      ];
+    };
   };
-  users.groups.ollama = { };
-  users.users.comfyui = {
-    isSystemUser = true;
-    group = "comfyui";
-    extraGroups = [
-      "render"
-      "video"
-    ];
+
+  users.groups = {
+    ollama = {
+      gid = 27002;
+     };
+    comfyui = {
+      gid = 27001;
+    };
   };
-  users.groups.comfyui = { };
 
   services = {
     openssh = {
