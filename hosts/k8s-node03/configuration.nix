@@ -190,10 +190,11 @@ in
   services.k3s = vars.k3sOptions;
 
   systemd.services.k3s.path = with pkgs; [
-    openiscsi
+    openiscsi # longhorn
     e2fsprogs # mkfs.ext4
     xfsprogs # mkfs.xfs
     util-linux # mount, umount, blkid
+    cryptsetup # longhorn
   ];
 
   services.rsyslogd = {

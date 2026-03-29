@@ -145,8 +145,6 @@ in
   # };
 
   # List services that you want to enable:
-
-  boot.kernelModules = [ "dm_crypt" ];
   boot.supportedFilesystems = [ "nfs" ];
   services.rpcbind.enable = true;
   # Enable the OpenSSH daemon.
