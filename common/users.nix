@@ -11,7 +11,7 @@
   users.mutableUsers = false;
   users.users.javier = {
     isNormalUser = true;
-    hashedPasswordFile = config.sops.templates."javier-password".path;
+    hashedPasswordFile = config.sops.secrets."users/javier_password_hash".path;
     extraGroups = [
       "wheel"
       "networkmanager"

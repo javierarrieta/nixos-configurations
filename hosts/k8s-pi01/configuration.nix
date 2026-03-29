@@ -31,9 +31,7 @@ in
       mode = "0600";
       owner = "root";
     };
-    templates."javier-password" = {
-      content = "${config.sops.placeholder."users/javier_password_hash"}";
-    };
+
     secrets."ssh_keys/javier_private" = {
       mode = "0600";
       owner = "javier";
