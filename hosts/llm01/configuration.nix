@@ -165,6 +165,25 @@ in
     };
   };
 
+  users.users.ollama = {
+    isSystemUser = true;
+    group = "ollama";
+    extraGroups = [
+      "render"
+      "video"
+    ];
+  };
+  users.groups.ollama = { };
+  users.users.comfyui = {
+    isSystemUser = true;
+    group = "comfyui";
+    extraGroups = [
+      "render"
+      "video"
+    ];
+  };
+  users.groups.comfyui = { };
+
   services = {
     openssh = {
       enable = true;
@@ -288,6 +307,8 @@ in
   systemd.tmpfiles.rules = [
     "d /opt/llm 0755 ollama ollama -"
     "d /opt/llm/comfyui 0755 comfyui comfyui -"
+    "d /opt/llm/models 0755 ollama ollama -"
+    "d /opt/llm/models/llama-cpp 0755 ollama ollama -"
     "Z /opt/llm - ollama ollama -"
     "d /home/javier/.ssh 0700 javier javier -"
   ];
