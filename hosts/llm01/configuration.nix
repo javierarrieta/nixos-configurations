@@ -165,8 +165,6 @@ in
     };
   };
 
-
-
   users.users = {
     ollama = {
       isSystemUser = true;
