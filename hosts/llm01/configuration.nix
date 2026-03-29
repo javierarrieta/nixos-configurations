@@ -86,6 +86,7 @@ in
     "amdgpu"
     "nfs"
     "nfs4"
+    "binfmt_misc"
   ];
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelParams = [
@@ -168,7 +169,7 @@ in
     openssh = {
       enable = true;
       settings = {
-        PermitRootLogin = "no";
+        PermitRootLogin = "yes";
         PasswordAuthentication = true;
         PubkeyAuthentication = true;
         ChallengeResponseAuthentication = false;
