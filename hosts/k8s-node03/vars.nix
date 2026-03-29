@@ -16,6 +16,7 @@
       "--node-label storage=ssd"
       "--node-label arch=amd64"
       "--node-label cpu=n100"
+      "--kubelet-arg pod-max-pids=8192"
     ];
     tokenFile = config.sops.secrets."k3s_token".path;
     serverAddr = "https://192.168.0.11:6443";
