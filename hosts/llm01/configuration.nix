@@ -78,7 +78,7 @@ in
   boot.initrd.systemd.enable = true;
   security.tpm2.enable = true; # Enables TPM2 userspace tools
 
-  boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
+  # boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
 
   hardware.graphics.enable = true;
   hardware.enableRedistributableFirmware = true;
@@ -86,8 +86,8 @@ in
     "amdgpu"
     "nfs"
     "nfs4"
-    "binfmt_misc"
   ];
+
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelParams = [
     "amdgpu.sched_policy=2"
@@ -286,6 +286,7 @@ in
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
 
   systemd.tmpfiles.rules = [
+    "d /run/binfmt 0755 root root -"
     "d /opt/llm 0755 ollama ollama -"
     "d /opt/llm/comfyui 0755 comfyui comfyui -"
     "Z /opt/llm - ollama ollama -"
