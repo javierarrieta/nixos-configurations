@@ -286,7 +286,6 @@ in
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
 
   systemd.tmpfiles.rules = [
-    "d /run/binfmt 0755 root root -"
     "d /opt/llm 0755 ollama ollama -"
     "d /opt/llm/comfyui 0755 comfyui comfyui -"
     "Z /opt/llm - ollama ollama -"
