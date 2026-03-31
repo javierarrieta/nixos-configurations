@@ -1,7 +1,7 @@
 { config, lib, pkgs, ... }:
 
 let
-  sshKeys = import ../../../common/ssh-keys.nix;
+  sshKeys = import ../../common/ssh-keys.nix;
 in
 {
   options = {
