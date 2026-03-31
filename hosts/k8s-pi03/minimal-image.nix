@@ -17,10 +17,10 @@ in
 {
   imports = [
     ./hardware-configuration.nix
-    ../../../modules/nixos/raspberry-pi.nix
-    ../../../modules/nixos/minimal-image.nix
-    ../../../modules/nixos/static-network.nix
-    ../../../modules/nixos/comin.nix
+    ../../modules/nixos/raspberry-pi.nix
+    ../../modules/nixos/minimal-image.nix
+    ../../modules/nixos/static-network.nix
+    ../../modules/nixos/comin.nix
   ];
 
   raspberryPi.enable = true;

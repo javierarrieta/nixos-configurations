@@ -18,7 +18,7 @@
       };
       nameservers = lib.mkOption {
         type = lib.types.listOf lib.types.str;
-        default = [];
+        default = [ ];
         description = "List of DNS nameservers";
       };
       interface = lib.mkOption {
@@ -30,13 +30,15 @@
   };
 
   config = lib.mkIf config.staticNetwork.enable {
-    networking.interfaces.${config.staticNetwork.interface}.ipv4.addresses = [
-      {
-        address = config.staticNetwork.ipAddress;
-        prefixLength = config.staticNetwork.prefixLength;
-      }
-    ];
-    networking.interfaces.${config.staticNetwork.interface}.useDHCP = false;
+    networking.interfaces.${config.staticNetwork.interface} = {
+      ipv4.addresses = [
+        {
+          address = config.staticNetwork.ipAddress;
+          prefixLength = config.staticNetwork.prefixLength;
+        }
+      ];
+      useDHCP = false;
+    };
     networking.defaultGateway = config.staticNetwork.defaultGateway;
     networking.nameservers = config.staticNetwork.nameservers;
   };
