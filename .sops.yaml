@@ -17,6 +17,7 @@ creation_rules:
           - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ5Dvi1rD9iVwCaf6gsZiEqpIjjFyInSZ1qOtdf+QSeH k8s-server01"
           - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEKGhcAtq+9tuPkMlprvfocL6kx8dG4GezfpdB1/Rj2v k8s-server02"
           - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGU2fCGB/pW8tTU425z5pdhVCVXyvKICFLXrSbo3r5XS k8s-server03"
+          - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAGZdcbhBnbO4fiorT87uhTc/akXtFriU+kgTR2CLx7h k8s-pi03"
           # Bootstrap key
           - age1rlvgte0l7225vqdusvkzmdqmsyfd3u255rfy7ku93xx99k4vldsqhxnyxx
 
