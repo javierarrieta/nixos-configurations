@@ -18,6 +18,7 @@ in
     ./hardware-configuration.nix
     ../../common/users.nix
     ./disko.nix
+    ../../modules/nixos/comin-discord-alert.nix
   ];
 
   sops = {
@@ -288,7 +289,13 @@ in
         poller.period = 900;
       }
     ];
+    postDeploymentCommand = config.cominDiscordAlert.script;
   };
+
+  cominDiscordAlert.enable = true;
+  cominDiscordAlert.webhookUrl = config.sops.secrets."discord/comin_webhook_url".path;
+
+  sops.secrets."discord/comin_webhook_url" = { };
 
   services.nix-sweep = {
     enable = true;

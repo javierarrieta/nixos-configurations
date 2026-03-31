@@ -17,6 +17,7 @@ in
     ./disko.nix
     ./hardware-configuration.nix
     ../../common/users.nix
+    ../../modules/nixos/comin-discord-alert.nix
   ];
 
   sops = {
@@ -189,7 +190,7 @@ in
   users.groups = {
     ollama = {
       gid = 27002;
-     };
+    };
     comfyui = {
       gid = 27001;
     };
@@ -413,7 +414,13 @@ in
         poller.period = 900;
       }
     ];
+    postDeploymentCommand = config.cominDiscordAlert.script;
   };
+
+  cominDiscordAlert.enable = true;
+  cominDiscordAlert.webhookUrl = config.sops.secrets."discord/comin_webhook_url".path;
+
+  sops.secrets."discord/comin_webhook_url" = { };
 
   system.stateVersion = "25.11";
 

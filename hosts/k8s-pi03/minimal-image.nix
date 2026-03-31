@@ -33,6 +33,9 @@ in
   staticNetwork.nameservers = vars.nameservers;
 
   cominGitOps.enable = true;
+  cominGitOps.discordWebhookUrl = config.sops.secrets."discord/comin_webhook_url".path;
+
+  sops.secrets."discord/comin_webhook_url" = { };
 
   networking.hostName = vars.hostname;
 }

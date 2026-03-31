@@ -21,6 +21,7 @@ in
   imports = [
     ./hardware-configuration.nix
     ../../common/users.nix
+    ../../modules/nixos/comin-discord-alert.nix
   ];
 
   sops = {
@@ -159,7 +160,13 @@ in
         poller.period = 300;
       }
     ];
+    postDeploymentCommand = config.cominDiscordAlert.script;
   };
+
+  cominDiscordAlert.enable = true;
+  cominDiscordAlert.webhookUrl = config.sops.secrets."discord/comin_webhook_url".path;
+
+  sops.secrets."discord/comin_webhook_url" = { };
 
   systemd.services.k3s.path = with pkgs; [
     openiscsi
