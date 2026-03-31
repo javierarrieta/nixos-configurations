@@ -42,7 +42,7 @@ in
       owner = "javier";
       path = "${config.users.users.javier.home}/.ssh/id_ed25519.pub";
     };
-    secrets."k8s-pi03/k3s_token" = {
+    secrets."k3s_token" = {
       mode = "0600";
       owner = "root";
     };

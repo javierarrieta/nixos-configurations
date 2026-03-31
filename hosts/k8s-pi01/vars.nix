@@ -21,8 +21,8 @@
       "--node-label cpu=rpi4"
     ];
     tokenFile = lib.mkIf (
-      config.sops.secrets ? "k8s-pi01/k3s_token"
-    ) config.sops.secrets."k8s-pi01/k3s_token".path;
+      config.sops.secrets ? "k3s_token"
+    ) config.sops.secrets."k3s_token".path;
     serverAddr = "https://192.168.0.11:6443";
   };
 }
