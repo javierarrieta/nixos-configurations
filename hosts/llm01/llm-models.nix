@@ -1,4 +1,11 @@
 {
+  "Qwen3.5-3B" = {
+    modelId = "unsloth/Qwen3.5-2B-GGUF";
+    filename = "Qwen3.5-2B-Q4_K_M.gguf";
+    extraProperties = {
+      "ctx-size" = "8192";
+    };
+  };
   "Qwen3.5-4B" = {
     modelId = "unsloth/Qwen3.5-4B-GGUF";
     filename = "Qwen3.5-4B-Q4_K_M.gguf";
