@@ -26,6 +26,7 @@ in
     secrets."users/javier_password_hash" = {
       mode = "0600";
       owner = "root";
+      neededForUsers = true;
     };
 
     secrets."ssh_keys/javier_private" = {
