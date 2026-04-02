@@ -1,9 +1,16 @@
 {
-  "Qwen3.5-3B" = {
+  "Qwen3.5-2B" = {
     modelId = "unsloth/Qwen3.5-2B-GGUF";
     filename = "Qwen3.5-2B-Q4_K_M.gguf";
     extraProperties = {
       "ctx-size" = "8192";
+      "reasoning-budget" = "-1";
+      "temp" = "0.7";
+      "top-k" = "100";
+      "top-p" = "0.80";
+      "min-p" = "0.0";
+      "repeat-penalty" = "1.0";
+      "chat-template-kwargs" = "{\"enable_thinking\": false}";
     };
   };
   "Qwen3.5-4B" = {
