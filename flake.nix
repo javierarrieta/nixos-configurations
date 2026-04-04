@@ -317,7 +317,7 @@
               nixpkgs.hostPlatform.system = "aarch64-linux";
               nixpkgs.overlays = [ comin.overlays.default ];
               networking.hostName = "k8s-pi01";
-              image.fileName = "nixos-sd-image-k8s-pi01.img.zst";
+              image.baseName = "nixos-sd-image-k8s-pi01-minimal";
             }
 
             "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
@@ -344,7 +344,7 @@
 
             {
               networking.hostName = "k8s-pi01";
-              image.fileName = "nixos-sd-image-k8s-pi01.img.zst";
+              image.baseName = "nixos-sd-image-k8s-pi01-minimal";
             }
 
             "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
@@ -387,7 +387,7 @@
               nixpkgs.hostPlatform.system = "aarch64-linux";
               nixpkgs.overlays = [ comin.overlays.default ];
               networking.hostName = "k8s-pi02";
-              image.fileName = "nixos-sd-image-k8s-pi02.img.zst";
+              image.baseName = "nixos-sd-image-k8s-pi02-minimal";
             }
 
             "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
@@ -403,7 +403,7 @@
 
             {
               networking.hostName = "k8s-pi02";
-              image.fileName = "nixos-sd-image-k8s-pi02.img.zst";
+              image.baseName = "nixos-sd-image-k8s-pi02-minimal";
             }
 
             "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
@@ -435,7 +435,7 @@
               nixpkgs.hostPlatform.system = "aarch64-linux";
               nixpkgs.overlays = [ comin.overlays.default ];
               networking.hostName = "k8s-pi03";
-              image.fileName = "nixos-sd-image-k8s-pi03.img.zst";
+              image.baseName = "nixos-sd-image-k8s-pi03-minimal";
             }
 
             "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
@@ -451,7 +451,7 @@
 
             {
               networking.hostName = "k8s-pi03";
-              image.fileName = "nixos-sd-image-k8s-pi03.img.zst";
+              image.baseName = "nixos-sd-image-k8s-pi03";
             }
 
             "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
@@ -467,7 +467,7 @@
 
             {
               networking.hostName = "k8s-pi03";
-              image.fileName = "nixos-sd-image-k8s-pi03.img.zst";
+              image.baseName = "nixos-sd-image-k8s-pi03-minimal";
             }
 
             "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
