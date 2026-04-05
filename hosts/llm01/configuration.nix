@@ -14,11 +14,25 @@ let
 in
 {
   imports = [
+    # Hardware
     ./disko.nix
     ./hardware-configuration.nix
+
+    # Modules
+    ../../modules/nixos/base.nix
+    ../../modules/nixos/system-packages.nix
+    ../../modules/nixos/ssh.nix
+    ../../modules/nixos/prometheus.nix
+    ../../modules/nixos/rsyslog.nix
+    ../../modules/nixos/sops-base.nix
+    ../../modules/nixos/nix-sweep.nix
+    ../../modules/nixos/comin.nix
+
+    # Users
     ../../common/users.nix
   ];
 
+  # SOPS configuration
   sops = {
     defaultSopsFile = ../../secrets.yaml;
     age.keyFile = "/var/lib/sops-nix/key.txt";
@@ -71,16 +85,18 @@ in
     };
   };
 
+  # Disk configuration
   disko.enableConfig = true;
 
+  # Boot loader
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
+  # Boot configuration
   boot.initrd.systemd.enable = true;
   security.tpm2.enable = true; # Enables TPM2 userspace tools
 
-  # boot.binfmt.emulatedSystems = [ "aarch64-linux" ];
-
+  # Hardware
   hardware.graphics.enable = true;
   hardware.enableRedistributableFirmware = true;
   boot.initrd.kernelModules = [
@@ -89,6 +105,7 @@ in
     "nfs4"
   ];
 
+  # Kernel configuration
   boot.kernelPackages = pkgs.linuxPackages_latest;
   boot.kernelParams = [
     "amdgpu.sched_policy=2"
@@ -104,30 +121,17 @@ in
     options ttm page_pool_size=27525120
   '';
 
+  # Network
   networking.networkmanager.enable = true;
+  networking.hostName = "llm01";
 
-  networking.hostName = "llm01"; # Define your hostname.
-
+  # WireGuard secrets (currently unused)
   sops.secrets."wireguard/address" = { };
   sops.secrets."wireguard/publicKey" = { };
   sops.secrets."wireguard/endpoint" = { };
   sops.secrets."wireguard/allowedIPs" = { };
 
-  # sops.templates."wg0.conf".content = ''
-  #   [Interface]
-  #   Address = ${config.sops.placeholder."wireguard/address"}
-  #   DNS = 8.8.8.8, 1.1.1.1
-  #   PrivateKey = ${config.sops.placeholder."wireguard/private_key"}
-
-  #   [Peer]
-  #   PublicKey = ${config.sops.placeholder."wireguard/publicKey"}
-  #   Endpoint = ${config.sops.placeholder."wireguard/endpoint"}
-  #   AllowedIPs = ${config.sops.placeholder."wireguard/allowedIPs"}
-  #   PersistentKeepalive = 25
-  # '';
-
-  # networking.wg-quick.interfaces.wg0.configFile = config.sops.templates."wg0.conf".path;
-
+  # System packages
   environment.systemPackages = [
     pkgs.tpm2-tss # Provides systemd-cryptenroll
     pkgs.git
@@ -149,8 +153,10 @@ in
     unstablePkgs.llama-cpp-vulkan
   ];
 
+  # Timezone
   time.timeZone = "Utc";
 
+  # Home Manager
   home-manager = {
     backupFileExtension = "orig";
     useGlobalPkgs = true;
@@ -166,6 +172,7 @@ in
     };
   };
 
+  # System users for LLM services
   users.users = {
     ollama = {
       isSystemUser = true;
@@ -190,12 +197,13 @@ in
   users.groups = {
     ollama = {
       gid = 27002;
-     };
+    };
     comfyui = {
       gid = 27001;
     };
   };
 
+  # Services
   services = {
     openssh = {
       enable = true;
@@ -219,18 +227,7 @@ in
       enabledCollectors = [ "drm" ];
     };
 
-    rsyslogd = {
-      enable = true;
-      extraConfig = ''
-        $ModLoad imuxsock
-        $ModLoad imjournal
-        $WorkDirectory /var/spool/rsyslog
-        $ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
-
-        *.* @@192.168.0.41:514
-      '';
-    };
-
+    # ComfyUI
     comfyui = {
       enable = true;
       gpuSupport = "rocm";
@@ -251,6 +248,7 @@ in
     };
   };
 
+  # llama.cpp server service
   systemd.services.llama-cpp-server = {
     description = "llama-cpp server";
     wantedBy = [ "multi-user.target" ];
@@ -280,6 +278,7 @@ in
     };
   };
 
+  # Watch llama-cpp config file for changes
   systemd.paths.llama-cpp-config-watch = {
     description = "Watch llama-cpp config file for changes";
     wantedBy = [ "multi-user.target" ];
@@ -289,8 +288,10 @@ in
     };
   };
 
+  # Firewall
   networking.firewall.allowedTCPPorts = [ 8001 ];
 
+  # NFS mount for ComfyUI
   fileSystems = {
     "/opt/llm/comfyui" = {
       device = "192.168.0.6:/mnt/tank/ComfyUI";
@@ -306,6 +307,7 @@ in
     };
   };
 
+  # Nix settings
   nix.settings = {
     experimental-features = [
       "nix-command"
@@ -316,6 +318,7 @@ in
   nixpkgs.config.allowUnfree = true;
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
 
+  # Tempfiles
   systemd.tmpfiles.rules = [
     "d /opt/llm 0755 ollama ollama -"
     "d /opt/llm/comfyui 0755 comfyui comfyui -"
@@ -325,6 +328,7 @@ in
     "d /home/javier/.ssh 0700 javier javier -"
   ];
 
+  # Download llama.cpp models from HuggingFace
   systemd.services.llama-cpp-download-models = {
     description = "Download llama-cpp models from HuggingFace";
     wantedBy = [ "multi-user.target" ];
@@ -371,6 +375,7 @@ in
     };
   };
 
+  # Generate llama.cpp config file
   systemd.services.llama-cpp-config = {
     description = "Generate llama-cpp config file";
     wantedBy = [ "multi-user.target" ];
@@ -404,6 +409,7 @@ in
     };
   };
 
+  # Comin configuration
   services.comin = {
     enable = true;
     remotes = [
@@ -416,8 +422,7 @@ in
     ];
   };
 
-  system.stateVersion = "25.11";
-
+  # Nix-sweep configuration
   services.nix-sweep = {
     enable = true;
     interval = "daily";
@@ -425,4 +430,5 @@ in
     keepMin = 10;
   };
 
+  system.stateVersion = "25.11";
 }
