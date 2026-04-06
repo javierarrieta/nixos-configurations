@@ -2,10 +2,6 @@
   config,
   lib,
   pkgs,
-  unstable,
-  unstablepkgs,
-  home-manager,
-  llama-cpp,
   ...
 }:
 let
@@ -21,179 +17,77 @@ in
   imports = [
     ./hardware-configuration.nix
     ../../common/users.nix
+    ../../modules/nixos/base.nix
+    ../../modules/nixos/system-packages.nix
+    ../../modules/nixos/ssh.nix
+    ../../modules/nixos/static-network.nix
+    ../../modules/nixos/prometheus.nix
+    ../../modules/nixos/rsyslog.nix
+    ../../modules/nixos/openiscsi.nix
+    ../../modules/nixos/sops-base.nix
+    ../../modules/nixos/k3s.nix
+    ../../modules/nixos/comin.nix
+    ../../modules/nixos/raspberry-pi.nix
   ];
 
-  sops = {
-    defaultSopsFile = ../../secrets.yaml;
-    age.keyFile = "/var/lib/sops-nix/key.txt";
-    age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-    secrets."users/javier_password_hash" = {
-      mode = "0600";
-      owner = "root";
-      neededForUsers = true;
-    };
+  base.enable = true;
+  systemPackages.enable = true;
+  ssh.enable = true;
+  raspberryPi.enable = true;
 
-    secrets."ssh_keys/javier_private" = {
-      mode = "0600";
-      owner = "javier";
-      path = "${config.users.users.javier.home}/.ssh/id_ed25519";
-    };
-    secrets."ssh_keys/javier_public" = {
-      mode = "0644";
-      owner = "javier";
-      path = "${config.users.users.javier.home}/.ssh/id_ed25519.pub";
-    };
-    secrets."k3s_token" = {
-      mode = "0600";
-      owner = "root";
-    };
-    secrets."ssh_keys/k8s-pi01_host_private" = {
-      mode = "0600";
-      owner = "root";
-      path = "/etc/ssh/ssh_host_ed25519_key";
-    };
-    secrets."ssh_keys/k8s-pi01_host_public" = {
-      mode = "0644";
-      owner = "root";
-      path = "/etc/ssh/ssh_host_ed25519_key.pub";
-    };
+  # Override boot loader for Raspberry Pi
+  boot.loader.systemd-boot.enable = lib.mkForce false;
+  boot.loader.generic-extlinux-compatible.enable = true;
+
+  staticNetwork = {
+    enable = true;
+    interface = "eth0";
+    ipAddress = vars.ipAddress;
+    defaultGateway = vars.defaultGateway;
+    nameservers = vars.nameservers;
   };
 
-  boot.loader.grub.enable = false;
-  boot.loader.generic-extlinux-compatible.enable = true;
-  boot.kernelPackages = pkgs.linuxPackages_rpi4;
-  boot.kernelParams = [
-    "8250.nr_uarts=1"
-    "console=ttyAMA0,115200"
-    "console=tty1"
-  ];
+  networking.interfaces.eth0.useDHCP = false;
+
+  prometheus.nodeExporter.enable = true;
+
+  rsyslog.enable = true;
+
+  openiscsi.enable = true;
+
+  sopsBase.enable = true;
+
+  k3s = vars.k3s;
+
+  cominGitOps = {
+    enable = true;
+    pollInterval = 300;
+  };
 
   networking.hostName = vars.hostname;
 
-  networking.interfaces.eth0.ipv4.addresses = [
-    {
-      address = vars.ipAddress;
-      prefixLength = 24;
-    }
-  ];
-  networking.interfaces.eth0.useDHCP = false;
-  networking.defaultGateway = vars.defaultGateway;
-  networking.nameservers = vars.nameservers;
+  hardware.enableRedistributableFirmware = true;
 
-  networking.firewall.enable = false;
-
-  time.timeZone = "UTC";
-  i18n.defaultLocale = "en_US.UTF-8";
-
-  users.defaultUserShell = pkgs.fish;
-
-  environment.systemPackages = with pkgs; [
-    vim
-    wget
-    screen
-    htop
-    git
-    fish
-    prometheus-node-exporter
-    k3s
-    kubernetes-helm
-    openiscsi
-    nfs-utils
-    xfsprogs
-    age
-    sops
-    neovim
-    btop
-    libraspberrypi
-  ];
-
-  programs.fish.enable = true;
-
-  boot.supportedFilesystems = [ "nfs" ];
-  services.rpcbind.enable = true;
-
-  services.openssh = {
-    enable = true;
-    hostKeys = [
-      {
-        path = "/etc/ssh/ssh_host_ed25519_key";
-        type = "ed25519";
-      }
-    ];
+  sops.secrets."k3s_token" = {
+    mode = "0600";
+    owner = "root";
   };
-
-  services.openiscsi = {
-    enable = true;
-    name = "openscsi";
+  sops.secrets."ssh_keys/k8s-pi01_host_private" = {
+    mode = "0600";
+    owner = "root";
+    path = "/etc/ssh/ssh_host_ed25519_key";
   };
-
-  services.prometheus.exporters.node = {
-    enable = true;
-    enabledCollectors = [ "systemd" ];
-    port = 9002;
+  sops.secrets."ssh_keys/k8s-pi01_host_public" = {
+    mode = "0644";
+    owner = "root";
+    path = "/etc/ssh/ssh_host_ed25519_key.pub";
   };
-
-  home-manager = {
-    backupFileExtension = "orig";
-    useGlobalPkgs = true;
-    useUserPackages = true;
-    users.javier = {
-      imports = [
-        ../../modules/home-manager/base.nix
-        ./home-manager.nix
-      ];
-      home.stateVersion = "25.11";
-      home.username = "javier";
-      home.homeDirectory = "/home/javier";
-    };
-  };
-
-  services.k3s = vars.k3sOptions;
-
-  services.comin = {
-    enable = true;
-    remotes = [
-      {
-        name = "origin";
-        url = "https://github.com/javierarrieta/nixos-configurations.git";
-        branches.main.name = "main";
-        poller.period = 300;
-      }
-    ];
-  };
-
-  systemd.services.k3s.path = with pkgs; [
-    openiscsi
-    e2fsprogs
-    xfsprogs
-    util-linux
-  ];
 
   systemd.tmpfiles.rules = [
     "L+ /usr/local/bin - - - - /run/current-system/sw/bin/"
     "f /var/log/rsyslog.log 0644 root root - -"
     "f /var/spool/rsyslog/* 0640 root adm - -"
   ];
-
-  services.rsyslogd = {
-    enable = true;
-    extraConfig = ''
-      $ModLoad imuxsock
-      $ModLoad imjournal
-      $WorkDirectory /var/spool/rsyslog
-      $ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
-      $FileOwner root
-      $FileGroup adm
-      $FileCreateMode 0640
-      $DirCreateMode 0755
-      $UMask 0022
-      $WorkDirectoryCreateMode 0755
-
-      *.* @@192.168.0.41:514
-    '';
-  };
-
-  hardware.enableRedistributableFirmware = true;
 
   system.stateVersion = "25.11";
 }

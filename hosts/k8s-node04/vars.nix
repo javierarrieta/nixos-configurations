@@ -8,17 +8,16 @@
     "8.8.4.4"
   ];
 
-  k3sOptions = {
+  k3s = {
     enable = true;
     role = "agent";
-    extraFlags = toString [
-      #"--node-label node-role.kubernetes.io/worker=true"
-      "--node-label storage=ssd"
-      "--node-label arch=amd64"
-      "--node-label cpu=n100"
-      "--kubelet-arg pod-max-pids=2048"
-    ];
-    tokenFile = config.sops.secrets."k3s_token".path;
     serverAddr = "https://192.168.0.11:6443";
+    tokenFile = config.sops.secrets."k3s_token".path;
+    labels = [
+      "storage=ssd"
+      "arch=amd64"
+      "cpu=n100"
+    ];
+    kubeletArgs = [ "pod-max-pids=2048" ];
   };
 }
