@@ -25,7 +25,7 @@ in
     ../../modules/nixos/rsyslog.nix
     ../../modules/nixos/openiscsi.nix
     ../../modules/nixos/sops-base.nix
-    ../../modules/nixos/k3s-agent.nix
+    ../../modules/nixos/k3s.nix
     ../../modules/nixos/comin.nix
     ../../modules/nixos/raspberry-pi.nix
   ];
@@ -57,15 +57,7 @@ in
 
   sopsBase.enable = true;
 
-  k3sAgent = {
-    enable = true;
-    serverAddr = "https://192.168.0.11:6443";
-    tokenFile = config.sops.secrets."k3s_token".path;
-    extraFlags = [
-      "--node-label storage=ssd"
-      "--node-label arch=arm64"
-    ];
-  };
+  k3s = vars.k3s;
 
   cominGitOps = {
     enable = true;

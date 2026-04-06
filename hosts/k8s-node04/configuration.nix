@@ -20,7 +20,7 @@ in
     ../../modules/nixos/rsyslog.nix
     ../../modules/nixos/openiscsi.nix
     ../../modules/nixos/sops-base.nix
-    ../../modules/nixos/k3s-agent.nix
+    ../../modules/nixos/k3s.nix
     ../../modules/nixos/k8s-network.nix
     ../../modules/nixos/comin.nix
     ../../modules/nixos/nix-sweep.nix
@@ -48,17 +48,7 @@ in
 
   sopsBase.enable = true;
 
-  k3sAgent = {
-    enable = true;
-    serverAddr = "https://192.168.0.11:6443";
-    tokenFile = config.sops.secrets."k3s_token".path;
-    extraFlags = [
-      "--node-label storage=ssd"
-      "--node-label arch=amd64"
-      "--node-label cpu=n100"
-      "--kubelet-arg pod-max-pids=2048"
-    ];
-  };
+  k3s = vars.k3s;
 
   systemd.services.k3s.serviceConfig = {
     MemoryLimit = "4G";

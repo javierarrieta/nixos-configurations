@@ -20,7 +20,7 @@ in
     ../../modules/nixos/rsyslog.nix
     ../../modules/nixos/openiscsi.nix
     ../../modules/nixos/sops-base.nix
-    ../../modules/nixos/k3s-server.nix
+    ../../modules/nixos/k3s.nix
     ../../modules/nixos/k8s-network.nix
     ../../modules/nixos/comin.nix
     ../../modules/nixos/nix-sweep.nix
@@ -48,11 +48,7 @@ in
 
   sopsBase.enable = true;
 
-  k3sServer = {
-    enable = true;
-    serverAddr = "https://192.168.0.12:6443";
-    tokenFile = config.sops.secrets."k3s_token".path;
-  };
+  k3s = vars.k3s;
 
   systemd.services.k3s.path = with pkgs; [
     openiscsi
