@@ -90,13 +90,6 @@ in
     "f /var/spool/rsyslog/* 0640 root adm - -"
   ];
 
-  systemd.services.k3s.path = with pkgs; [
-    openiscsi
-    e2fsprogs
-    xfsprogs
-    util-linux
-  ];
-
   home-manager = {
     backupFileExtension = "orig";
     useGlobalPkgs = true;

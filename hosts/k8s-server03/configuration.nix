@@ -50,14 +50,6 @@ in
 
   k3s = vars.k3s;
 
-  systemd.services.k3s.path = with pkgs; [
-    openiscsi
-    e2fsprogs
-    xfsprogs
-    util-linux
-    cryptsetup
-  ];
-
   k8sNetwork = {
     enable = true;
     primaryInterface = "enp2s0";
