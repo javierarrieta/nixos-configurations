@@ -24,6 +24,10 @@
   config = lib.mkIf config.ssh.enable {
     services.openssh = {
       enable = true;
+      settings = {
+        PermitRootLogin = "no";
+        PasswordAuthentication = true;
+      };
       hostKeys = [
         {
           path = config.ssh.hostKeyPath;

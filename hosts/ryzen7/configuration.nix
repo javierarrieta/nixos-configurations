@@ -131,19 +131,7 @@
   ];
 
   # Services
-  services.openssh = {
-    enable = true;
-    settings = {
-      PermitRootLogin = "no";
-      PasswordAuthentication = true;
-    };
-    hostKeys = [
-      {
-        path = "/etc/ssh/ssh_host_ed25519_key";
-        type = "ed25519";
-      }
-    ];
-  };
+  ssh.enable = true;
 
   # Open WebUI
   services.open-webui = {
