@@ -12,6 +12,9 @@
       "8250.nr_uarts=1"
       "console=ttyAMA0,115200"
       "console=tty1"
+      "cgroup_enable=cpuset"
+      "cgroup_memory=1"
+      "cgroup_enable=memory"
     ];
 
     environment.systemPackages = with pkgs; [
