@@ -71,7 +71,6 @@
       e2fsprogs
       xfsprogs
       util-linux
-      iptables
       cryptsetup
     ];
   };

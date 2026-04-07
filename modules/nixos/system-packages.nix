@@ -39,6 +39,7 @@
         btop
         rsyslog
         tpm2-tss
+        iptables
       ]
       ++ config.systemPackages.extraPackages;
   };
