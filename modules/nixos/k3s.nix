@@ -52,6 +52,9 @@
   };
 
   config = lib.mkIf config.k3s.enable {
+    # Disable firewall for Kubernetes networking
+    networking.firewall.enable = false;
+
     services.k3s = {
       enable = true;
       role = config.k3s.role;
