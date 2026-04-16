@@ -20,11 +20,11 @@
       "ctx-size" = "8192";
     };
   };
-  "Qwen3.5-35B" = {
-    modelId = "unsloth/Qwen3.5-35B-A3B-GGUF";
-    filename = "Qwen3.5-35B-A3B-UD-Q4_K_XL.gguf";
+  "Qwen3.6-35B" = {
+    modelId = "unsloth/Qwen3.6-35B-A3B-GGUF";
+    filename = "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf";
     extraProperties = {
-      "ctx-size" = "98304";
+      "ctx-size" = "120000";
     };
     mmproj = "mmproj-F32.gguf";
   };
