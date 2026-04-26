@@ -13,7 +13,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     nix-sweep.url = "github:jzbor/nix-sweep";
-    comfyui-nix.url = "github:utensils/comfyui-nix";
+    comfyui-nix.url = "github:utensils/comfyui-nix/fix/rocm-xformers-segfault";
   };
 
   outputs =
