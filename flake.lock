@@ -21,16 +21,15 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1772927832,
-        "narHash": "sha256-RCOfoU1QmTomZ+/P46UH7xO+Tzc9gAqcyKG0ph6Q5Fs=",
+        "lastModified": 1776979072,
+        "narHash": "sha256-1BUQDAMWGVcUhPuI5JFQmCTYlBmN/Fmon6MGmaKXrCk=",
         "owner": "utensils",
         "repo": "comfyui-nix",
-        "rev": "e854eb619e183697ce369fa8accc1c19f59537fe",
+        "rev": "8a90889efc8fae81a8e03b8d9a8406c9f8ff425b",
         "type": "github"
       },
       "original": {
         "owner": "utensils",
-        "ref": "fix/rocm-xformers-segfault",
         "repo": "comfyui-nix",
         "type": "github"
       }
