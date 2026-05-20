@@ -24,7 +24,7 @@
     modelId = "unsloth/Qwen3.6-35B-A3B-GGUF";
     filename = "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf";
     extraProperties = {
-      "ctx-size" = "120000";
+      "ctx-size" = "200000";
     };
     mmproj = "mmproj-F32.gguf";
   };
