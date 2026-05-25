@@ -28,6 +28,14 @@
     };
     mmproj = "mmproj-F32.gguf";
   };
+
+  "Qwopus3.6-35B" = {
+    modelId = "Jackrong/Qwopus3.6-35B-A3B-v1-MTP-GGUF";
+    filename = "Qwopus3.6-35B-A3B-v1-MTP-Q4_K_M.gguf";
+    extraProperties = {
+      "ctx-size" = "200000";
+    };
+  };
   # "MiroThinker-v1.5-30B" = {
   #   modelId = "mradermacher/MiroThinker-v1.5-30B-GGUF";
   #   filename = "MiroThinker-v1.5-30B.Q4_K_M.gguf";
