@@ -14,6 +14,10 @@
     };
     nix-sweep.url = "github:jzbor/nix-sweep";
     comfyui-nix.url = "github:utensils/comfyui-nix";
+    nixos-wsl = {
+      url = "github:nix-community/nixos-wsl";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -27,6 +31,7 @@
       comin,
       nix-sweep,
       comfyui-nix,
+      nixos-wsl,
       ...
     }:
     let
@@ -85,6 +90,22 @@
           ./hosts/ryzen7
           disko.nixosModules.disko
           sops-nix.nixosModules.sops
+          home-manager.nixosModules.home-manager
+          nix-sweep.nixosModules.default
+        ];
+      };
+
+      nixosConfigurations.wsl = nixpkgs.lib.nixosSystem {
+        specialArgs = {
+          inherit unstable home-manager nix-sweep nixos-wsl;
+        }
+        // (mkExtraArgs "x86_64-linux");
+        modules = [
+          {
+            nixpkgs.hostPlatform.system = "x86_64-linux";
+          }
+          ./hosts/wsl
+          nixos-wsl.nixosModules.wsl
           home-manager.nixosModules.home-manager
           nix-sweep.nixosModules.default
         ];
@@ -475,5 +496,7 @@
           ];
 
         }).config.system.build.sdImage;
+
+      formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt-rfc-style;
     };
 }
