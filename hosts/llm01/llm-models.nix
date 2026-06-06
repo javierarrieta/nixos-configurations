@@ -20,14 +20,14 @@
       "ctx-size" = "65536";
     };
   };
-  "Qwen3.6-35B" = {
-    modelId = "unsloth/Qwen3.6-35B-A3B-GGUF";
-    filename = "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf";
-    extraProperties = {
-      "ctx-size" = "200000";
-    };
-    mmproj = "mmproj-F32.gguf";
-  };
+  # "Qwen3.6-35B" = {
+  #   modelId = "unsloth/Qwen3.6-35B-A3B-GGUF";
+  #   filename = "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf";
+  #   extraProperties = {
+  #     "ctx-size" = "200000";
+  #   };
+  #   mmproj = "mmproj-F32.gguf";
+  # };
 
   "Qwopus3.6-35B" = {
     modelId = "Jackrong/Qwopus3.6-35B-A3B-v1-MTP-GGUF";
@@ -48,14 +48,22 @@
     modelId = "mradermacher/Nemotron-Cascade-2-30B-A3B-i1-GGUF";
     filename = "Nemotron-Cascade-2-30B-A3B.i1-Q4_K_M.gguf";
     extraProperties = {
-      "ctx-size" = "120000";
+      "ctx-size" = "200000";
     };
   };
-  "Gemma-4-31B" = {
-    modelId = "unsloth/gemma-4-31B-it-GGUF";
-    filename = "gemma-4-31B-it-Q4_K_M.gguf";
+  "Gemma-4-26B-A4B-it" = {
+    modelId = "unsloth/gemma-4-26B-A4B-it-GGUF";
+    filename = "gemma-4-26B-A4B-it-UD-Q4_K_M.gguf";
     extraProperties = {
-      "ctx-size" = "120000";
+      "ctx-size" = "200000";
     };
+  };
+  "Gemma-4-12B" = {
+    modelId = "unsloth/gemma-4-12b-it-GGUF";
+    filename = "gemma-4-12b-it-Q4_K_M.gguf";
+    extraProperties = {
+      "ctx-size" = "200000";
+    };
+    mmproj = "mmproj-F16.gguf";
   };
 }
