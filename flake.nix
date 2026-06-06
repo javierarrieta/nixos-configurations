@@ -111,10 +111,6 @@
         ];
       };
 
-      nixosConfigurations.k8s-node01
-        ];
-      };
-
       nixosConfigurations.k8s-node01 = nixpkgs.lib.nixosSystem {
         specialArgs = {
           inherit unstable home-manager nix-sweep;
