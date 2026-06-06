@@ -1,6 +1,7 @@
 {
   config,
   pkgs,
+  lib,
   home-manager,
   nix-sweep,
   ...
@@ -28,11 +29,15 @@
 
   # WSL2 enablement
   wsl.enable = true;
-  wsl.defaultProfile = "nixos";
-  wsl.defaultUser = "javier";
   wsl.extraBaseConfig = ''
     [wsl2]
     networkTranslation=true
+
+    [profile.nixos]
+    default = nixos
+
+    [user]
+    default = javier
   '';
 
   # No bootloader (WSL doesn't need one)
