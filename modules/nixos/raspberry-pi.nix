@@ -1,4 +1,9 @@
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 {
   options = {
     raspberryPi.enable = lib.mkEnableOption "Raspberry Pi 4 specific configuration";
