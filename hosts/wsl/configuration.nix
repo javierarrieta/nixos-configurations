@@ -13,9 +13,9 @@
     ../../modules/nixos/nix-sweep.nix
   ];
 
-  # User (no SOPS — no hashed password)
+  # User
   programs.zsh.enable = true;
-  users.mutableUsers = false;
+  users.mutableUsers = true;
   users.users.javier = {
     isNormalUser = true;
     extraGroups = [
@@ -24,8 +24,6 @@
     ];
     shell = pkgs.zsh;
   };
-
-  security.sudo.wheelNeedsPassword = false;
 
   # WSL2 enablement
   wsl.enable = true;
@@ -44,6 +42,9 @@
 
   # No firewall
   networking.firewall.enable = false;
+
+  # Allow login without password (WSL)
+  users.allowNoPasswordLogin = true;
 
   # Home Manager
   home-manager = {
@@ -68,6 +69,7 @@
     git
     starship
     fish
+    openssh
   ];
 
   # Nix settings
