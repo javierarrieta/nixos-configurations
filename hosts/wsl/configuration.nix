@@ -9,11 +9,15 @@
 
 {
   imports = [
-    # Modules
+    ../../modules/nixos/wsl-base.nix
+    ../../modules/nixos/system-packages.nix
     ../../modules/nixos/nix-sweep.nix
   ];
 
-  # User
+  base.enable = true;
+  systemPackages.enable = false;
+
+# User
   programs.zsh.enable = true;
   users.mutableUsers = true;
   users.users.javier = {
