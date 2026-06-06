@@ -14,6 +14,10 @@
     };
     nix-sweep.url = "github:jzbor/nix-sweep";
     comfyui-nix.url = "github:utensils/comfyui-nix";
+    nixos-wsl = {
+      url = "github:nix-community/nixos-wsl";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -93,7 +97,7 @@
 
       nixosConfigurations.wsl = nixpkgs.lib.nixosSystem {
         specialArgs = {
-          inherit unstable home-manager nix-sweep;
+          inherit unstable home-manager nix-sweep nixos-wsl;
         }
         // (mkExtraArgs "x86_64-linux");
         modules = [
@@ -101,9 +105,13 @@
             nixpkgs.hostPlatform.system = "x86_64-linux";
           }
           ./hosts/wsl
-          "${nixpkgs}/nixos/modules/services/wsl/default.nix"
+          nixos-wsl.nixosModules.wsl
           home-manager.nixosModules.home-manager
           nix-sweep.nixosModules.default
+        ];
+      };
+
+      nixosConfigurations.k8s-node01
         ];
       };
 

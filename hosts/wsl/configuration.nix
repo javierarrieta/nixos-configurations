@@ -29,16 +29,11 @@
 
   # WSL2 enablement
   wsl.enable = true;
-  wsl.extraBaseConfig = ''
-    [wsl2]
-    networkTranslation=true
-
-    [profile.nixos]
-    default = nixos
-
-    [user]
-    default = javier
-  '';
+  wsl.defaultUser = "javier";
+  wsl.wslConf = {
+    network.generateResolvConf = false;
+    network.generateHosts = false;
+  };
 
   # No bootloader (WSL doesn't need one)
 
