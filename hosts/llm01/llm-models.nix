@@ -66,4 +66,11 @@
     };
     mmproj = "mmproj-F16.gguf";
   };
+  "VibeThinker-3B" = {
+    modelId = "mradermacher/VibeThinker-3B-i1-GGUF";
+    filename = "VibeThinker-3B.i1-Q6_K.gguf";
+    extraProperties = {
+      "ctx-size" = "200000";
+    };
+  };
 }
