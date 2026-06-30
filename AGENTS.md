@@ -157,14 +157,27 @@
 
 **`vars.nix`** (host-specific variables):
 ```nix
-{ config, pkgs, lib, ... }:
+{ config, pkgs }:
 {
-  hostVars = {
-    ipAddress = "192.168.0.X";
-    # k3sOptions if kubernetes node
+  hostname = "<hostname>";
+  ipAddress = "$IP_ADDRESS";
+  defaultGateway = "$DEFAULT_GATEWAY";
+  nameservers = [
+    "$DNS1"
+    "$DNS2"
+  ];
+
+  k3s = {
+    enable = true;
+    role = "server";  # or "agent"
+    serverAddr = "https://<server-ip>:6443";
+    tokenFile = config.sops.secrets."k3s_token".path;
+    disable = [ "traefik" "servicelb" ];
   };
 }
 ```
+
+**Note**: Network placeholders (`$IP_ADDRESS`, etc.) are ignored during evaluation. The actual values come from the SOPS secret `secrets.yaml#<hostname>/network_env` at runtime via the `network-addresses-<interface>` service.
 
 **`configuration.nix`** (minimal, use modules):
 ```nix
@@ -216,6 +229,14 @@ rm secrets.dec.yaml
 ```
 
 **In-place Encryption**: `sops -e -i secrets.yaml` - useful after accidental plaintext overwrite
+
+### SOPS Chicken-and-Egg Problem
+
+**Issue**: If you add `age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ]` to `sops-base.nix`, SOPS will fail to decrypt because the SSH key is provisioned BY SOPS.
+
+**Solution**: Remove `age.sshKeyPaths` from `sops-base.nix`. The age key alone is sufficient for SOPS decryption.
+
+**Lesson learned**: During `nixos-anywhere` bootstrap, the age key is provisioned to `/var/lib/sops-nix/key.txt` before SOPS tries to decrypt secrets. Don't create circular dependencies.
 
 ### SSH Keys
 
@@ -430,6 +451,30 @@ nixos-rebuild build --flake .#<hostname>
 - Easier to compare hosts
 - Reduces duplication in `configuration.nix`
 - Follows DRY principle
+
+### Network Configuration with SOPS
+
+**Important**: Network configuration uses a placeholder pattern that is replaced at runtime via SOPS:
+
+1. `vars.nix` contains placeholders like `"$IP_ADDRESS"`, `"$DEFAULT_GATEWAY"`, `"$DNS1"`, `"$DNS2"`
+2. Sops provisions `secrets.yaml#<hostname>/network_env` to `/run/secrets/<hostname>/network_env`
+3. `k8s-network.nix` (line 30) sets `EnvironmentFile` for the `network-addresses-<interface>` systemd service to that sops secret path
+4. The service script reads `$IP_ADDRESS` from the environment and applies it to the network interface
+
+**This means**:
+- Placeholders in `vars.nix` are **ignored** for actual network configuration
+- The actual IP comes from the SOPS secret at runtime
+- Each host must have a `secrets.yaml#<hostname>/network_env` entry with the correct values
+
+**Example `secrets.yaml` entry**:
+```yaml
+k8s-server03:
+    network_env: |
+        IP_ADDRESS=192.168.0.13
+        DEFAULT_GATEWAY=192.168.0.1
+        DNS1=192.168.0.1
+        DNS2=192.168.0.41
+```
 
 ### Why No Host-Level home-manager.nix?
 - Home manager configuration is generic across hosts
