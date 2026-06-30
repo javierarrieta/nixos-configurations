@@ -15,7 +15,7 @@
     sops = {
       defaultSopsFile = ../../secrets.yaml;
       age.keyFile = "/var/lib/sops-nix/key.txt";
-      age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+      age.sshKeyPaths = [ ];  # Empty - SSH keys are provisioned by SOPS itself (avoids chicken-and-egg)
 
       secrets."users/javier_password_hash" = {
         mode = "0600";
