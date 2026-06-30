@@ -44,13 +44,13 @@
   #     "ctx-size" = "65536";
   #   };
   # };
-  "Nemotron-Cascade-2-30B-A3B" = {
-    modelId = "mradermacher/Nemotron-Cascade-2-30B-A3B-i1-GGUF";
-    filename = "Nemotron-Cascade-2-30B-A3B.i1-Q4_K_M.gguf";
-    extraProperties = {
-      "ctx-size" = "200000";
-    };
-  };
+  # "Nemotron-Cascade-2-30B-A3B" = {
+  #   modelId = "mradermacher/Nemotron-Cascade-2-30B-A3B-i1-GGUF";
+  #   filename = "Nemotron-Cascade-2-30B-A3B.i1-Q4_K_M.gguf";
+  #   extraProperties = {
+  #     "ctx-size" = "200000";
+  #   };
+  # };
   "Gemma-4-26B-A4B-it" = {
     modelId = "unsloth/gemma-4-26B-A4B-it-GGUF";
     filename = "gemma-4-26B-A4B-it-UD-Q4_K_M.gguf";
@@ -65,6 +65,13 @@
       "ctx-size" = "200000";
     };
     mmproj = "mmproj-F16.gguf";
+  };
+  "Ornith-1.0-35b" = {
+    modelId = "deepreinforce-ai/Ornith-1.0-35B-GGUF";
+    filename = "ornith-1.0-35b-Q6_K.gguf";
+    extraProperties = {
+      "ctx-size" = "200000";
+    };
   };
   "VibeThinker-3B" = {
     modelId = "mradermacher/VibeThinker-3B-i1-GGUF";
