@@ -8,6 +8,20 @@
 {
   programs.zsh.enable = true;
 
+  home-manager = {
+    backupFileExtension = "orig";
+    useGlobalPkgs = true;
+    useUserPackages = true;
+    users.javier = {
+      imports = [
+        ../modules/home-manager/base.nix
+      ];
+      home.stateVersion = "25.11";
+      home.username = "javier";
+      home.homeDirectory = "/home/javier";
+    };
+  };
+
   users.mutableUsers = false;
   users.users.javier = {
     isNormalUser = true;

@@ -61,6 +61,7 @@
       neededForUsers = true;
     };
 
+
     secrets."ssh_keys/javier_private" = {
       mode = "0600";
       owner = "javier";
@@ -80,21 +81,6 @@
       mode = "0644";
       owner = "root";
       path = "/etc/ssh/ssh_host_ed25519_key.pub";
-    };
-  };
-
-  # Home Manager
-  home-manager = {
-    backupFileExtension = "orig";
-    useGlobalPkgs = true;
-    useUserPackages = true;
-    users.javier = {
-      imports = [
-        ../../modules/home-manager/base.nix
-      ];
-      home.stateVersion = "25.11";
-      home.username = "javier";
-      home.homeDirectory = "/home/javier";
     };
   };
 
@@ -143,6 +129,11 @@
   # Nix settings
   nix.optimise.automatic = true;
   nixpkgs.config.allowUnfree = true;
+
+  home-manager.users.javier.imports = [
+    ../../modules/home-manager/base.nix
+    ../../modules/home-manager/llm.nix
+  ];
 
   # Hardware
   hardware.graphics.enable32Bit = true;

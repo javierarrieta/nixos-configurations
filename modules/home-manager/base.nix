@@ -15,7 +15,6 @@
     ./shell.nix
     ./python.nix
     ./k8s.nix
-    ./llm.nix
   ];
 
   home.packages = with pkgs; [ nixd ];

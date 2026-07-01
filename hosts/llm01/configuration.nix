@@ -164,6 +164,7 @@ in
     users.javier = {
       imports = [
         ../../modules/home-manager/base.nix
+        ../../modules/home-manager/llm.nix
       ];
       home.stateVersion = "25.11";
       home.username = "javier";
