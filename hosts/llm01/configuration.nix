@@ -203,6 +203,9 @@ in
     };
   };
 
+  # Rsyslog
+  rsyslog.enable = true;
+
   # Services
   services = {
     openssh = {
