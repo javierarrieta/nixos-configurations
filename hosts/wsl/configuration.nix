@@ -33,14 +33,14 @@
   wsl.enable = true;
   wsl.defaultUser = "javier";
   wsl.wslConf = {
-    network.generateResolvConf = false;
+    network.generateResolvConf = true;
     network.generateHosts = false;
+    network.resolvConf = "auto";
   };
 
   # No bootloader (WSL doesn't need one)
 
-  # Network (DHCP from Windows host, DNS from Windows)
-  networking.nameservers = [ "192.168.0.1" ];
+  # Network (DHCP from Windows host, DNS via WSL resolv.conf)
 
   # No SSH server
   services.openssh.enable = false;
