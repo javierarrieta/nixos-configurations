@@ -29,7 +29,9 @@
 
       # Start SSH agent if not running
       if not set -q SSH_AUTH_SOCK
-        eval (ssh-agent -s | string replace -a "export " "")
+        set -l ssh_env (ssh-agent -s)
+        set -x SSH_AUTH_SOCK (echo $ssh_env | string split ';' | string split '=' | select 1 | last)
+        set -x SSH_AGENT_PID (echo $ssh_env | string split ';' | string split '=' | select 3 | last)
       end
 
       # Activate virtual environment if it exists
