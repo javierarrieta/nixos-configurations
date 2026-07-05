@@ -27,6 +27,11 @@
       set fish_greeting
       fish_vi_key_bindings
 
+      # Start SSH agent if not running
+      if not set -q SSH_AUTH_SOCK
+        eval (ssh-agent -c) | source
+      end
+
       # Activate virtual environment if it exists
       test -e ~/.venv/default/bin/activate.fish || venv ~/.venv/default
       source ~/.venv/default/bin/activate.fish
