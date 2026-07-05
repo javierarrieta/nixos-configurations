@@ -78,6 +78,7 @@
 
   # Nix settings
   nix.optimise.automatic = true;
+  nix.extraExperimentalFeatures = [ "nix-command" "flakes" ];
   nixpkgs.config.allowUnfree = true;
 
   # Nix-sweep configuration
