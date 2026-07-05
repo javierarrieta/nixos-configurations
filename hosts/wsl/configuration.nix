@@ -34,8 +34,7 @@
   wsl.defaultUser = "javier";
   wsl.wslConf = {
     network.generateResolvConf = true;
-    network.generateHosts = false;
-    network.resolvConf = "auto";
+    network.generateHosts = true;
   };
 
   # No bootloader (WSL doesn't need one)
