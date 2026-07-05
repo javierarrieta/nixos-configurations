@@ -29,7 +29,7 @@
 
       # Start SSH agent if not running
       if not set -q SSH_AUTH_SOCK
-        eval (ssh-agent -s | string replace -a 'export ' '')
+        eval (ssh-agent -s | string replace -a "export " "")
       end
 
       # Activate virtual environment if it exists
