@@ -6,60 +6,14 @@
 {
   imports = [ ];
 
-  boot.initrd.availableKernelModules = [ "virtio_pci" ];
+  boot.initrd.availableKernelModules = [ "ata_piix" "uhci_hcd" "ehci_pci" "sd_mod" "sr_mod" ];
   boot.initrd.kernelModules = [ ];
-  boot.kernelModules = [ "kvm-intel" ];
+  boot.kernelModules = [ ];
   boot.extraModulePackages = [ ];
-
-  fileSystems."/lib/modules/6.6.114.1-microsoft-standard-WSL2" =
-    { device = "none";
-      fsType = "overlay";
-    };
-
-  fileSystems."/mnt/wsl" =
-    { device = "none";
-      fsType = "tmpfs";
-    };
-
-  fileSystems."/usr/lib/wsl/drivers" =
-    { device = "drivers";
-      fsType = "9p";
-    };
 
   fileSystems."/" =
     { device = "/dev/disk/by-uuid/52d28628-944d-4486-8d72-a8676d866ffd";
       fsType = "ext4";
-    };
-
-  fileSystems."/mnt/wslg" =
-    { device = "none";
-     fsType = "tmpfs";
-    };
-
-  fileSystems."/usr/lib/wsl/lib" =
-    { device = "none";
-      fsType = "overlay";
-    };
-
-  fileSystems."/tmp/.X11-unix" =
-    { device = "/mnt/wslg/.X11-unix";
-      fsType = "none";
-      options = [ "bind" ];
-    };
-
-  fileSystems."/mnt/wslg/doc" =
-    { device = "none";
-      fsType = "overlay";
-    };
-
-  fileSystems."/mnt/c" =
-    { device = "C:\134";
-      fsType = "9p";
-    };
-
-  fileSystems."/mnt/wslg/run/user/1000" =
-    { device = "tmpfs";
-      fsType = "tmpfs";
     };
 
   swapDevices =

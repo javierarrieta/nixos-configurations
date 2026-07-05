@@ -39,7 +39,8 @@
 
   # No bootloader (WSL doesn't need one)
 
-  # No network config (DHCP from Windows host)
+  # Network (DHCP from Windows host, DNS from Windows)
+  networking.nameservers = [ "192.168.0.1" ];
 
   # No SSH server
   services.openssh.enable = false;
