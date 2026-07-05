@@ -33,13 +33,7 @@
 
   fileSystems."/mnt/wslg" =
     { device = "none";
-      fsType = "tmpfs";
-    };
-
-  fileSystems."/mnt/wslg/distro" =
-    { device = "";
-      fsType = "none";
-      options = [ "bind" ];
+     fsType = "tmpfs";
     };
 
   fileSystems."/usr/lib/wsl/lib" =
