@@ -4,6 +4,9 @@
   lib,
   home-manager,
   nix-sweep,
+  unstablePkgs,
+  pkgsUnfree,
+  unstablePkgsUnfree,
   ...
 }:
 
@@ -17,7 +20,7 @@
   base.enable = true;
   systemPackages.enable = false;
 
-# User
+  # User
   programs.zsh.enable = true;
   users.mutableUsers = true;
   users.users.javier = {
@@ -55,13 +58,25 @@
     backupFileExtension = "orig";
     useGlobalPkgs = true;
     useUserPackages = true;
+    extraSpecialArgs = {
+      inherit unstablePkgs pkgsUnfree unstablePkgsUnfree;
+      hostname = "wsl";
+      userOptions = {
+        username = "javier";
+        userHome = "/home/javier";
+        gitName = "Javier Arrieta";
+        gitEmail = "javier@techdelivery.es";
+        gitDefaultBranch = "main";
+        githubUser = "javierarrieta";
+        pythonVersion = "3.12";
+        homeManagerConfigDir = "/home/javier/code/nixos-configurations";
+      };
+    };
     users.javier = {
       imports = [
         ../../modules/home-manager/base.nix
       ];
       home.stateVersion = "25.11";
-      home.username = "javier";
-      home.homeDirectory = "/home/javier";
     };
   };
 
@@ -78,7 +93,10 @@
 
   # Nix settings
   nix.optimise.automatic = true;
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix.settings.experimental-features = [
+    "nix-command"
+    "flakes"
+  ];
   nixpkgs.config.allowUnfree = true;
 
   # Nix-sweep configuration

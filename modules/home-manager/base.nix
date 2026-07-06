@@ -7,7 +7,7 @@
 }:
 
 {
-  home.stateVersion = "25.11";
+  home.stateVersion = lib.mkDefault "25.11";
 
   imports = [
     ./host-common.nix

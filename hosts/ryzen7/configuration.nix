@@ -61,7 +61,6 @@
       neededForUsers = true;
     };
 
-
     secrets."ssh_keys/javier_private" = {
       mode = "0600";
       owner = "javier";
@@ -131,7 +130,6 @@
   nixpkgs.config.allowUnfree = true;
 
   home-manager.users.javier.imports = [
-    ../../modules/home-manager/base.nix
     ../../modules/home-manager/llm.nix
   ];
 

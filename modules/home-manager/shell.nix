@@ -3,6 +3,8 @@
   pkgs,
   lib,
   userOptions,
+  hostname,
+  unstablePkgs,
   ...
 }:
 {
@@ -15,6 +17,7 @@
 
   home.sessionVariables = {
     EDITOR = "nvim";
+    CODE_DIR = "${userOptions.userHome}/code";
   };
 
   home.sessionPath = [
@@ -27,7 +30,7 @@
       set fish_greeting
       fish_vi_key_bindings
 
-# Start SSH agent if not running
+      # Start SSH agent if not running
       if not set -q SSH_AUTH_SOCK
         for line in (ssh-agent -c | string match 'setenv *')
           eval $line
@@ -90,6 +93,11 @@
       "kx" = "kubectx";
       "venv" = "python3 -m venv";
       "rebase-pr" = "git fetch && git merge origin/${userOptions.gitDefaultBranch} && git push";
+      "hm-pull" =
+        "set -l dir (pwd); cd $CODE_DIR/nixos-configurations; and git pull --ff-only origin; cd $dir";
+      "hm-update" = "nix flake update --flake $CODE_DIR/nixos-configurations";
+      "hm-apply" = "home-manager switch --flake ${userOptions.homeManagerConfigDir}#${hostname}";
+      "hm-gc" = "nix-store -gc";
     };
   };
 
