@@ -20,6 +20,8 @@
     ../../../modules/home-manager/local-llm.nix
   ];
 
+  _module.args.localModels = import ./local-models.nix;
+
   home.stateVersion = "25.05";
 
   home.packages = [
