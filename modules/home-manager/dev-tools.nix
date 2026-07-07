@@ -27,10 +27,13 @@
     sops
     neofetch
     nixfmt
+    nixfmt-tree
     kubernetes-helm
     scala-cli
     pstree
     nodejs_24
+
+    hugo
   ];
 
   programs.neovim = {

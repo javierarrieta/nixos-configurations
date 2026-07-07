@@ -17,6 +17,7 @@
     ../../../modules/home-manager/term.nix
     ../../../modules/home-manager/media.nix
     ../../../modules/home-manager/macbook/dev-tools.nix
+    ../../../modules/home-manager/local-llm.nix
   ];
 
   home.stateVersion = "25.05";

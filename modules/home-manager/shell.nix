@@ -13,6 +13,7 @@
     zoxide
     fishPlugins.tide
     fishPlugins.fzf
+    ncdu
   ];
 
   home.sessionVariables = {
@@ -26,6 +27,8 @@
 
   programs.fish = {
     enable = true;
+    package = unstablePkgs.fish;
+    generateCompletions = false;
     interactiveShellInit = ''
       set fish_greeting
       fish_vi_key_bindings
@@ -42,6 +45,22 @@
       source ~/.venv/default/bin/activate.fish
 
       starship init fish | source
+
+      function b64-encode
+        if test (count $argv) -eq 0
+          base64
+        else
+          base64 "$argv"
+        end
+      end
+
+      function b64-decode
+        if test (count $argv) -eq 0
+          base64 -d
+        else
+          base64 -d "$argv"
+        end
+      end
     '';
     plugins = [
       {
@@ -98,6 +117,8 @@
       "hm-update" = "nix flake update --flake $CODE_DIR/nixos-configurations";
       "hm-apply" = "home-manager switch --flake ${userOptions.homeManagerConfigDir}#${hostname}";
       "hm-gc" = "nix-store -gc";
+      "sshe" = "ssh -o \"UserKnownHostsFile=/dev/null\"";
+      "kssh" = "kitten ssh";
     };
   };
 
