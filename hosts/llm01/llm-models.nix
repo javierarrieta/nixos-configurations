@@ -20,6 +20,21 @@
       "ctx-size" = "65536";
     };
   };
+  "Mellum-4B" = {
+    modelId = "mradermacher/Mellum-4b-base-GGUF";
+    filename = "Mellum-4b-base.Q4_K_M.gguf";
+    extraProperties = {
+      "ctx-size" = "8192";
+      "n-predict" = "128";
+      "temp" = "0.0";
+      "top-k" = "1";
+      "top-p" = "1.0";
+      "min-p" = "0.0";
+      "repeat-penalty" = "1.0";
+      "cache-prompt" = "true";
+      "cache-reuse" = "256";
+    };
+  };
   # "Qwen3.6-35B" = {
   #   modelId = "unsloth/Qwen3.6-35B-A3B-GGUF";
   #   filename = "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf";
