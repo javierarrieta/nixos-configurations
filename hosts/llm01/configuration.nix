@@ -156,21 +156,9 @@ in
   # Timezone
   time.timeZone = "Utc";
 
-  # Home Manager
-  home-manager = {
-    backupFileExtension = "orig";
-    useGlobalPkgs = true;
-    useUserPackages = true;
-    users.javier = {
-      imports = [
-        ../../modules/home-manager/base.nix
-        ../../modules/home-manager/llm.nix
-      ];
-      home.stateVersion = "25.11";
-      home.username = "javier";
-      home.homeDirectory = "/home/javier";
-    };
-  };
+  home-manager.users.javier.imports = [
+    ../../modules/home-manager/llm.nix
+  ];
 
   # System users for LLM services
   users.users = {

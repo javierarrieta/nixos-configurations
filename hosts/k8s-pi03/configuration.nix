@@ -90,19 +90,5 @@ in
     "f /var/spool/rsyslog/* 0640 root adm - -"
   ];
 
-  home-manager = {
-    backupFileExtension = "orig";
-    useGlobalPkgs = true;
-    useUserPackages = true;
-    users.javier = {
-      imports = [
-        ../../modules/home-manager/base.nix
-      ];
-      home.stateVersion = "25.11";
-      home.username = "javier";
-      home.homeDirectory = "/home/javier";
-    };
-  };
-
   system.stateVersion = "25.11";
 }

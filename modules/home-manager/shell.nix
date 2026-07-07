@@ -3,6 +3,8 @@
   pkgs,
   lib,
   userOptions,
+  hostname,
+  unstablePkgs,
   ...
 }:
 {
@@ -11,10 +13,12 @@
     zoxide
     fishPlugins.tide
     fishPlugins.fzf
+    ncdu
   ];
 
   home.sessionVariables = {
     EDITOR = "nvim";
+    CODE_DIR = "${userOptions.userHome}/code";
   };
 
   home.sessionPath = [
@@ -23,11 +27,13 @@
 
   programs.fish = {
     enable = true;
+    package = unstablePkgs.fish;
+    generateCompletions = false;
     interactiveShellInit = ''
       set fish_greeting
       fish_vi_key_bindings
 
-# Start SSH agent if not running
+      # Start SSH agent if not running
       if not set -q SSH_AUTH_SOCK
         for line in (ssh-agent -c | string match 'setenv *')
           eval $line
@@ -39,6 +45,22 @@
       source ~/.venv/default/bin/activate.fish
 
       starship init fish | source
+
+      function b64-encode
+        if test (count $argv) -eq 0
+          base64
+        else
+          base64 "$argv"
+        end
+      end
+
+      function b64-decode
+        if test (count $argv) -eq 0
+          base64 -d
+        else
+          base64 -d "$argv"
+        end
+      end
     '';
     plugins = [
       {
@@ -90,6 +112,13 @@
       "kx" = "kubectx";
       "venv" = "python3 -m venv";
       "rebase-pr" = "git fetch && git merge origin/${userOptions.gitDefaultBranch} && git push";
+      "hm-pull" =
+        "set -l dir (pwd); cd $CODE_DIR/nixos-configurations; and git pull --ff-only origin; cd $dir";
+      "hm-update" = "nix flake update --flake $CODE_DIR/nixos-configurations";
+      "hm-apply" = "home-manager switch --flake ${userOptions.homeManagerConfigDir}#${hostname}";
+      "hm-gc" = "nix-store -gc";
+      "sshe" = "ssh -o \"UserKnownHostsFile=/dev/null\"";
+      "kssh" = "kitten ssh";
     };
   };
 

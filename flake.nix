@@ -5,6 +5,7 @@
     sops-nix.url = "github:Mic92/sops-nix";
     home-manager = {
       url = "github:nix-community/home-manager/release-25.11";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
     disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
@@ -49,8 +50,38 @@
           config.allowUnfree = true;
         };
       };
+
+      mkHomeConfig =
+        {
+          hostname,
+          system ? "aarch64-darwin",
+        }:
+        home-manager.lib.homeManagerConfiguration {
+          pkgs = import nixpkgs {
+            inherit system;
+            config.allowUnfree = false;
+          };
+          modules = [ ./home/hosts/${hostname}/home.nix ];
+          extraSpecialArgs = (mkExtraArgs system) // {
+            inherit hostname;
+            userOptions = import ./home/hosts/${hostname}/userOptions.nix;
+          };
+        };
     in
     {
+      homeConfigurations = {
+        oracle = mkHomeConfig {
+          hostname = "oracle";
+        };
+        macbookair = mkHomeConfig {
+          hostname = "macbookair";
+        };
+        vps = mkHomeConfig {
+          hostname = "vps";
+          system = "x86_64-linux";
+        };
+      };
+
       nixosConfigurations.llm01 = nixpkgs.lib.nixosSystem {
         specialArgs = {
           inherit
@@ -97,7 +128,12 @@
 
       nixosConfigurations.wsl = nixpkgs.lib.nixosSystem {
         specialArgs = {
-          inherit unstable home-manager nix-sweep nixos-wsl;
+          inherit
+            unstable
+            home-manager
+            nix-sweep
+            nixos-wsl
+            ;
         }
         // (mkExtraArgs "x86_64-linux");
         modules = [
@@ -497,6 +533,7 @@
 
         }).config.system.build.sdImage;
 
-      formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt-rfc-style;
+      formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt-tree;
+      formatter.aarch64-darwin = nixpkgs.legacyPackages.aarch64-darwin.nixfmt-tree;
     };
 }

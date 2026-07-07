@@ -2,6 +2,9 @@
   config,
   lib,
   pkgs,
+  unstablePkgs,
+  pkgsUnfree,
+  unstablePkgsUnfree,
   ...
 }:
 
@@ -12,13 +15,25 @@
     backupFileExtension = "orig";
     useGlobalPkgs = true;
     useUserPackages = true;
+    extraSpecialArgs = {
+      inherit unstablePkgs pkgsUnfree unstablePkgsUnfree;
+      hostname = config.networking.hostName;
+      userOptions = {
+        username = "javier";
+        userHome = "/home/javier";
+        gitName = "Javier Arrieta";
+        gitEmail = "javier@techdelivery.es";
+        gitDefaultBranch = "main";
+        githubUser = "javierarrieta";
+        pythonVersion = "3.13";
+        homeManagerConfigDir = "/home/javier/code/nixos-configurations";
+      };
+    };
     users.javier = {
       imports = [
         ../modules/home-manager/base.nix
       ];
       home.stateVersion = "25.11";
-      home.username = "javier";
-      home.homeDirectory = "/home/javier";
     };
   };
 
