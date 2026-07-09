@@ -10,6 +10,11 @@
   ...
 }:
 
+let
+  sshKeyAskpass = pkgs.writeShellScript "ssh-key-askpass" ''
+    printf '%s\n' "$SSH_KEY_PASSWORD"
+  '';
+in
 {
   imports = [
     ../../../modules/home-manager/base.nix
@@ -31,6 +36,27 @@
   ];
 
   programs.fish = {
+    functions.sshk = {
+      description = "Load SSH keys using a shared password";
+      body = ''
+        read --silent --prompt-str "SSH key password: " sshKeyPassword
+        or return
+        echo
+
+        set --function --export SSH_KEY_PASSWORD "$sshKeyPassword"
+        set --function --export SSH_ASKPASS "${sshKeyAskpass}"
+        set --function --export SSH_ASKPASS_REQUIRE force
+        set --function --export DISPLAY :0
+
+        ssh-add -D
+        and ssh-add -s /usr/local/lib/libykcs11.dylib -t 18h
+        and ssh-add -t 18h
+        set --local sshkStatus $status
+
+        set --erase SSH_KEY_PASSWORD SSH_ASKPASS SSH_ASKPASS_REQUIRE DISPLAY sshKeyPassword
+        return $sshkStatus
+      '';
+    };
     shellAbbrs = {
       "k9st" = {
         expansion = "k9s --namespace stream-app --context Stage/OC1/%";
@@ -57,7 +83,6 @@
     shellAliases = {
       "terraform" = "tofu";
       "fashion-token" = "z ${userOptions.workspaces.fashion_token} && cargo run --release ; z -";
-      "sshk" = "ssh-add -D && ssh-add -s /usr/local/lib/libykcs11.dylib -t 18h && ssh-add -t 18h";
       "code4cline" = "SHELL=$HOME/.nix-profile/bin/bash code";
       "ministral-reasoning" =
         "llama-server --model ${userOptions.llmModelsDir}/unsloth_Ministral-3-14B-Reasoning-2512-GGUF_Ministral-3-14B-Reasoning-2512-Q4_K_M.gguf --jinja -ngl 99 --threads -1 --ctx-size 32684 --temp 0.6 --top-p 0.95   --offline";
