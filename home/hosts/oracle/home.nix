@@ -81,6 +81,7 @@ in
         "kubectl get secret -n kafka akhq-admin-user-creds -o json | jq '.data.ociVaultContent' | tr -d '\"' | base64 -D | pbcopy";
     };
     shellAliases = {
+      "codex-brew" = "/opt/homebrew/bin/codex";
       "terraform" = "tofu";
       "fashion-token" = "z ${userOptions.workspaces.fashion_token} && cargo run --release ; z -";
       "code4cline" = "SHELL=$HOME/.nix-profile/bin/bash code";
