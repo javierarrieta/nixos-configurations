@@ -4,6 +4,7 @@
   unstablePkgs,
   pkgsUnfree,
   unstablePkgsUnfree,
+  codex-cli-nix,
   ...
 }:
 
@@ -21,7 +22,7 @@
     ocaml
     dune_3
 
-    unstablePkgs.codex
+    codex-cli-nix.packages.${pkgs.stdenv.hostPlatform.system}.default
 
     unstablePkgs.esphome
     unstablePkgs.platformio

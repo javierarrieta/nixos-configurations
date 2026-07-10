@@ -19,6 +19,10 @@
       url = "github:nix-community/nixos-wsl";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    codex-cli-nix = {
+      url = "github:sadjow/codex-cli-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -33,6 +37,7 @@
       nix-sweep,
       comfyui-nix,
       nixos-wsl,
+      codex-cli-nix,
       ...
     }:
     let
@@ -63,6 +68,7 @@
           };
           modules = [ ./home/hosts/${hostname}/home.nix ];
           extraSpecialArgs = (mkExtraArgs system) // {
+            inherit codex-cli-nix;
             inherit hostname;
             userOptions = import ./home/hosts/${hostname}/userOptions.nix;
           };
