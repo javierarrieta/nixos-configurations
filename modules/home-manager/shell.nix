@@ -40,11 +40,12 @@
         end
       end
 
+      starship init fish | source
+
       # Activate virtual environment if it exists
       test -e ~/.venv/default/bin/activate.fish || venv ~/.venv/default
       source ~/.venv/default/bin/activate.fish
 
-      starship init fish | source
 
       function b64-encode
         if test (count $argv) -eq 0
