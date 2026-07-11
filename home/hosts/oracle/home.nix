@@ -2,8 +2,7 @@
   config,
   pkgs,
   unstablePkgs,
-  pkgsUnfree,
-  unstablePkgsUnfree,
+
   lib,
   userOptions,
   hostname,
@@ -98,7 +97,4 @@ in
     };
   };
 
-  programs.vscode.profiles.default.extensions = with unstablePkgsUnfree.vscode-extensions; [
-    hashicorp.terraform
-  ];
 }

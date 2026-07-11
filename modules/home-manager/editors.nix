@@ -15,7 +15,6 @@
   programs.vscode = {
     enable = true;
     package = unstablePkgsUnfree.vscode;
-    userData = "${userOptions.userHome}/.vscode-data";
     profiles.default = {
       enableUpdateCheck = false;
       enableExtensionUpdateCheck = false;
@@ -54,6 +53,7 @@
         ocamllabs.ocaml-platform
         haskell.haskell
         justusadam.language-haskell
+        hashicorp.terraform
       ];
     };
   };
