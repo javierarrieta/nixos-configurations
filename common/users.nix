@@ -60,7 +60,9 @@
 
   security.sudo.wheelNeedsPassword = false;
 
-  systemd.tmpfiles.rules = [
-    "d /home/javier/.ssh 0700 javier javier -"
-  ];
+   systemd.tmpfiles.rules = [
+     "d /home/javier/.ssh 0700 javier javier -"
+     "d /home/javier/.ssh/agent 0700 javier javier -"
+   ];
+
 }
