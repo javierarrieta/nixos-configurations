@@ -15,34 +15,11 @@
   programs.vscode = {
     enable = true;
     package = unstablePkgsUnfree.vscode;
+    userData = "${userOptions.userHome}/.vscode-data";
     profiles.default = {
       enableUpdateCheck = false;
       enableExtensionUpdateCheck = false;
       userSettings = {
-        "extensions.autoCheckUpdates" = false;
-        "extensions.autoUpdate" = false;
-        "update.mode" = "none";
-        "git.confirmPush" = false;
-        "git.confirmPull" = false;
-        "git.confirmSync" = false;
-        "files.watcherExclude" = {
-          "**/.git/objects/**" = true;
-          "**/.git/subtree-cache/**" = true;
-          "**/node_modules/*/**" = true;
-          "**/.nix-store/**" = true;
-          "${userOptions.userHome}/.nix-profile/**" = true;
-          "/nix/store/**" = true;
-        };
-        "files.exclude" = {
-          "**/.nix-store" = true;
-          "**/result" = true;
-          "**/result-*" = true;
-        };
-        "files.autoSave" = "afterDelay";
-        "files.autoSaveDelay" = 1000;
-        "editor.formatOnSave" = false;
-        "nix.buildOnSave" = false;
-        "nix.serverPath" = "nixd";
         "yaml.schemas" = {
           "file://${userOptions.userHome}/.vscode/extensions/Continue.continue/config-yaml-schema.json" = [
             ".continue/**/*.yaml"
