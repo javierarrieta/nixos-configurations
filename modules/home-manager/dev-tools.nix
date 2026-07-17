@@ -32,6 +32,7 @@
     scala-cli
     pstree
     nodejs_24
+    gh
 
     hugo
   ];
