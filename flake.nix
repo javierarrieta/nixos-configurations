@@ -225,6 +225,24 @@
         ];
       };
 
+      nixosConfigurations.k8s-node05 = nixpkgs.lib.nixosSystem {
+        specialArgs = {
+          inherit unstable home-manager nix-sweep;
+        }
+        // (mkExtraArgs "x86_64-linux");
+        modules = [
+          {
+            nixpkgs.hostPlatform.system = "x86_64-linux";
+          }
+          ./hosts/k8s-node05
+          disko.nixosModules.disko
+          sops-nix.nixosModules.sops
+          home-manager.nixosModules.home-manager
+          comin.nixosModules.comin
+          nix-sweep.nixosModules.default
+        ];
+      };
+
       nixosConfigurations.k8s-server03 = nixpkgs.lib.nixosSystem {
         specialArgs = {
           inherit unstable home-manager nix-sweep;
