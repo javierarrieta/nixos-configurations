@@ -22,20 +22,19 @@
               };
             };
             root = {
-              size = "100%";
+              size = "120G";
               content = {
-                type = "luks";
-                name = "disk0-root";
-                extraOpenArgs = [ ];
-                passwordFile = "/tmp/disko-password";
-                settings = {
-                  allowDiscards = true;
-                };
-                content = {
-                  type = "filesystem";
-                  format = "ext4";
-                  mountpoint = "/";
-                };
+                type = "filesystem";
+                format = "ext4";
+                mountpoint = "/";
+              };
+            };
+            longhorn = {
+              size = "100G";
+              content = {
+                type = "filesystem";
+                format = "ext4";
+                mountpoint = "/var/lib/longhorn";
               };
             };
           };
