@@ -32,13 +32,13 @@ in
 
   staticNetwork = {
     enable = true;
-    interface = "enp0s20u2";
+    interface = "enp0s20u1";
     ipAddress = vars.ipAddress;
     defaultGateway = vars.defaultGateway;
     nameservers = vars.nameservers;
   };
 
-  networking.interfaces.enp0s20u2.useDHCP = false;
+  networking.interfaces.enp0s20u1.useDHCP = false;
 
   prometheus.nodeExporter.enable = true;
 
@@ -65,7 +65,7 @@ in
 
   k8sNetwork = {
     enable = true;
-    primaryInterface = "enp0s20u2";
+    primaryInterface = "enp0s20u1";
     hostName = vars.hostname;
   };
 
