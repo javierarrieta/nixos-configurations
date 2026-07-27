@@ -58,6 +58,11 @@ in
     };
   };
 
+  services.logind.settings.Login = {
+    HandleLidSwitch = "ignore";
+    HandleLidSwitchExternalPower = "ignore";
+  };
+
   k8sNetwork = {
     enable = true;
     primaryInterface = "enp0s20u2";
