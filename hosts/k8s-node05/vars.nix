@@ -1,6 +1,10 @@
 { config, pkgs }:
+let
+  networkInterface = "enp0s20u1";
+in
 {
   hostname = "k8s-node05";
+  inherit networkInterface;
   ipAddress = "$IP_ADDRESS";
   defaultGateway = "$DEFAULT_GATEWAY";
   nameservers = [
@@ -17,5 +21,6 @@
       "arch=amd64"
     ];
     kubeletArgs = [ "pod-max-pids=2048" ];
+    extraFlags = [ "--flannel-iface=${networkInterface}" ];
   };
 }

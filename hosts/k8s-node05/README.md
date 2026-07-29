@@ -4,7 +4,7 @@
 - CPU: Intel Core i5-5257U (Broadwell, dual-core)
 - RAM: 8GB
 - Storage: Internal SATA SSD
-- Network: USB Ethernet adapter (interface: `enp0s20f0u1`)
+- Network: USB Ethernet adapter (interface: `enp0s20u1`)
 - WiFi: Broadcom (brcmfmac)
 
 ## Setup Notes
@@ -20,6 +20,6 @@
 4. After install, check network interface with `ip link` and update `configuration.nix` if needed
 
 ## Post-Install
-- Check network interface name matches `enp0s20f0u1` in `vars.nix` and `configuration.nix`
+- Check network interface name matches `enp0s20u1` in `vars.nix` and `configuration.nix`
 - Add SOPS keys to `secrets.yaml`
 - Run `sops updatekeys secrets.yaml -y`
