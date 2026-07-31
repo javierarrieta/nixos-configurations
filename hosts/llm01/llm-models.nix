@@ -44,9 +44,9 @@
   #   mmproj = "mmproj-F32.gguf";
   # };
 
-  "Qwopus3.6-35B" = {
-    modelId = "Jackrong/Qwopus3.6-35B-A3B-v1-MTP-GGUF";
-    filename = "Qwopus3.6-35B-A3B-v1-MTP-Q4_K_M.gguf";
+  "Qwopus3.6-35B-A3B-Coder" = {
+    modelId = "Jackrong/Qwopus3.6-35B-A3B-Coder-MTP-GGUF";
+    filename = "Qwopus3.6-35B-A3B-Coder-MTP-Q5_K_M.gguf";
     extraProperties = {
       "ctx-size" = "200000";
     };
@@ -66,13 +66,13 @@
   #     "ctx-size" = "200000";
   #   };
   # };
-  "Gemma-4-26B-A4B-it" = {
-    modelId = "unsloth/gemma-4-26B-A4B-it-GGUF";
-    filename = "gemma-4-26B-A4B-it-UD-Q4_K_M.gguf";
-    extraProperties = {
-      "ctx-size" = "200000";
-    };
-  };
+  # "Gemma-4-26B-A4B-it" = {
+  #   modelId = "unsloth/gemma-4-26B-A4B-it-GGUF";
+  #   filename = "gemma-4-26B-A4B-it-UD-Q4_K_M.gguf";
+  #   extraProperties = {
+  #     "ctx-size" = "200000";
+  #   };
+  # };
   "Gemma-4-12B" = {
     modelId = "unsloth/gemma-4-12b-it-GGUF";
     filename = "gemma-4-12b-it-Q4_K_M.gguf";
@@ -84,6 +84,13 @@
   "Ornith-1.0-35b" = {
     modelId = "deepreinforce-ai/Ornith-1.0-35B-GGUF";
     filename = "ornith-1.0-35b-Q6_K.gguf";
+    extraProperties = {
+      "ctx-size" = "200000";
+    };
+  };
+  "ThinkingCap-Qwen3.6-27B" = {
+    modelId = "bottlecapai/ThinkingCap-Qwen3.6-27B-GGUF";
+    filename = "ThinkingCap-Qwen3.6-27B-Q6_K.gguf";
     extraProperties = {
       "ctx-size" = "200000";
     };
