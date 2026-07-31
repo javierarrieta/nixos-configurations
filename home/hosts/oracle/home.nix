@@ -76,6 +76,8 @@ in
         "echo 'Open akhq at http://localhost:9092/' && kubectl port-forward service/akhq 9092:80 -n kafka --context";
       "pf-cruisecontrol" =
         "echo 'Open Cruise Control at https://localhost:9090/' && kubectl port-forward service/scs-data-mesh-prod-cruise-control 9090:9090 -n kafka --context";
+      "pf-opensearch" =
+        "echo 'Open OpenSearch at https://localhost:5601/' && kubectl -n opensearch port-forward svc/scs-opensearch-prod-dashboards 5601:5601 --context";
       "akhq-pass" =
         "kubectl get secret -n kafka akhq-admin-user-creds -o json | jq '.data.ociVaultContent' | tr -d '\"' | base64 -D | pbcopy";
     };
