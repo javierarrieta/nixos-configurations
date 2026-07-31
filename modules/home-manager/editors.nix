@@ -53,7 +53,6 @@
         ocamllabs.ocaml-platform
         haskell.haskell
         justusadam.language-haskell
-        hashicorp.terraform
       ];
     };
   };
