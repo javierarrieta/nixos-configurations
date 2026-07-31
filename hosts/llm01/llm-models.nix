@@ -88,13 +88,6 @@
       "ctx-size" = "200000";
     };
   };
-  "ThinkingCap-Qwen3.6-27B" = {
-    modelId = "bottlecapai/ThinkingCap-Qwen3.6-27B-GGUF";
-    filename = "ThinkingCap-Qwen3.6-27B-Q6_K.gguf";
-    extraProperties = {
-      "ctx-size" = "200000";
-    };
-  };
   "VibeThinker-3B" = {
     modelId = "mradermacher/VibeThinker-3B-i1-GGUF";
     filename = "VibeThinker-3B.i1-Q6_K.gguf";
