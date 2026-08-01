@@ -345,6 +345,7 @@ in
               modelId = config.modelId;
               filename = config.filename;
               mmproj = config.mmproj or null;
+              modelDraft = config.modelDraft or null;
               matchSplit = builtins.match "(.*)-[0-9]+-of-[0-9]+\\.gguf" filename;
               downloadArgs =
                 if matchSplit != null then
@@ -358,6 +359,10 @@ in
               ${lib.optionalString (mmproj != null) ''
                 echo "Downloading mmproj for ${entry-name}..."
                 ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${mmproj}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+              ''}
+              ${lib.optionalString (modelDraft != null) ''
+                echo "Downloading model-draft for ${entry-name}..."
+                ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${modelDraft}" --local-dir /opt/llm/models/llama-cpp --repo-type model
               ''}
             ''
           ) models
@@ -385,12 +390,14 @@ in
             let
               filename = config.filename;
               mmproj = config.mmproj or null;
+              modelDraft = config.modelDraft or null;
               extraProperties = config.extraProperties or { };
             in
             ''
               [${entry-name}]
               model = /opt/llm/models/llama-cpp/${filename}
               ${lib.optionalString (mmproj != null) "mmproj = /opt/llm/models/llama-cpp/${mmproj}"}
+              ${lib.optionalString (modelDraft != null) "model-draft = /opt/llm/models/llama-cpp/${modelDraft}"}
               ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value: "${key} = ${value}") extraProperties)}
             ''
           ) models
