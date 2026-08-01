@@ -98,12 +98,12 @@
   "Laguna-S-2.1" = {
     modelId = "unsloth/Laguna-S-2.1-GGUF";
     filename = "UD-Q4_K_M/Laguna-S-2.1-UD-Q4_K_M-00001-of-00003.gguf";
-    modelDraft = "laguna-s-2.1-DFlash-BF16.gguf";
-    modelDraftModelId = "poolside/Laguna-S-2.1-GGUF";
+    # modelDraft = "laguna-s-2.1-DFlash-BF16.gguf";
+    # modelDraftModelId = "poolside/Laguna-S-2.1-GGUF";
     extraProperties = {
       "ctx-size" = "200000";
-      "spec-type" = "draft-dflash";
-      "spec-draft-n-max" = "15";
+      # "spec-type" = "draft-dflash";
+      # "spec-draft-n-max" = "15";
     };
   };
 }
