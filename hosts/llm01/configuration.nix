@@ -346,6 +346,7 @@ in
               filename = config.filename;
               mmproj = config.mmproj or null;
               modelDraft = config.modelDraft or null;
+              modelDraftModelId = config.modelDraftModelId or modelId;
               matchSplit = builtins.match "(.*)-[0-9]+-of-[0-9]+\\.gguf" filename;
               downloadArgs =
                 if matchSplit != null then
@@ -362,7 +363,7 @@ in
               ''}
               ${lib.optionalString (modelDraft != null) ''
                 echo "Downloading model-draft for ${entry-name}..."
-                ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${modelDraft}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+                ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelDraftModelId}" "${modelDraft}" --local-dir /opt/llm/models/llama-cpp --repo-type model
               ''}
             ''
           ) models
