@@ -44,14 +44,14 @@
   #   mmproj = "mmproj-F32.gguf";
   # };
 
-  "Qwopus3.6-35B-A3B-Coder" = {
-    modelId = "Jackrong/Qwopus3.6-35B-A3B-Coder-MTP-GGUF";
-    filename = "Qwopus3.6-35B-A3B-Coder-MTP-Q5_K_M.gguf";
-    extraProperties = {
-      "ctx-size" = "200000";
-    };
-    mmproj = "mmproj-F32.gguf";
-  };
+  # "Qwopus3.6-35B-A3B-Coder" = {
+  #   modelId = "Jackrong/Qwopus3.6-35B-A3B-Coder-MTP-GGUF";
+  #   filename = "Qwopus3.6-35B-A3B-Coder-MTP-Q5_K_M.gguf";
+  #   extraProperties = {
+  #     "ctx-size" = "200000";
+  #   };
+  #   mmproj = "mmproj-F32.gguf";
+  # };
   # "MiroThinker-v1.5-30B" = {
   #   modelId = "mradermacher/MiroThinker-v1.5-30B-GGUF";
   #   filename = "MiroThinker-v1.5-30B.Q4_K_M.gguf";
@@ -81,18 +81,28 @@
     };
     mmproj = "mmproj-F16.gguf";
   };
-  "Ornith-1.0-35b" = {
-    modelId = "deepreinforce-ai/Ornith-1.0-35B-GGUF";
-    filename = "ornith-1.0-35b-Q6_K.gguf";
-    extraProperties = {
-      "ctx-size" = "200000";
-    };
-  };
+  # "Ornith-1.0-35b" = {
+  #   modelId = "deepreinforce-ai/Ornith-1.0-35B-GGUF";
+  #   filename = "ornith-1.0-35b-Q6_K.gguf";
+  #   extraProperties = {
+  #     "ctx-size" = "200000";
+  #   };
+  # };
   "VibeThinker-3B" = {
     modelId = "mradermacher/VibeThinker-3B-i1-GGUF";
     filename = "VibeThinker-3B.i1-Q6_K.gguf";
     extraProperties = {
       "ctx-size" = "200000";
+    };
+  };
+  "Laguna-S-2.1" = {
+    modelId = "unsloth/Laguna-S-2.1-GGUF";
+    filename = "Laguna-S-2.1-UD-Q4_K_M-00001-of-00003.gguf";
+    extraProperties = {
+      "ctx-size" = "200000";
+      "model-draft" = "laguna-s-2.1-DFlash-BF16.gguf"
+      "spec-type" = "draft-dflash"
+      "spec-draft-n-max" = "15"
     };
   };
 }
