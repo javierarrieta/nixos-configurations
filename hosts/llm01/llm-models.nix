@@ -20,6 +20,18 @@
       "ctx-size" = "65536";
     };
   };
+  "Qwen3.5-9B" = {
+    modelId = "unsloth/Qwen3.5-9B-GGUF";
+    filename = "Qwen3.5-9B-Q4_K_M.gguf";
+    extraProperties = {
+      "ctx-size" = "65536";
+      "temp" = "0.6";
+      "top-k" = "20";
+      "top-p" = "0.95";
+      "min-p" = "0.0";
+      "repeat-penalty" = "1.0";
+    };
+  };
   "Mellum-4B" = {
     modelId = "mradermacher/Mellum-4b-base-GGUF";
     filename = "Mellum-4b-base.Q4_K_M.gguf";
@@ -73,14 +85,14 @@
   #     "ctx-size" = "200000";
   #   };
   # };
-  "Gemma-4-12B" = {
-    modelId = "unsloth/gemma-4-12b-it-GGUF";
-    filename = "gemma-4-12b-it-Q4_K_M.gguf";
-    extraProperties = {
-      "ctx-size" = "200000";
-    };
-    mmproj = "mmproj-F16.gguf";
-  };
+  # "Gemma-4-12B" = {
+  #   modelId = "unsloth/gemma-4-12b-it-GGUF";
+  #   filename = "gemma-4-12b-it-Q4_K_M.gguf";
+  #   extraProperties = {
+  #     "ctx-size" = "200000";
+  #   };
+  #   mmproj = "mmproj-F16.gguf";
+  # };
   # "Ornith-1.0-35b" = {
   #   modelId = "deepreinforce-ai/Ornith-1.0-35B-GGUF";
   #   filename = "ornith-1.0-35b-Q6_K.gguf";
