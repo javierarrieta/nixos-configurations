@@ -350,7 +350,7 @@ in
               matchSplit = builtins.match "(.*)-[0-9]+-of-[0-9]+\\.gguf" filename;
               downloadArgs =
                 if matchSplit != null then
-                  "--include \"${builtins.head matchSplit}-*-of-*.gguf\""
+                  "--include ${builtins.head matchSplit}-*-of-*.gguf"
                 else
                   "\"${filename}\"";
             in
