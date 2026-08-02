@@ -171,23 +171,11 @@ in
         "video"
       ];
     };
-    comfyui = {
-      isSystemUser = true;
-      group = "comfyui";
-      uid = 27001;
-      extraGroups = [
-        "render"
-        "video"
-      ];
-    };
   };
 
   users.groups = {
     ollama = {
       gid = 27002;
-    };
-    comfyui = {
-      gid = 27001;
     };
   };
 
@@ -218,25 +206,6 @@ in
       enabledCollectors = [ "drm" ];
     };
 
-    # ComfyUI
-    comfyui = {
-      enable = true;
-      gpuSupport = "rocm";
-      enableManager = true;
-      listenAddress = "0.0.0.0";
-      openFirewall = true;
-      createUser = false;
-      dataDir = "/opt/llm/comfyui";
-      requiresMounts = [ "opt-llm-comfyui.mount" ];
-      environment = {
-        HIP_VISIBLE_DEVICES = "0";
-        HSA_OVERRIDE_GFX_VERSION = "11.5.1";
-        GPU_MAX_HEAP_SIZE = "100";
-        GPU_MAX_ALLOC_PERCENT = "100";
-        AMD_LOG_LEVEL = "0";
-        FLASH_ATTENTION_TRITON_AMD_ENABLE = "1";
-      };
-    };
   };
 
   # llama.cpp server service
@@ -282,22 +251,6 @@ in
   # Firewall
   networking.firewall.allowedTCPPorts = [ 8001 ];
 
-  # NFS mount for ComfyUI
-  fileSystems = {
-    "/opt/llm/comfyui" = {
-      device = "192.168.0.6:/mnt/tank/ComfyUI";
-      fsType = "nfs4";
-      options = [
-        "defaults"
-        "rw"
-        "soft"
-        "intr"
-        "timeo=50"
-        "retrans=2"
-      ];
-    };
-  };
-
   # Nix settings
   nix.settings = {
     experimental-features = [
@@ -312,7 +265,6 @@ in
   # Tempfiles
   systemd.tmpfiles.rules = [
     "d /opt/llm 0755 ollama ollama -"
-    "d /opt/llm/comfyui 0755 comfyui comfyui -"
     "d /opt/llm/models 0755 ollama ollama -"
     "d /opt/llm/models/llama-cpp 0755 ollama ollama -"
     "Z /opt/llm - ollama ollama -"
