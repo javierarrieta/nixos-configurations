@@ -11,7 +11,7 @@
         enable = lib.mkEnableOption "Prometheus node exporter";
         port = lib.mkOption {
           type = lib.types.port;
-          default = 9002;
+          default = 9100;
           description = "Port for node exporter";
         };
         collectors = lib.mkOption {
