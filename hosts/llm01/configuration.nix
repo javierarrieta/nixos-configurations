@@ -113,6 +113,11 @@ in
     "amdgpu.gttsize=120000"
     "ttm.pages_limit=31457280"
     "ttm.page_pool_size=27525120"
+    # Flash-attn shaders on huge KV (200k ctx) exceed the 2s watchdog; the driver
+    # falsely flags a hang ("context is lost"), then llama.cpp dies at the next
+    # Vulkan sync (prompt_save) with vk::Queue::submit: ErrorDeviceLost.
+    # 300000 ms (5 min) as a safety net; raise toward 1000000 if false hangs return.
+    "amdgpu.lockup_timeout=300000,300000"
   ];
   boot.extraModprobeConfig = ''
     # Allocate more memory to the GPU VRAM for llama.cpp
