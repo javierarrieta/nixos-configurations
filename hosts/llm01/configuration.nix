@@ -228,6 +228,9 @@ in
       HSA_ENABLE_SDMA = "0";
       HSA_DISABLE_FRAGMENT_ALLOCATOR = "1";
       XDG_CACHE_HOME = "/opt/llm/.cache/llama.cpp";
+      # coopmat FA shader path is buggy/slow on gfx1151 (Strix Halo) at deep
+      # context; fall back to scalar FA which is still much faster than FA-off.
+      GGML_VK_DISABLE_COOPMAT = "1";
     };
     serviceConfig = {
       Type = "simple";
