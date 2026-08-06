@@ -55,7 +55,7 @@
   #   modelId = "unsloth/Qwen3.6-35B-A3B-GGUF";
   #   filename = "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf";
   #   extraProperties = {
-  #    "flash-attn" = "on";
+  #     "flash-attn" = "on";
   #     "ctx-size" = "200000";
   #   };
   #   mmproj = "mmproj-F32.gguf";
@@ -73,7 +73,7 @@
   #   modelId = "mradermacher/MiroThinker-v1.5-30B-GGUF";
   #   filename = "MiroThinker-v1.5-30B.Q4_K_M.gguf";
   #   extraProperties = {
-  #    "flash-attn" = "on";
+  #     "flash-attn" = "on";
   #     "ctx-size" = "65536";
   #   };
   # };
@@ -89,7 +89,7 @@
   #   modelId = "unsloth/gemma-4-26B-A4B-it-GGUF";
   #   filename = "gemma-4-26B-A4B-it-UD-Q4_K_M.gguf";
   #   extraProperties = {
-  #    "flash-attn" = "on";
+  #     "flash-attn" = "on";
   #     "ctx-size" = "200000";
   #   };
   # };
@@ -97,7 +97,7 @@
   #   modelId = "unsloth/gemma-4-12b-it-GGUF";
   #   filename = "gemma-4-12b-it-Q4_K_M.gguf";
   #   extraProperties = {
-  #    "flash-attn" = "on";
+  #     "flash-attn" = "on";
   #     "ctx-size" = "200000";
   #   };
   #   mmproj = "mmproj-F16.gguf";
@@ -106,7 +106,7 @@
   #   modelId = "deepreinforce-ai/Ornith-1.0-35B-GGUF";
   #   filename = "ornith-1.0-35b-Q6_K.gguf";
   #   extraProperties = {
-  #    "flash-attn" = "on";
+  #     "flash-attn" = "on";
   #     "ctx-size" = "200000";
   #   };
   # };

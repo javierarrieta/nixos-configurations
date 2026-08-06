@@ -32,68 +32,54 @@ in
     ../../common/users.nix
   ];
 
-  # SOPS configuration
-  sops = {
-    defaultSopsFile = ../../secrets.yaml;
-    age.keyFile = "/var/lib/sops-nix/key.txt";
-    age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-    secrets."users/javier_password_hash" = {
-      mode = "0600";
-      owner = "root";
-      neededForUsers = true;
-    };
+  # Module enablement
+  base.enable = true;
+  systemPackages.enable = true;
+  ssh.enable = true;
+  prometheus.nodeExporter.enable = true;
+  prometheus.nodeExporter.collectors = [ "drm" ];
+  rsyslog.enable = true;
+  sopsBase.enable = true;
+  nixSweep.enable = true;
+  cominGitOps.enable = true;
+  cominGitOps.pollInterval = 900;
 
-    secrets."ssh_keys/javier_private" = {
-      mode = "0600";
-      owner = "javier";
-      path = "${config.users.users.javier.home}/.ssh/id_ed25519";
-    };
-    secrets."ssh_keys/javier_public" = {
-      mode = "0644";
-      owner = "javier";
-      path = "${config.users.users.javier.home}/.ssh/id_ed25519.pub";
-    };
-    secrets."wireguard/private_key" = {
-      mode = "0600";
-      owner = "root";
-    };
-    secrets."wireguard/address" = {
-      mode = "0644";
-      owner = "root";
-    };
-    secrets."wireguard/publicKey" = {
-      mode = "0644";
-      owner = "root";
-    };
-    secrets."wireguard/endpoint" = {
-      mode = "0644";
-      owner = "root";
-    };
-    secrets."wireguard/allowedIPs" = {
-      mode = "0644";
-      owner = "root";
-    };
-    secrets."ssh_keys/llm01_host_private" = {
-      mode = "0600";
-      owner = "root";
-      path = "/etc/ssh/ssh_host_ed25519_key";
-    };
-    secrets."ssh_keys/llm01_host_public" = {
-      mode = "0644";
-      owner = "root";
-      path = "/etc/ssh/ssh_host_ed25519_key.pub";
-    };
+  # SOPS host-specific secrets (base secrets are provided by sops-base module)
+  sops.secrets."wireguard/private_key" = {
+    mode = "0600";
+    owner = "root";
+  };
+  sops.secrets."wireguard/address" = {
+    mode = "0644";
+    owner = "root";
+  };
+  sops.secrets."wireguard/publicKey" = {
+    mode = "0644";
+    owner = "root";
+  };
+  sops.secrets."wireguard/endpoint" = {
+    mode = "0644";
+    owner = "root";
+  };
+  sops.secrets."wireguard/allowedIPs" = {
+    mode = "0644";
+    owner = "root";
+  };
+  sops.secrets."ssh_keys/llm01_host_private" = {
+    mode = "0600";
+    owner = "root";
+    path = "/etc/ssh/ssh_host_ed25519_key";
+  };
+  sops.secrets."ssh_keys/llm01_host_public" = {
+    mode = "0644";
+    owner = "root";
+    path = "/etc/ssh/ssh_host_ed25519_key.pub";
   };
 
   # Disk configuration
   disko.enableConfig = true;
 
-  # Boot loader
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  # Boot configuration
-  boot.initrd.systemd.enable = true;
+  # Boot (boot loader and initrd come from base module)
   security.tpm2.enable = true; # Enables TPM2 userspace tools
 
   # Hardware
@@ -130,36 +116,23 @@ in
   networking.networkmanager.enable = true;
   networking.hostName = "llm01";
 
-  # WireGuard secrets (currently unused)
-  sops.secrets."wireguard/address" = { };
-  sops.secrets."wireguard/publicKey" = { };
-  sops.secrets."wireguard/endpoint" = { };
-  sops.secrets."wireguard/allowedIPs" = { };
-
-  # System packages
-  environment.systemPackages = [
-    pkgs.tpm2-tss # Provides systemd-cryptenroll
-    pkgs.git
-    pkgs.zsh
-    pkgs.fish
-    pkgs.openiscsi
-    pkgs.vim
-    pkgs.wireguard-tools
-    pkgs.dig
-    pkgs.hdparm
-    pkgs.python311Packages.huggingface-hub
-    pkgs.nix-tree
-    pkgs.nix-index
-    pkgs.qemu
-
-    unstablePkgs.rocmPackages.rocm-smi
-    unstablePkgs.rocmPackages.clr
-
-    unstablePkgs.llama-cpp-vulkan
-  ];
-
-  # Timezone
-  time.timeZone = "Utc";
+  # System packages (common set comes from system-packages module)
+  systemPackages.extraPackages =
+    (with pkgs; [
+      zsh
+      wireguard-tools
+      dig
+      hdparm
+      python311Packages.huggingface-hub
+      nix-tree
+      nix-index
+      qemu
+    ])
+    ++ (with unstablePkgs; [
+      rocmPackages.rocm-smi
+      rocmPackages.clr
+      llama-cpp-vulkan
+    ]);
 
   home-manager.users.javier.imports = [
     ../../modules/home-manager/llm.nix
@@ -184,33 +157,16 @@ in
     };
   };
 
-  # Rsyslog
-  rsyslog.enable = true;
-
   # Services
   services = {
-    openssh = {
-      enable = true;
-      settings = {
-        PermitRootLogin = "yes";
-        PasswordAuthentication = true;
-        PubkeyAuthentication = true;
-        ChallengeResponseAuthentication = false;
-      };
-      hostKeys = [
-        {
-          path = "/etc/ssh/ssh_host_ed25519_key";
-          type = "ed25519";
-        }
-      ];
-    };
+    # SSH comes entirely from the ssh module (PermitRootLogin = "no")
+    # Node exporter enable/collectors come from the prometheus module
+    prometheus.exporters.node.openFirewall = true;
 
-    prometheus.exporters.node = {
-      enable = true;
-      openFirewall = true;
-      enabledCollectors = [ "drm" ];
-    };
-
+    # Logs are forwarded to Loki via rsyslog; keep the local journal small
+    journald.extraConfig = ''
+      SystemMaxUse=500M
+    '';
   };
 
   # llama.cpp server service
@@ -224,12 +180,10 @@ in
     requires = [ "llama-cpp-config.service" ];
     restartTriggers = [ (builtins.toJSON models) ];
     environment = {
-      HSA_OVERRIDE_GFX_VERSION = "11.5.0";
-      HSA_ENABLE_SDMA = "0";
-      HSA_DISABLE_FRAGMENT_ALLOCATOR = "1";
-      XDG_CACHE_HOME = "/opt/llm/.cache/llama.cpp";
-      # coopmat FA shader path is buggy/slow on gfx1151 (Strix Halo) at deep
-      # context; fall back to scalar FA which is still much faster than FA-off.
+      XDG_CACHE_HOME = "/var/cache/llama.cpp";
+      # HSA_* vars were ROCm-only; this service runs the Vulkan backend so they
+      # don't apply. coopmat FA shader path is buggy/slow on gfx1151 (Strix Halo)
+      # at deep context; fall back to scalar FA which is still much faster than FA-off.
       GGML_VK_DISABLE_COOPMAT = "1";
     };
     serviceConfig = {
@@ -276,7 +230,6 @@ in
     "d /opt/llm/models 0755 ollama ollama -"
     "d /opt/llm/models/llama-cpp 0755 ollama ollama -"
     "Z /opt/llm - ollama ollama -"
-    "d /home/javier/.ssh 0700 javier javier -"
   ];
 
   # Download llama.cpp models from HuggingFace
@@ -366,27 +319,6 @@ in
         EOF
       '';
     };
-  };
-
-  # Comin configuration
-  services.comin = {
-    enable = true;
-    remotes = [
-      {
-        name = "origin";
-        url = "https://github.com/javierarrieta/nixos-configurations.git";
-        branches.main.name = "main";
-        poller.period = 900;
-      }
-    ];
-  };
-
-  # Nix-sweep configuration
-  services.nix-sweep = {
-    enable = true;
-    interval = "daily";
-    removeOlder = "7d";
-    keepMin = 10;
   };
 
   system.stateVersion = "25.11";

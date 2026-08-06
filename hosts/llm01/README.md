@@ -103,11 +103,14 @@ By placing the bootstrap age key directly on the mounted filesystem before insta
    ```bash
    sudo rm /var/lib/sops-nix/key.txt
    ```
-4. The system will use persistent SSH host keys from secrets
-5. WireGuard and other services will start automatically
-6. Open WebUI will be available on port 8080
-7. ComfyUI will be available on port 8188
-8. llama-cpp server will be available on port 8001
+ 4. The system will use persistent SSH host keys from secrets
+ 5. WireGuard and other services will start automatically
+ 6. llama-cpp server will be available on port 8001
+
+> **Note:** Open WebUI and ComfyUI are referenced in `flake.nix` but are **not
+> currently enabled**. The `comfyui-nix` module and overlay are wired in for
+> future use; uncomment `services.comfyui.enable = true;` in
+> `hosts/llm01/configuration.nix` to activate ComfyUI.
 
 ## Troubleshooting
 
