@@ -38,10 +38,15 @@ resource "terraform_data" "install_agent" {
   # tearing down one workspace kills only its own agent on the shared host.
   # setsid makes the agent a new session leader; the backgrounded PID is the
   # process-group id, so `kill -- -PID` targets just that workspace's agent.
+  # The idempotent kill guard also cleans up an orphaned agent from a prior
+  # stop/restart (stop is terraform apply, so the destroy provisioner only
+  # runs on delete, not on stop).
   provisioner "remote-exec" {
     inline = [
+      "PID=/home/coder/.cache/coder/agent-${data.coder_workspace.me.owner_name}-${data.coder_workspace.me.name}.pid",
+      "if [ -f $PID ]; then kill -TERM -- -$(cat $PID) 2>/dev/null || true; rm -f $PID; fi",
       "mkdir -p /home/coder/.cache/coder",
-      "setsid sh -c '${coder_agent.main.init_script}' > /home/coder/.cache/coder/agent-${data.coder_workspace.me.name}.log 2>&1 & echo $! > /home/coder/.cache/coder/agent-${data.coder_workspace.me.name}.pid",
+      "setsid sh -c '${coder_agent.main.init_script}' > /home/coder/.cache/coder/agent-${data.coder_workspace.me.owner_name}-${data.coder_workspace.me.name}.log 2>&1 & echo $! > /home/coder/.cache/coder/agent-${data.coder_workspace.me.owner_name}-${data.coder_workspace.me.name}.pid",
     ]
   }
 
@@ -50,7 +55,7 @@ resource "terraform_data" "install_agent" {
   provisioner "remote-exec" {
     when   = destroy
     inline = [
-      "PID=/home/coder/.cache/coder/agent-${data.coder_workspace.me.name}.pid",
+      "PID=/home/coder/.cache/coder/agent-${data.coder_workspace.me.owner_name}-${data.coder_workspace.me.name}.pid",
       "if [ -f $PID ]; then kill -TERM -- -$(cat $PID) 2>/dev/null || true; rm -f $PID; fi",
       "true",
     ]
