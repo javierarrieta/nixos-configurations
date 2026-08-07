@@ -28,7 +28,7 @@
 - Consumes: none (standalone file).
 - Produces: `hosts/llm01/amdgpu-dashboard.json` — a complete Grafana dashboard importable via Dashboards → Import → Upload. Later tasks (if any) and the user rely on this exact file path and its 8 panel titles / 4 variable names.
 
-- [ ] **Step 1: Create `hosts/llm01/amdgpu-dashboard.json` with the full dashboard content**
+- [x] **Step 1: Create `hosts/llm01/amdgpu-dashboard.json` with the full dashboard content**
 
 Write the following file exactly:
 
@@ -454,12 +454,12 @@ Write the following file exactly:
 }
 ```
 
-- [ ] **Step 2: Verify the file is valid JSON**
+- [x] **Step 2: Verify the file is valid JSON**
 
 Run: `jq . hosts/llm01/amdgpu-dashboard.json > /dev/null && echo "valid JSON"`
 Expected: `valid JSON`
 
-- [ ] **Step 3: Verify structure (8 panels + 1 row, 4 variables)**
+- [x] **Step 3: Verify structure (8 panels + 1 row, 4 variables)**
 
 Run:
 ```bash
@@ -489,7 +489,7 @@ card
 chip
 ```
 
-- [ ] **Step 4: Verify queries reference only existing metrics**
+- [x] **Step 4: Verify queries reference only existing metrics**
 
 Run:
 ```bash
@@ -509,7 +509,7 @@ node_hwmon_temp_celsius
 node_hwmon_temp_crit_celsius
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add hosts/llm01/amdgpu-dashboard.json
