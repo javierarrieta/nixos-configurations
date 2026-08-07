@@ -97,6 +97,8 @@ Insert after the existing `users.groups` block (line 158) and before the `# Serv
     isSystemUser = true;
     group = "coder";
     home = "/home/coder";
+    # Explicit shell: without it nixpkgs assigns nologin and SSH login fails
+    shell = pkgs.fish;
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAA... coder-llm01"
     ];
@@ -234,19 +236,25 @@ resource "terraform_data" "install_agent" {
     private_key = var.ssh_private_key
   }
 
-  # init_script installs the agent binary (if missing) and starts it;
-  # background it because it blocks while the agent runs.
+  # Each workspace runs its own agent in its own session/process group, so
+  # tearing down one workspace kills only its own agent on the shared host.
+  # setsid makes the agent a new session leader; the backgrounded PID is the
+  # process-group id, so `kill -- -PID` targets just that workspace's agent.
   provisioner "remote-exec" {
     inline = [
-      "nohup bash -c '${coder_agent.main.init_script}' > /home/coder/.cache/coder/agent.log 2>&1 &",
+      "mkdir -p /home/coder/.cache/coder",
+      "setsid sh -c '${coder_agent.main.init_script}' > /home/coder/.cache/coder/agent-${data.coder_workspace.me.name}.log 2>&1 & echo $! > /home/coder/.cache/coder/agent-${data.coder_workspace.me.name}.pid",
     ]
   }
 
-  # Tear down the agent when the workspace is stopped/deleted.
+  # Tear down only this workspace's agent (shared host; other workspaces'
+  # agents must keep running).
   provisioner "remote-exec" {
     when   = destroy
     inline = [
-      "pkill -f 'coder agent' || true",
+      "PID=/home/coder/.cache/coder/agent-${data.coder_workspace.me.name}.pid",
+      "if [ -f $PID ]; then kill -TERM -- -$(cat $PID) 2>/dev/null || true; rm -f $PID; fi",
+      "true",
     ]
   }
 }
@@ -275,7 +283,8 @@ Coder workspace that runs **directly on the llm01 host OS** as the shared
 - **User**: `coder` (shared home `/home/coder`)
 - **Connection**: SSH from the Coder provisioner to llm01, then the agent
   reverse-tunnels back to the Coder server.
-- **Isolation**: none between workspaces; resources are contended.
+- **Isolation**: none between workspaces; resources are contended. Teardown is
+  per-workspace (each agent runs in its own process group).
 - **GPU**: not exposed; the AMD GPU stays reserved for host llama.cpp.
 
 ## Build variables
