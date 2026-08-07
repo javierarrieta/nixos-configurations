@@ -11,6 +11,19 @@
 let
   models = import ./llm-models.nix;
   llamaPackage = unstablePkgs.llama-cpp-vulkan;
+
+  # Shared-home dotfiles for the Coder workspace user (no home-manager user).
+  # Copy rules (`C`) are idempotent: no-op if the destination already exists.
+  coderBashrc = pkgs.writeText "coder-bashrc" ''
+    if command -v fish > /dev/null; then exec fish; fi
+  '';
+  coderGitconfig = pkgs.writeText "coder-gitconfig" ''
+    [user]
+      name = Coder Workspaces
+      email = coder@llm01
+    [init]
+      defaultBranch = main
+  '';
 in
 {
   imports = [
@@ -122,6 +135,7 @@ in
       nix-tree
       nix-index
       qemu
+      coder
     ])
     ++ (with unstablePkgs; [
       rocmPackages.rocm-smi
@@ -151,6 +165,17 @@ in
       gid = 27002;
     };
   };
+
+  # Coder workspace host: workspaces run directly as this user via SSH
+  users.users.coder = {
+    isSystemUser = true;
+    group = "coder";
+    home = "/home/coder";
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINvfTtJaSFJ4drj+LqoS0V0DXIi3LdRKhdcP8WVOqa3P coder-llm01"
+    ];
+  };
+  users.groups.coder = { };
 
   # Services
   services = {
@@ -225,6 +250,9 @@ in
     "d /opt/llm/models 0755 ollama ollama -"
     "d /opt/llm/models/llama-cpp 0755 ollama ollama -"
     "Z /opt/llm - ollama ollama -"
+    "d /home/coder 0755 coder coder -"
+    "C /home/coder/.bashrc 0644 coder coder - ${coderBashrc}"
+    "C /home/coder/.gitconfig 0644 coder coder - ${coderGitconfig}"
   ];
 
   # Download llama.cpp models from HuggingFace
