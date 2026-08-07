@@ -66,6 +66,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "decbytes",
+          "min": 0,
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -151,6 +152,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "celsius",
+          "min": 0,
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -306,6 +308,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "decbytes",
+          "min": 0,
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 10,
