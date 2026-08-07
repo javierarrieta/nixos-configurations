@@ -497,7 +497,6 @@ jq -r '.panels[] | select(.type != "row") | .targets[]?.expr' hosts/llm01/amdgpu
 ```
 Expected:
 ```
-node_drm_chip_names
 node_drm_gpu_busy_percent
 node_drm_memory_gtt_size_bytes
 node_drm_memory_gtt_used_bytes
