@@ -11,16 +11,18 @@ provider "coder" {}
 
 data "coder_workspace" "me" {}
 
+data "coder_workspace_owner" "me" {}
+
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
   dir  = "/home/coder"
 
   env = {
-    GIT_AUTHOR_NAME     = data.coder_workspace.me.owner_name
-    GIT_AUTHOR_EMAIL    = "${data.coder_workspace.me.owner_email}"
-    GIT_COMMITTER_NAME  = data.coder_workspace.me.owner_name
-    GIT_COMMITTER_EMAIL = "${data.coder_workspace.me.owner_email}"
+    GIT_AUTHOR_NAME     = data.coder_workspace_owner.me.name
+    GIT_AUTHOR_EMAIL    = data.coder_workspace_owner.me.email
+    GIT_COMMITTER_NAME  = data.coder_workspace_owner.me.name
+    GIT_COMMITTER_EMAIL = data.coder_workspace_owner.me.email
   }
 }
 
@@ -34,7 +36,7 @@ resource "terraform_data" "install_agent" {
     host        = data.coder_parameter.host.value
     user        = "coder"
     private_key = data.coder_parameter.ssh_private_key.value
-    owner       = data.coder_workspace.me.owner_name
+    owner       = data.coder_workspace_owner.me.name
     workspace   = data.coder_workspace.me.name
   }
 
