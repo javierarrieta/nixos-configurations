@@ -35,7 +35,7 @@ resource "terraform_data" "install_agent" {
   input = {
     host        = data.coder_parameter.host.value
     user        = "coder"
-    private_key = data.coder_parameter.ssh_private_key.value
+    private_key = format("%s\n", chomp(data.coder_parameter.ssh_private_key.value))
     owner       = data.coder_workspace_owner.me.name
     workspace   = data.coder_workspace.me.name
   }

@@ -10,4 +10,5 @@ data "coder_parameter" "ssh_private_key" {
   display_name = "SSH private key"
   description  = "SSH private key for the coder user on llm01"
   type         = "string"
+  form_type    = "textarea"
 }
