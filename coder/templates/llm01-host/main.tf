@@ -27,11 +27,22 @@ resource "coder_agent" "main" {
 resource "terraform_data" "install_agent" {
   depends_on = [coder_agent.main]
 
-  connection {
-    type        = "ssh"
+  # Destroy-time provisioners and their connection may only reference the
+  # resource's own attributes (self), so capture everything needed at
+  # destroy here and read it back via self.input.
+  input = {
     host        = var.host
     user        = "coder"
     private_key = var.ssh_private_key
+    owner       = data.coder_workspace.me.owner_name
+    workspace   = data.coder_workspace.me.name
+  }
+
+  connection {
+    type        = "ssh"
+    host        = self.input.host
+    user        = self.input.user
+    private_key = self.input.private_key
   }
 
   # Each workspace runs its own agent in its own session/process group, so
@@ -43,10 +54,10 @@ resource "terraform_data" "install_agent" {
   # runs on delete, not on stop).
   provisioner "remote-exec" {
     inline = [
-      "PID=/home/coder/.cache/coder/agent-${data.coder_workspace.me.owner_name}-${data.coder_workspace.me.name}.pid",
+      "PID=/home/coder/.cache/coder/agent-${self.input.owner}-${self.input.workspace}.pid",
       "if [ -f $PID ]; then kill -TERM -- -$(cat $PID) 2>/dev/null || true; rm -f $PID; fi",
       "mkdir -p /home/coder/.cache/coder",
-      "setsid sh -c '${coder_agent.main.init_script}' > /home/coder/.cache/coder/agent-${data.coder_workspace.me.owner_name}-${data.coder_workspace.me.name}.log 2>&1 & echo $! > /home/coder/.cache/coder/agent-${data.coder_workspace.me.owner_name}-${data.coder_workspace.me.name}.pid",
+      "setsid sh -c '${coder_agent.main.init_script}' > /home/coder/.cache/coder/agent-${self.input.owner}-${self.input.workspace}.log 2>&1 & echo $! > /home/coder/.cache/coder/agent-${self.input.owner}-${self.input.workspace}.pid",
     ]
   }
 
@@ -55,7 +66,7 @@ resource "terraform_data" "install_agent" {
   provisioner "remote-exec" {
     when   = destroy
     inline = [
-      "PID=/home/coder/.cache/coder/agent-${data.coder_workspace.me.owner_name}-${data.coder_workspace.me.name}.pid",
+      "PID=/home/coder/.cache/coder/agent-${self.input.owner}-${self.input.workspace}.pid",
       "if [ -f $PID ]; then kill -TERM -- -$(cat $PID) 2>/dev/null || true; rm -f $PID; fi",
       "true",
     ]
