@@ -59,7 +59,7 @@ resource "terraform_data" "install_agent" {
       "PID=/home/coder/.cache/coder/agent-${self.input.owner}-${self.input.workspace}.pid",
       "if [ -f $PID ]; then kill -TERM -- -$(cat $PID) 2>/dev/null || true; rm -f $PID; fi",
       "mkdir -p /home/coder/.cache/coder",
-      "setsid sh -c '${coder_agent.main.init_script}' > /home/coder/.cache/coder/agent-${self.input.owner}-${self.input.workspace}.log 2>&1 & echo $! > /home/coder/.cache/coder/agent-${self.input.owner}-${self.input.workspace}.pid",
+      "setsid sh -c '${coder_agent.main.init_script}' < /dev/null > /home/coder/.cache/coder/agent-${self.input.owner}-${self.input.workspace}.log 2>&1 & echo $! > /home/coder/.cache/coder/agent-${self.input.owner}-${self.input.workspace}.pid; exit 0",
     ]
   }
 
