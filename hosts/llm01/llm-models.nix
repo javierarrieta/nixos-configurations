@@ -124,8 +124,12 @@
     # modelDraft = "laguna-s-2.1-DFlash-BF16.gguf";
     # modelDraftModelId = "poolside/Laguna-S-2.1-GGUF";
     extraProperties = {
-      "ctx-size" = "100000";
+      "ctx-size" = "128000";
       "flash-attn" = "on";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
+      "temp" = "0.7";
+      "top-p" = "0.95";
       # "spec-type" = "draft-dflash";
       # "spec-draft-n-max" = "15";
     };
