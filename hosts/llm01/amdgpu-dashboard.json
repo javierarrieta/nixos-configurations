@@ -1,38 +1,3 @@
-# AMD GPU Grafana Dashboard for llm01 — Implementation Plan
-
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
-**Goal:** Create an importable Grafana dashboard JSON that visualizes llm01's AMD 8060S iGPU metrics from existing node_exporter `drm`/`hwmon` collectors.
-
-**Architecture:** A single standalone Grafana dashboard JSON (`hosts/llm01/amdgpu-dashboard.json`) with one row of 8 panels. It queries `node_drm_*` (GPU busy, VRAM, GTT) and `node_hwmon_*` (temp, power, clocks) metrics already exported by node_exporter on llm01. hwmon panels filter to the AMD chip via a `group_left` join on `node_hwmon_chip_names{chip_name="amdgpu"}`.
-
-**Tech Stack:** Grafana dashboard JSON schema (schemaVersion 39), PromQL, `__inputs` datasource binding (DS_PROMETHEUS), template variables (instance/card/chip).
-
-## Global Constraints
-
-- Dashboard JSON must parse with `jq` (acceptance criterion #4).
-- All panel queries reference only existing metrics: `node_drm_*` and `node_hwmon_*` (no new exporter — spec "Why no new exporter?").
-- hwmon panels must be restricted to the AMD chip via the join documented in the spec (join on `(instance, chip)` only, since `node_hwmon_chip_names` has no `sensor` label).
-- Single datasource prompt on import via `__inputs` → `DS_PROMETHEUS`.
-- Exactly 8 data panels + 1 row panel + 4 template variables (`DS_PROMETHEUS`, `instance`, `card`, `chip`).
-- Saved to `hosts/llm01/amdgpu-dashboard.json`. No Nix changes.
-
----
-
-### Task 1: Create the AMD GPU dashboard JSON
-
-**Files:**
-- Create: `hosts/llm01/amdgpu-dashboard.json`
-
-**Interfaces:**
-- Consumes: none (standalone file).
-- Produces: `hosts/llm01/amdgpu-dashboard.json` — a complete Grafana dashboard importable via Dashboards → Import → Upload. Later tasks (if any) and the user rely on this exact file path and its 8 panel titles / 4 variable names.
-
-- [x] **Step 1: Create `hosts/llm01/amdgpu-dashboard.json` with the full dashboard content**
-
-Write the following file exactly:
-
-```json
 {
   "__inputs": [
     {
@@ -101,6 +66,7 @@ Write the following file exactly:
       "fieldConfig": {
         "defaults": {
           "unit": "decbytes",
+          "min": 0,
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -186,6 +152,7 @@ Write the following file exactly:
       "fieldConfig": {
         "defaults": {
           "unit": "celsius",
+          "min": 0,
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -341,6 +308,7 @@ Write the following file exactly:
       "fieldConfig": {
         "defaults": {
           "unit": "decbytes",
+          "min": 0,
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -385,11 +353,301 @@ Write the following file exactly:
       ],
       "title": "GTT Memory Used",
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 },
+      "id": 9,
+      "title": "System (CPU, Memory, Disk)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [ { "color": "green", "value": null } ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 26 },
+      "id": 10,
+      "options": {
+        "legend": { "calcs": [ "mean", "last", "max" ], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\", instance=~\"$instance\"}[5m]) and on(instance) node_drm_memory_gtt_used_bytes))",
+          "legendFormat": "{{instance}} CPU",
+          "refId": "A"
+        }
+      ],
+      "title": "CPU Utilization",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [ { "color": "green", "value": null } ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Total" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "dash": [ 10, 10 ] } },
+              { "id": "custom.lineWidth", "value": 1 },
+              { "id": "custom.fillOpacity", "value": 0 }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 26 },
+      "id": 11,
+      "options": {
+        "legend": { "calcs": [ "mean", "last", "max" ], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "(node_memory_MemTotal_bytes{instance=~\"$instance\"} - node_memory_MemAvailable_bytes{instance=~\"$instance\"}) and on(instance) node_drm_memory_gtt_used_bytes",
+          "legendFormat": "{{instance}} used",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "node_memory_MemTotal_bytes{instance=~\"$instance\"} and on(instance) node_drm_memory_gtt_used_bytes",
+          "legendFormat": "Total",
+          "refId": "B"
+        }
+      ],
+      "title": "System Memory (UMA)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decbytes",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [ { "color": "green", "value": null } ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 26 },
+      "id": 12,
+      "options": {
+        "legend": { "calcs": [ "mean", "last", "max" ], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "(node_filesystem_size_bytes{instance=~\"$instance\", fstype!=\"tmpfs\"} - node_filesystem_free_bytes{instance=~\"$instance\", fstype!=\"tmpfs\"}) and on(instance) node_drm_memory_gtt_used_bytes",
+          "legendFormat": "{{instance}} {{mountpoint}} used",
+          "refId": "A"
+        }
+      ],
+      "title": "Disk Usage",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "iops",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [ { "color": "green", "value": null } ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 34 },
+      "id": 13,
+      "options": {
+        "legend": { "calcs": [ "mean", "last", "max" ], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "rate(node_disk_reads_completed_total{instance=~\"$instance\"}[5m]) and on(instance) node_drm_memory_gtt_used_bytes",
+          "legendFormat": "{{instance}} {{device}} reads/s",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "rate(node_disk_writes_completed_total{instance=~\"$instance\"}[5m]) and on(instance) node_drm_memory_gtt_used_bytes",
+          "legendFormat": "{{instance}} {{device}} writes/s",
+          "refId": "B"
+        }
+      ],
+      "title": "Disk IOPS",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 42 },
+      "id": 14,
+      "title": "llama-cpp (llm01)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [ { "color": "green", "value": null } ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 43 },
+      "id": 15,
+      "options": {
+        "legend": { "calcs": [ "mean", "last", "max" ], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "llamacpp:predicted_tokens_seconds{model=~\"$model\"}",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Generation TPS",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [ { "color": "green", "value": null } ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 43 },
+      "id": 16,
+      "options": {
+        "legend": { "calcs": [ "mean", "last", "max" ], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "llamacpp:prompt_tokens_seconds{model=~\"$model\"}",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Prompt TPS",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decps",
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 1,
+            "showPoints": "never"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [ { "color": "green", "value": null } ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 43 },
+      "id": 17,
+      "options": {
+        "legend": { "calcs": [ "mean", "last", "max" ], "displayMode": "list", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "rate(llamacpp:tokens_predicted_total{model=~\"$model\"}[5m])",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Tokens generated/s",
+      "type": "timeseries"
     }
   ],
   "refresh": "30s",
   "schemaVersion": 39,
-  "tags": [ "gpu", "amd", "llm01" ],
+  "tags": [ "gpu", "amd", "llm01", "system", "cpu", "disk" ],
   "templating": {
     "list": [
       {
@@ -407,7 +665,7 @@ Write the following file exactly:
         "name": "instance",
         "type": "query",
         "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-        "query": { "query": "label_values(node_drm_gpu_busy_percent, instance)", "refId": "A" },
+        "query": { "query": "label_values(node_drm_memory_gtt_used_bytes, instance)", "refId": "A" },
         "current": {},
         "hide": 0,
         "includeAll": true,
@@ -441,85 +699,27 @@ Write the following file exactly:
         "allValue": ".*",
         "refresh": 2,
         "label": "Chip"
+      },
+      {
+        "name": "model",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "query": { "query": "label_values(llamacpp:predicted_tokens_seconds, model)", "refId": "A" },
+        "current": {},
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "refresh": 2,
+        "label": "Model"
       }
     ]
   },
   "time": { "from": "now-6h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "AMD GPU (llm01)",
+  "title": "llm01 (AMD GPU + System)",
   "uid": "amdgpu-llm01",
   "version": 1,
   "weekStart": ""
 }
-```
-
-- [x] **Step 2: Verify the file is valid JSON**
-
-Run: `jq . hosts/llm01/amdgpu-dashboard.json > /dev/null && echo "valid JSON"`
-Expected: `valid JSON`
-
-- [x] **Step 3: Verify structure (8 panels + 1 row, 4 variables)**
-
-Run:
-```bash
-jq -r '.panels[] | select(.type != "row") | .title' hosts/llm01/amdgpu-dashboard.json
-```
-Expected exactly:
-```
-GPU Utilization
-VRAM Used
-GPU Busy (current)
-Temperature
-Power Draw
-Core Clock (sclk)
-Memory Clock (mclk)
-GTT Memory Used
-```
-
-Run:
-```bash
-jq -r '.templating.list[].name' hosts/llm01/amdgpu-dashboard.json
-```
-Expected exactly:
-```
-DS_PROMETHEUS
-instance
-card
-chip
-```
-
-- [x] **Step 4: Verify queries reference only existing metrics**
-
-Run:
-```bash
-jq -r '.panels[] | select(.type != "row") | .targets[]?.expr' hosts/llm01/amdgpu-dashboard.json | grep -oE 'node_[a-z_]+' | sort -u
-```
-Expected:
-```
-node_drm_gpu_busy_percent
-node_drm_memory_gtt_size_bytes
-node_drm_memory_gtt_used_bytes
-node_drm_memory_vram_size_bytes
-node_drm_memory_vram_used_bytes
-node_hwmon_chip_names
-node_hwmon_freq_freq_mhz
-node_hwmon_power_average_watt
-node_hwmon_temp_celsius
-node_hwmon_temp_crit_celsius
-```
-
-- [x] **Step 5: Commit**
-
-```bash
-git add hosts/llm01/amdgpu-dashboard.json
-git commit -m "feat(llm01): add AMD GPU Grafana dashboard"
-```
-
----
-
-## Self-Review Notes
-
-- **Spec coverage:** All 8 panels from the spec table are present (GPU Utilization, GPU Busy stat, VRAM Used, Temperature + crit line, Power Draw, sclk, mclk, GTT Memory Used). All 4 template variables from the spec table are present. The hwmon join follows the spec's query pattern (join on `(instance, chip)`). Acceptance criteria 1 (import prompt via `__inputs`), 2 (existing metrics only), 3 (amdgpu chip join), 4 (`jq` parses) are each covered by a step.
-- **Placeholder scan:** Full JSON is embedded; every target has a concrete `expr` and `legendFormat`; every verification command has expected output.
-- **Type consistency:** All queries consistently use `instance=~"$instance"`, `card=~"$card"`, `chip=~"$chip"`, and the same join expression across temp/power/clock panels.
