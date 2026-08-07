@@ -9,12 +9,16 @@ Coder workspace that runs **directly on the llm01 host OS** as the shared
 - **Isolation**: none between workspaces; resources are contended.
 - **GPU**: not exposed; the AMD GPU stays reserved for host llama.cpp.
 
-## Build variables
+## Workspace parameters
 
-| Variable           | Required | Notes                                    |
-|--------------------|----------|------------------------------------------|
-| `host`             | yes      | llm01 IP or resolvable hostname          |
-| `ssh_private_key`  | yes      | secret; key for the `coder` user on llm01 |
+| Parameter         | Required | Notes                                    |
+|-------------------|----------|------------------------------------------|
+| `host`            | yes      | llm01 IP or resolvable hostname          |
+| `ssh_private_key` | yes      | secret; key for the `coder` user on llm01 |
+
+These are **workspace-level** `coder_parameter` inputs, entered per-workspace
+in the Coder UI at creation time (not at template push). The private key is
+marked sensitive and stored encrypted in Coder — never commit it.
 
 ## Pushing the template
 
@@ -25,8 +29,5 @@ cd coder/templates/llm01-host
 coder templates push llm01-host
 ```
 
-Then create a workspace from `llm01-host` in the Coder UI and set the two
-build variables: `host` (llm01 IP or hostname) and `ssh_private_key` (the
-private key matching the `coder` user's authorized key on llm01). The private
-key is marked sensitive and stored encrypted in Coder — never commit it.
+No push-time variables are required.
 

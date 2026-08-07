@@ -31,9 +31,9 @@ resource "terraform_data" "install_agent" {
   # resource's own attributes (self), so capture everything needed at
   # destroy here and read it back via self.input.
   input = {
-    host        = var.host
+    host        = data.coder_parameter.host.value
     user        = "coder"
-    private_key = var.ssh_private_key
+    private_key = data.coder_parameter.ssh_private_key.value
     owner       = data.coder_workspace.me.owner_name
     workspace   = data.coder_workspace.me.name
   }
@@ -79,6 +79,6 @@ resource "coder_metadata" "llm01_info" {
 
   item {
     key   = "host"
-    value = var.host
+    value = data.coder_parameter.host.value
   }
 }

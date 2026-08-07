@@ -368,7 +368,7 @@ cd coder/templates/llm01-host
 coder templates push llm01-host
 ```
 
-Expected: template version uploaded successfully. Note the two build variables shown in the UI: `host` and `ssh_private_key` (sensitive).
+Expected: template version uploaded successfully. `host` and `ssh_private_key` are workspace-level `coder_parameter` inputs, so no push-time variables are required — they'll be shown when creating a workspace.
 
 - [ ] **Step 4: Create a test workspace**
 
@@ -408,4 +408,4 @@ Expected: no pid file remains for the deleted workspace (kill ran on destroy). O
 rm -f /tmp/coder-llm01 /tmp/coder-llm01.pub
 ```
 
-The private key should only live in Coder's secret template variable from now on. If you want it recoverable, store it in `secrets.yaml` via `sops` under `coder/llm01_private` — otherwise rely on Coder.
+The private key should only live in Coder's per-workspace secret parameter from now on. If you want it recoverable, store it in `secrets.yaml` via `sops` under `coder/llm01_private` — otherwise rely on Coder.
