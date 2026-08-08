@@ -214,7 +214,7 @@ Run: `SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops -d secrets.yaml > /tmp/
 
 Expected: file written. **Never commit `/tmp/secrets.dec.yaml`.**
 
-- [ ] **Step 2: Add only runtime credentials**
+- [x] **Step 2: Add only runtime credentials**
 
 Edit `/tmp/secrets.dec.yaml` — add dedicated llm01-only keys for the Podman server certificate/private key, client CA, and iSCSI helper authentication. The Coder provisioner client bundle is managed separately in `../k8s-casa/apply/01-secrets/casa/coder-podman-client-secrets.yaml`; do not add a TrueNAS key to the Coder template or Kubernetes Secret.
 
@@ -261,11 +261,11 @@ The `coder` user does not have its own age key. llm01's SOPS decryption uses the
 
 Read `.sops.yaml` and verify all three age keys listed in the current creation rule include the bootstrap key. If a dedicated key for llm01 exists in `hosts/llm01/` or was generated during bootstrap, add it. Otherwise the existing bootstrap key suffices.
 
-- [ ] **Step 5: Regenerate file key material if needed**
+- [x] **Step 5: Regenerate file key material if needed**
 
 Run: `SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops updatekeys secrets.yaml -y` (if `sops updatekeys` fails on passphrase, skip — the manual `.sops.yaml` + manual edit in Step 2 already put the secret under all recipients).
 
-- [ ] **Step 6: Mount and verify credentials only at intended consumers**
+- [x] **Step 6: Mount and verify credentials only at intended consumers**
 
 Run the NixOS secret verification for llm01, then from `../k8s-casa` run `make validate` and inspect the rendered Coder Deployment to confirm the Secret is mounted only at `/run/secrets/coder-podman-client`.
 
