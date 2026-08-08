@@ -50,7 +50,7 @@ A new Coder template (`llm01-podman`) uses the **docker provider** pointed at ll
 
 3. **Registry in k3s** (`k8s-casa/apply/50-apps/casa/registry.yaml`):
    - Docker registry Deployment + Service + PVC (truenas-iscsi) + Traefik Ingress.
-   - FQDN `registry.home.arrieta.eu` — covered by the existing `*.home.arrieta.eu` wildcard Certificate (ClusterIssuer `le-prod`, reflected into `casa`). No new cert/issuer.
+   - FQDN `registry.l.arrieta.eu` — LAN-only, covered by the existing `*.l.arrieta.eu` wildcard Certificate (ClusterIssuer `le-prod`, secret `l-arrieta-eu-cert` reflected into `casa`). No new cert/issuer.
    - Deployed via FluxCD (commit to `k8s-casa`, no imperative kubectl).
    - **Pinned image tag** (no `:latest`) per k8s-casa conventions.
    - Podman on llm01 pulls over the LAN using trusted LE TLS (no insecure-registry config).
@@ -85,7 +85,7 @@ A new Coder template (`llm01-podman`) uses the **docker provider** pointed at ll
    - `local-exec` calls TrueNAS API → creates zvol + iSCSI target + extent + association for `coder-<workspace>`.
    - docker provider authenticates to `ssh://coder@llm01` with the key, sets `DOCKER_HOST=/run/user/<uid>/docker.sock`.
    - (llm01) systemd mounts the new target at `/srv/coder/workspaces/coder-<workspace>`; the docker provider's SSH session discovers/attaches the mount.
-   - `docker_image` pulls `registry.home.arrieta.eu/coder-workspace:<tag>` (valid TLS via ingress).
+   - `docker_image` pulls `registry.l.arrieta.eu/coder-workspace:<tag>` (valid TLS via ingress).
    - `docker_volume` creates the podman named volume as a bind mount of the iSCSI-mounted host dir.
    - `docker_container` creates the container with limits + iSCSI-backed volume.
    - Container runs `init_script` → downloads agent → agent reverse-tunnels to Coder server.
@@ -191,21 +191,21 @@ kind: Ingress
 metadata: { name: registry-ingress, namespace: casa }
 spec:
   rules:
-    - host: registry.home.arrieta.eu
+    - host: registry.l.arrieta.eu
       http:
         paths:
           - path: /
             pathType: Prefix
             backend: { service: { name: registry, port: { number: 5000 } } }
   tls:
-    - hosts: [registry.home.arrieta.eu]
-      secretName: home-arrieta-eu-cert
+    - hosts: [registry.l.arrieta.eu]
+      secretName: l-arrieta-eu-cert
 ```
 
 ## Verification
 
 1. `nixos-rebuild switch --flake .#llm01` → confirm podman running, `coder` user exists, rootless socket answers the docker API, openiscsi active.
-2. `nix build .#coder-workspace`, push to registry; `curl -I https://registry.home.arrieta.eu/v2/` returns 200.
+2. `nix build .#coder-workspace`, push to registry; `curl -I https://registry.l.arrieta.eu/v2/` returns 200.
 3. Standalone TrueNAS API script run: create + destroy a test target/zvol end-to-end.
 4. Standalone docker-provider terraform run from the provisioner path confirms SSH → podman create.
 5. Push template `llm01-podman`; create workspace; confirm Running; confirm the iSCSI target is mounted and visible in the container at `/home/coder`.
