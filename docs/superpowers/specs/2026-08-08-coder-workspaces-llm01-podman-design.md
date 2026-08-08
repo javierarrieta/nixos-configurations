@@ -57,6 +57,7 @@ A new Coder template (`llm01-podman`) uses the **docker provider** pointed at ll
 
 4. **Coder template `llm01-podman`** (`coder/templates/llm01-podman/`):
    - `coder_parameter` `docker_host` (default `ssh://coder@192.168.0.29`), `ssh_private_key` (secret, `form_type = "textarea"`), and `truenas_api_key` (secret) for target provisioning.
+   - `coder_parameter` `memory_gb` (default 4, min 2, max 8, step 1) and `cpu_count` (default 8, min 2, max 24, step 2) — bounded so a workspace can't starve host LLM services. Values chosen at creation; immutable per workspace, changed via workspace update.
    - `provider "docker"` with `host`, `ssh_key`, `ssh_opts` from the parameters. Key material written via Coder's mkfile mechanism so it stays out of state.
    - `docker_image` pulls the workspace image from the registry.
    - **Target provisioning** via a TrueNAS API script (create zvol + iSCSI target + extent + association) run through `local-exec` before the container; destroys on teardown.
@@ -71,7 +72,7 @@ A new Coder template (`llm01-podman`) uses the **docker provider** pointed at ll
      ```
    - `docker_container` (count = `data.coder_workspace.me.start_count`) creates the container:
      - mounts the iSCSI-backed volume at `/home/coder`.
-     - `memory = 32768` MB, `cpu = 16` (tuneable).
+     - `memory = data.coder_parameter.memory_gb.value * 1024` (MB), `cpu = data.coder_parameter.cpu_count.value`.
      - Env `CODER_AGENT_TOKEN`, `CODER_AGENT_URL`.
      - `command` runs `coder_agent.main.init_script`.
    - `coder_metadata` for display.
