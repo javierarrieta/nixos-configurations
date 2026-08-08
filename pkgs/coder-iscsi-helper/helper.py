@@ -715,9 +715,9 @@ class HelperHandler(BaseHTTPRequestHandler):
                 return
             self._error(404, "unknown lease action")
             return
-        if kind == "workspaces" and len(parts) == 4:
+        if kind == "workspaces" and len(parts) in (3, 4):
             workspace = parts[2]
-            action = parts[3]
+            action = parts[3] if len(parts) == 4 else None
             try:
                 workspace = validate_workspace(workspace)
             except ValueError as exc:
@@ -741,7 +741,7 @@ class HelperHandler(BaseHTTPRequestHandler):
                     result = bound.detach()
                     self._json(200, {"ok": True, **result})
                     return
-                if method == "DELETE":
+                if method == "DELETE" and action is None:
                     result = bound.destroy()
                     self.capability_store.release(workspace, self._capability())
                     self._json(200, {"ok": True, **result})
