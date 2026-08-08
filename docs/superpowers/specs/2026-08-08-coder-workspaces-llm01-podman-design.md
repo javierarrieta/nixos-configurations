@@ -47,7 +47,7 @@ A new Coder template (`llm01-podman`) uses the **docker provider** pointed at ll
    - Pushed to the k8s registry as a pinned tag.
 
 3. **Registry in k3s** (`k8s-casa/apply/50-apps/casa/registry.yaml`):
-   - Docker registry Deployment + Service + PVC (longhorn) + Traefik Ingress.
+   - Docker registry Deployment + Service + PVC (truenas-iscsi) + Traefik Ingress.
    - FQDN `registry.home.arrieta.eu` — covered by the existing `*.home.arrieta.eu` wildcard Certificate (ClusterIssuer `le-prod`, reflected into `casa`). No new cert/issuer.
    - Deployed via FluxCD (commit to `k8s-casa`, no imperative kubectl).
    - **Pinned image tag** (no `:latest`) per k8s-casa conventions.
@@ -135,7 +135,7 @@ kind: PersistentVolumeClaim
 metadata: { name: registry-pv-claim, namespace: casa }
 spec:
   accessModes: [ReadWriteOnce]
-  storageClassName: longhorn
+  storageClassName: truenas-iscsi
   resources: { requests: { storage: 20Gi } }
 ---
 apiVersion: apps/v1
