@@ -365,7 +365,8 @@ class ISCSIActions:
             ["iscsiadm", "-m", "node", "-T", iqn, "-p", self._config.target_portal, "--login"],
             check=False,
         )
-        if proc.returncode != 0 and "already exists" not in proc.stdout + proc.stderr:
+        output = proc.stdout + proc.stderr
+        if proc.returncode != 0 and "already present" not in output:
             raise RuntimeError(
                 f"iscsiadm login failed ({proc.returncode}): {proc.stderr.strip()}"
             )
