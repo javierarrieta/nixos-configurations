@@ -10,16 +10,43 @@
 
 ## Global Constraints
 
-- Workspace resources bounded: `memory_gb` default 4, min 2, max 8, step 1; `cpu_count` default 8, min 2, max 24, step 2.
+- Workspace resources bounded: `memory_gb` default 4, min 2, max 8, step 1; `cpu_count` default 8, min 2, max 24, step 2; `disk_gb` default 50, min 10, max 200, step 10. Disk size is immutable after creation.
 - Registry FQDN is **`registry.l.arrieta.eu`** (LAN-only), TLS via existing `l-arrieta-eu-cert` secret (reflected into `casa`).
 - No GPU access in workspaces.
-- Running workspace count must be explicitly limited if only one active workspace is allowed; provisioner build concurrency is not an active-workspace limit.
+- Exactly one active workspace is allowed; a durable atomic helper lease, not provisioner build concurrency, enforces this.
 - Never commit plaintext secrets; Podman TLS credentials, helper credentials, and TrueNAS API credentials live in SOPS/Kubernetes Secrets.
 - Workspace iSCSI targets live under TrueNAS dataset `tank/iscsi/k8s/`; IQN basename is `iqn.2005-10.org.freenas.ctl`.
-- `coder` user on llm01: system user, uid/gid 27003, home `/home/coder`, shell `pkgs.bash`, `linger = true`, `extraGroups = [ "podman" ]`, subuid/subgid ranges `100000-165535`; owns rootless Podman.
+- `coder` user on llm01: system user, uid/gid 27003, home `/home/coder`, shell `pkgs.bash`, `linger = true`, subuid/subgid ranges `100000-165535`; owns rootless Podman. Do not assume container UID/GID 1000 equals host UID/GID 1000.
 - Coder server runs in `casa` namespace, chart v2.35.1, access URL `https://coder.home.arrieta.eu`.
 - TrueNAS API credentials for target provisioning must be supplied through SOPS at deployment/runtime; never include the key value in this document. TrueNAS uses `allowInsecure: true` on https 192.168.0.6:443.
 - All NixOS code formatted with `nixfmt` (2-space indent), k8s manifests YAML consistent with k8s-casa conventions, pinned image tags.
+- Pin the exact `kreuzwerker/docker` provider and Podman/NixOS versions after the compatibility spike; no `latest` image tags.
+- Registry pull credentials are mounted into the Coder provisioner and sent through provider registry auth; they are not stored in llm01's `coder` home.
+- The helper API uses per-workspace opaque lease capabilities, stores only capability hashes, and rejects lifecycle requests without a matching capability.
+
+---
+
+### Task 0: Podman/Docker-provider compatibility gate
+
+**Files:**
+- Create: `docs/superpowers/evidence/2026-08-08-coder-podman-compatibility.md`
+- Create: `coder/templates/llm01-podman/compatibility/main.tf`
+
+**Interfaces:**
+- Consumes: pinned NixOS/Podman release, pinned `kreuzwerker/docker` provider, disposable Coder-like provisioner pod.
+- Produces: recorded evidence that remote mTLS, private image pulls, local bind volumes, rootless filesystem access, `memory`, `cpus`, restart/destroy, and GPU/device isolation work together.
+
+- [ ] **Step 1: Pin the versions and build the disposable test**
+
+Use the exact Podman/NixOS version selected for llm01 and the exact Docker provider version committed in `.terraform.lock.hcl`. The test must use `host = "tcp://llm01:2376"`, the real three-file mTLS bundle, provider-supplied registry auth, a disposable image, and a disposable bind-mounted filesystem.
+
+- [ ] **Step 2: Run the compatibility matrix**
+
+Verify mTLS certificate validation, private registry pull, `docker_volume` local bind options, non-root access to the bind mount, `memory` and `cpus` cgroup v2 enforcement, restart, destroy, and absence of host devices/GPU. A failure blocks all later tasks.
+
+- [ ] **Step 3: Record evidence and commit**
+
+Record versions, Terraform source, commands, and results in `docs/superpowers/evidence/2026-08-08-coder-podman-compatibility.md` and commit the evidence before proceeding.
 
 ---
 
@@ -27,6 +54,8 @@
 
 **Files:**
 - Create: `modules/nixos/coder-host.nix`
+- Create: `pkgs/coder-iscsi-helper/default.nix`
+- Create: `pkgs/coder-iscsi-helper/coder-iscsi-helper.py`
 - Modify: `hosts/llm01/configuration.nix` (import + enable)
 - Test: `nix eval .#nixosConfigurations.llm01.config.system.build.toplevel --show-trace` (must evaluate)
 
@@ -104,7 +133,6 @@ No Coder CLI, external provisioner key, or external provisioner daemon is instal
       wantedBy = [ "default.target" ];
       serviceConfig = {
         ExecStart = "${pkgs.podman}/bin/podman system service --time=0 --tls-cert=/run/secrets/podman/server.crt --tls-key=/run/secrets/podman/server.key --tls-client-ca=/run/secrets/podman/client-ca.crt tcp://${config.coderHost.podmanApiAddress}";
-        Environment = "REGISTRY_AUTH_FILE=/run/secrets/registry/coder-auth.json";
         Restart = "on-failure";
         RestartSec = "5s";
       };
@@ -122,7 +150,7 @@ No Coder CLI, external provisioner key, or external provisioner daemon is instal
       description = "Coder workspace iSCSI helper";
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
-        ExecStart = "/run/current-system/sw/bin/coder-iscsi-helper";
+        ExecStart = "${pkgs.callPackage ../../pkgs/coder-iscsi-helper {}}/bin/coder-iscsi-helper";
         User = "root";
         Restart = "on-failure";
       };
@@ -175,7 +203,7 @@ git commit -m "feat(llm01): rootless Podman TLS API and iSCSI helper"
 ### Task 2: Podman mTLS, helper credentials, and Kubernetes Secret wiring
 
 **Files:**
-- Modify: `secrets.yaml`, `.sops.yaml`, `hosts/llm01/configuration.nix`, `../k8s-casa/apply/01-secrets/casa/coder-podman-client-secrets.yaml`, `../k8s-casa/apply/50-apps/casa/coder.yaml`
+- Modify: `secrets.yaml`, `.sops.yaml`, `hosts/llm01/configuration.nix`, `../k8s-casa/apply/01-secrets/casa/coder-podman-client-secrets.yaml`, `../k8s-casa/apply/01-secrets/casa/coder-registry-pull-secrets.yaml`, `../k8s-casa/apply/50-apps/casa/coder.yaml`
 
 **Interfaces:**
 - Produces: Podman server TLS credentials and iSCSI-helper credentials on llm01, plus a SOPS-encrypted Kubernetes Secret containing the Coder provisioner's Podman client bundle. No Coder external-provisioner key or TrueNAS credential is required.
@@ -198,7 +226,7 @@ coder:
     iscsi_helper_key: <SOPS value>
 ```
 
-Create the Kubernetes Secret with `data.ca.pem`, `data.cert.pem`, and `data.key.pem`, encrypt it with the existing k8s-casa SOPS workflow, and place it under `apply/01-secrets/casa/` with the `-secrets.yaml` naming convention.
+Create the Kubernetes Secret with `data.ca.pem`, `data.cert.pem`, and `data.key.pem`, encrypt it with the existing k8s-casa SOPS workflow, and place it under `apply/01-secrets/casa/` with the `-secrets.yaml` naming convention. Create a separate provisioner-only registry pull Secret (read-only username/password or Docker config) and mount it into the Coder provisioner at `/run/secrets/coder-registry-pull`; do not mount registry credentials into llm01.
 
 Add these values to the existing Coder HelmRelease in `../k8s-casa/apply/50-apps/casa/coder.yaml`:
 
@@ -207,13 +235,19 @@ Add these values to the existing Coder HelmRelease in `../k8s-casa/apply/50-apps
         - name: coder-podman-client
           secret:
             secretName: coder-podman-client-secrets
+        - name: coder-registry-pull
+          secret:
+            secretName: coder-registry-pull-secrets
       volumeMounts:
         - name: coder-podman-client
           mountPath: /run/secrets/coder-podman-client
           readOnly: true
+        - name: coder-registry-pull
+          mountPath: /run/secrets/coder-registry-pull
+          readOnly: true
 ```
 
-The Docker provider uses `cert_path = "/run/secrets/coder-podman-client"`; it must find exactly `ca.pem`, `cert.pem`, and `key.pem`. The Secret is mounted into the Coder server/provisioner pod, never into workspace containers.
+The Docker provider uses `cert_path = "/run/secrets/coder-podman-client"`; it must find exactly `ca.pem`, `cert.pem`, and `key.pem`. The provider's registry auth reads the separate provisioner pull credential at `/run/secrets/coder-registry-pull`. These Secrets are mounted into the Coder provisioner pod, never into workspace containers or llm01's `coder` home.
 
 - [ ] **Step 3: Re-encrypt and verify**
 
@@ -265,7 +299,7 @@ git commit -m "secrets: add Podman and iSCSI helper credentials"
 }:
 pkgs.dockerTools.buildImage {
   name = "coder-workspace";
-  tag = "latest";
+  tag = "pinned";
   copyToRoot = pkgs.buildEnv {
     name = "image-root";
     paths = with pkgs; [
@@ -284,12 +318,15 @@ pkgs.dockerTools.buildImage {
       which
       openssh
     ];
-    pathsToLink = [ "/bin" ];
+    pathsToLink = [ "/bin" "/etc" ];
   };
   runAsRoot = ''
     ${pkgs.dockerTools.shadowSetup}
     groupadd --gid 1000 coder
     useradd --uid 1000 --gid 1000 --create-home --home-dir /home/coder --shell /bin/bash coder
+    ln -sfn ${pkgs.bash}/bin/bash /bin/sh
+    mkdir -p /tmp /run
+    chmod 1777 /tmp /run
     chmod 0755 /home/coder
     chown 1000:1000 /home/coder
   '';
@@ -299,6 +336,7 @@ pkgs.dockerTools.buildImage {
     Env = [
       "PATH=/bin:/usr/bin"
       "HOME=/home/coder"
+      "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
     ];
     Cmd = [ "/bin/bash" ];
   };
@@ -316,16 +354,16 @@ After the last `packages.*` entry (near line 558), add:
         let
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
         in
-        import ./pkgs/coder-workspace { inherit pkgs lib; };
+          import ./pkgs/coder-workspace { inherit pkgs; };
 ```
 
-(`lib` is available in the `outputs` function scope as `nixpkgs.lib`.)
+The image package function accepts only `pkgs`; do not pass an undeclared `lib` argument.
 
 - [ ] **Step 3: Build and inspect the image**
 
 Run: `nix --extra-experimental-features 'nix-command flakes' build .#coder-workspace --print-build-logs`
 
-Expected: succeeds; `result` is a Docker image tar. Load it into a local Podman/Docker engine and verify `/etc/passwd`, `/home/coder`, UID/GID 1000, non-root execution, and shell startup.
+Expected: succeeds; `result` is a Docker image tar. Load it into a local Podman/Docker engine and verify `/etc/passwd`, `/home/coder`, UID/GID 1000, non-root execution, `/bin/sh`, CA validation, writable `/tmp`/`/run`, and shell startup. Run the generated Coder init script in the image before publishing.
 
 - [ ] **Step 4: Commit**
 
@@ -461,7 +499,7 @@ Run: `curl -sI --max-time 10 https://registry.l.arrieta.eu/v2/ | head -1`
 
 Expected: `HTTP/2 401` without credentials, proving the registry and TLS ingress are up. Verify authenticated access separately with the provisioned registry credentials.
 
-Create the SOPS-encrypted `registry-auth-secrets.yaml` with a `data.htpasswd` entry containing the bcrypt/Apache htpasswd record. Provision a matching read-only pull credential to llm01's `coder` Podman auth file; the image-push credential is kept separately on the image-build machine. Do not put registry credentials in the Coder template parameters or Terraform source.
+Create the SOPS-encrypted `registry-auth-secrets.yaml` with a `data.htpasswd` entry containing the bcrypt/Apache htpasswd record. Provision a separate read-only pull credential to the Coder provisioner Secret; the image-push credential is kept separately on the image-build machine. Do not put registry credentials in the Coder template parameters, Terraform source, or llm01's `coder` home.
 
 - [ ] **Step 5: Commit (k8s-casa)**
 
@@ -483,24 +521,26 @@ The helper API listens on `https://llm01:2377` and requires a client certificate
 
 Contract:
 
+- `POST /v1/lease/<workspace>/acquire` → `{ "ok": true, "capability": "..." }` or a structured conflict; same-workspace reacquire requires the existing capability.
+- `POST /v1/lease/<workspace>/release` with the capability; idempotent for an already released lease.
 - `POST /v1/workspaces/<workspace>/provision` with `{ "size_gb": N }`
 - `POST /v1/workspaces/<workspace>/attach`
 - `POST /v1/workspaces/<workspace>/detach`
-- `DELETE /v1/workspaces/<workspace>`
+- `DELETE /v1/workspaces/<workspace>` with the capability
 
-The helper validates workspace names with `^[a-z0-9][a-z0-9-]{0,62}$`, accepts 10–200 GiB, uses argument-vector subprocess execution, serializes operations per workspace, and returns structured JSON errors. New zvols are formatted exactly once as ext4 and assigned ownership compatible with the image's fixed `coder` UID/GID. Existing or unknown filesystems are never reformatted.
+The helper validates workspace names with `^[a-z0-9][a-z0-9-]{0,62}$`, accepts 10–200 GiB, uses argument-vector subprocess execution, serializes per-workspace and global lease operations, and returns structured JSON errors. It stores only a hash of each opaque capability, compares it in constant time, never logs it, and rejects lifecycle requests without a matching capability. New zvols are formatted exactly once as ext4 with a unique workspace-derived label. After verifying the expected mount, the helper runs `podman unshare chown 1000:1000` as the `coder` user; it never assumes host UID/GID 1000 maps to container UID/GID 1000. Existing or unknown filesystems are never reformatted.
 
 - [ ] **Step 1: Implement the helper service and client**
 
-Create a small Python standard-library HTTPS service installed on llm01 as a root-owned systemd unit. Use `ThreadingHTTPServer` with an `ssl.SSLContext` configured for server certificate, private key, and required client certificate verification. The handler must:
+Create a small Python standard-library HTTPS service packaged as `pkgs/coder-iscsi-helper` and installed on llm01 as a root-owned systemd unit. Use `ThreadingHTTPServer` with an `ssl.SSLContext` configured for server certificate, private key, and required client certificate verification. The handler must:
 
 1. Validate the mTLS peer, HTTP method/path, workspace-name regex, and 10–200 GiB size range.
-2. Acquire a per-workspace lock before any lifecycle operation.
+2. Acquire the global lease lock and per-workspace lock before any lifecycle operation; reconcile stale leases at boot by inspecting Coder-owned Podman containers and fail closed if inspection is unavailable.
 3. Invoke `iscsiadm`, `mkfs.ext4`, `mount`, `umount`, and TrueNAS API calls with argument arrays or structured HTTP requests—never shell interpolation.
-4. Reconcile existing TrueNAS objects by name and refuse to reformat a non-empty or unknown block device.
+4. Reconcile existing TrueNAS objects by name, refuse to reformat a non-empty or unknown block device, and prepare ownership through `podman unshare` as `coder`.
 5. Return JSON `{ "ok": true, ... }` on success and `{ "ok": false, "error": "..." }` with an appropriate 4xx/5xx status on failure.
 
-Create `truenas-iscsi-helper-client.sh` for the Coder provisioner pod. It validates its inputs, calls the four helper endpoints with the mounted client certificate, waits for a successful response, and exits non-zero on structured helper errors. It must not contain or receive the TrueNAS API credential.
+Create `truenas-iscsi-helper-client.sh` for the Coder provisioner pod. It validates its inputs, acquires and carries the per-workspace capability through all helper calls, waits for mount readiness, exits non-zero on structured helper errors, and releases the capability only after detach/delete succeeds. It must not contain or receive the TrueNAS API credential.
 
 - [ ] **Step 2: Test helper create + destroy end-to-end**
 
@@ -526,14 +566,17 @@ git commit -m "feat(coder): add llm01 iSCSI helper and client"
 **Files:**
 - Create: `coder/templates/llm01-podman/main.tf`
 - Create: `coder/templates/llm01-podman/.terraform.lock.hcl`
+- Create: `coder/templates/llm01-podman/providers/llm01_workspace_target/` (pinned helper-client provider source)
 - Create: `coder/templates/llm01-podman/README.md` (push instructions)
 - Test: `coder templates push llm01-podman` then a workspace create.
 
 **Interfaces:**
-- Consumes: the mTLS iSCSI helper client (Task 5), `coder-workspace` image (Task 3), registry (Task 4), and Coder's built-in provisioner.
+- Consumes: the pinned `llm01_workspace_target` helper-client provider, `coder-workspace` image (Task 3), registry (Task 4), and Coder's built-in provisioner.
 - Produces: workspace template named `llm01-podman` using the built-in provisioner.
 
 - [ ] **Step 1: Create `main.tf`**
+
+First publish the `registry.casa.arrieta.eu/infra/llm01` provider built from `providers/llm01_workspace_target`. Its `llm01_workspace_target` resource must expose `workspace` (string), `size_gb` (integer), and `active` (boolean), return a sensitive capability internally, and implement the exact create/update/delete mapping documented above. Pin its checksum in `.terraform.lock.hcl`; the Coder provisioner must be able to install it without a local filesystem dependency.
 
 ```hcl
 terraform {
@@ -545,6 +588,10 @@ terraform {
     docker = {
       source  = "kreuzwerker/docker"
       version = "~> 3.6"
+    }
+    llm01 = {
+      source  = "registry.casa.arrieta.eu/infra/llm01"
+      version = "~> 0.1"
     }
   }
 }
@@ -585,7 +632,7 @@ data "coder_parameter" "disk_gb" {
   display_name = "Disk size (GB)"
   description  = "Size of the workspace home volume on TrueNAS (10-200)"
   type         = "number"
-  default      = 20
+  default      = 50
   validation {
     min = 10
     max = 200
@@ -595,6 +642,17 @@ data "coder_parameter" "disk_gb" {
 
 provider "docker" {
   host      = "tcp://llm01:2376"
+  cert_path = "/run/secrets/coder-podman-client"
+
+  registry_auth {
+    address  = "registry.l.arrieta.eu"
+    username = trimspace(file("/run/secrets/coder-registry-pull/username"))
+    password = trimspace(file("/run/secrets/coder-registry-pull/password"))
+  }
+}
+
+provider "llm01" {
+  endpoint  = "https://llm01:2377"
   cert_path = "/run/secrets/coder-podman-client"
 }
 
@@ -614,25 +672,18 @@ resource "coder_agent" "main" {
   }
 }
 
-# Request iSCSI lifecycle operations from the helper on llm01. This client runs
-# inside the Coder provisioner pod; TrueNAS credentials never enter Terraform.
-resource "terraform_data" "truenas_target" {
-  input = {
-    workspace = data.coder_workspace.me.name
-  }
-
-  provisioner "local-exec" {
-    when    = create
-    command = "CODER_HELPER_URL=https://llm01:2377 CODER_HELPER_CERT_DIR=/run/secrets/coder-podman-client WORKSPACE='${data.coder_workspace.me.name}' SIZE_GB='${data.coder_parameter.disk_gb.value}' bash ${path.module}/scripts/truenas-iscsi-helper-client.sh provision"
-  }
-
-  provisioner "local-exec" {
-    when    = destroy
-    command = "CODER_HELPER_URL=https://llm01:2377 CODER_HELPER_CERT_DIR=/run/secrets/coder-podman-client WORKSPACE='${self.input.workspace}' bash ${path.module}/scripts/truenas-iscsi-helper-client.sh destroy"
-  }
+# This resource is the only privileged lifecycle client. It calls the helper
+# over mTLS, stores only the opaque capability as sensitive state, and maps:
+# create/update(active=true) -> acquire + provision + attach;
+# update(active=false) -> detach + release; destroy -> detach/release + delete.
+resource "llm01_workspace_target" "workspace" {
+  workspace = data.coder_workspace.me.name
+  size_gb   = data.coder_parameter.disk_gb.value
+  active    = data.coder_workspace.me.start_count > 0
 }
 
 resource "docker_volume" "home" {
+  count = data.coder_workspace.me.start_count
   name = "coder-${data.coder_workspace.me.name}-home"
 
   driver = "local"
@@ -641,12 +692,10 @@ resource "docker_volume" "home" {
     o      = "bind"
     device = "/srv/coder/workspaces/coder-${data.coder_workspace.me.name}"
   }
-  depends_on = [terraform_data.truenas_target]
+  depends_on = [llm01_workspace_target.workspace]
 }
 
 resource "docker_image" "workspace" {
-  # Podman uses the read-only registry auth file provisioned for coder on
-  # llm01; no registry credential is embedded in this template.
   name = "registry.l.arrieta.eu/coder-workspace:<pinned-tag>"
 }
 
@@ -660,7 +709,7 @@ resource "docker_container" "workspace" {
 
   volumes {
     container_path = "/home/coder"
-    volume_name    = docker_volume.home.name
+    volume_name    = docker_volume.home[0].name
   }
 
   env = [
@@ -670,7 +719,7 @@ resource "docker_container" "workspace" {
   # init_script embeds the agent URL and token wiring; the container runs it
   # directly (official Coder docker template pattern).
   command = ["sh", "-c", coder_agent.main.init_script]
-  depends_on = [terraform_data.truenas_target]
+  depends_on = [llm01_workspace_target.workspace]
 }
 
 resource "coder_metadata" "workspace_info" {
@@ -683,35 +732,9 @@ resource "coder_metadata" "workspace_info" {
 }
 ```
 
-- [ ] **Step 2: Boot-time remount of workspace targets**
+- [ ] **Step 2: Add boot-time lease reconciliation**
 
-The helper attaches and mounts the target during `provision` (live path). On a **host reboot**, the helper's boot reconciliation logs in to known Coder targets and remounts them before a workspace restart. Keep this logic inside the root-owned helper/service boundary; do not expose `iscsiadm` to the Coder provisioner pod. Add the helper's boot reconciliation unit to `modules/nixos/coder-host.nix` (in the `config` block):
-
-```nix
-    # After openiscsi auto-logs-in recorded targets at boot, mount every coder
-    # workspace target back to its /srv/coder/workspaces path.
-    systemd.services.iscsi-mount-workspaces = {
-      description = "Mount Coder workspace iSCSI targets";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" "iscsi.service" ];
-      requires = [ "iscsi.service" ];
-      script = ''
-        for target in $(iscsiadm -m session -o table 2>/dev/null | awk '$2 ~ /iqn.2005-10.org.freenas.ctl:coder-/ {print $2}'); do
-          ws=${target#*:coder-}
-          dev=/dev/disk/by-path/ip-192.168.0.6:3260-iscsi-${target}-lun-0
-          [ -e "$dev" ] || continue
-          mkdir -p "/srv/coder/workspaces/coder-${ws}"
-          mountpoint -q "/srv/coder/workspaces/coder-${ws}" || mount "$dev" "/srv/coder/workspaces/coder-${ws}"
-        done
-      '';
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-      };
-    };
-```
-
-**Note:** the helper owns iscsiadm/by-path wiring and mount readiness. The Terraform client waits for the helper's success response; no host mount commands run in `local-exec`. The unit shown is a boot-time helper reconciliation service and must invoke the same validated code path as the HTTPS API.
+The helper must inspect only Coder-owned Podman containers after a host reboot. It clears a lease only when no matching running container exists and fails closed if Podman inspection is unavailable. It must not log in, mount, or start workspaces at boot. A user start invokes the resource's `active=true` update, which acquires the lease, attaches the existing target, waits for mount readiness, and then allows the dependent volume/container resources to be created.
 
 - [ ] **Step 3: Write `README.md` with push + workspace instructions**
 
@@ -733,9 +756,9 @@ The built-in Coder provisioner runs the template and reaches llm01 through the c
 
 ## Creating a workspace
 
-1. Choose `memory_gb` (2-8) and `cpu_count` (2-24).
-2. The template requests iSCSI provisioning through the authenticated llm01 helper.
-3. The helper provisions the target, mounts it, and the Docker provider starts the container.
+1. Choose `memory_gb` (2-8), `cpu_count` (2-24), and `disk_gb` (10-200; immutable after creation).
+2. The template acquires the single-workspace lease and requests iSCSI provisioning through the capability-authenticated llm01 helper.
+3. The helper provisions/attaches the target, and the Docker provider starts the container with provider-supplied registry auth.
 4. Stop/start preserves `/home/coder` (data on TrueNAS). Delete tears down the target + zvol.
 ```
 
@@ -795,7 +818,7 @@ Authenticate to the registry on the image-build machine with the dedicated push 
 ```bash
 nix --extra-experimental-features 'nix-command flakes' build .#coder-workspace
 docker load -i result
-docker tag coder-workspace:latest registry.l.arrieta.eu/coder-workspace:<short-sha>
+docker tag coder-workspace:pinned registry.l.arrieta.eu/coder-workspace:<short-sha>
 docker push registry.l.arrieta.eu/coder-workspace:<short-sha>
 ```
 
@@ -809,14 +832,9 @@ Edit `coder/templates/llm01-podman/main.tf`:
 ```
 Then push the template again (Task 6, Step 4).
 
-- [ ] **Step 4: Pull smoke test as the coder user on llm01**
+- [ ] **Step 4: Pull smoke test from the Coder provisioner**
 
-Run (on llm01):
-```bash
-sudo -u coder podman pull registry.l.arrieta.eu/coder-workspace:<short-sha>
-```
-
-Expected: pulls over LAN with valid LE TLS (no insecure-registry config).
+Run the standalone Terraform image resource from a Coder-like provisioner pod with `/run/secrets/coder-registry-pull` mounted. Verify the remote Podman API receives the provider-supplied read-only registry credential and pulls over valid LE TLS. Verify llm01's `coder` home contains no registry auth file.
 
 - [ ] **Step 5: Commit**
 
@@ -842,8 +860,9 @@ id coder                       # uid=27003
  systemctl --user status podman-api # active as coder
 sudo -u coder podman info | grep -i rootless   # rootless true
 sudo -u coder curl --unix-socket /run/user/27003/podman/podman.sock http://localhost/libpod/_ping
-curl --cert /run/secrets/coder-podman-client/cert.pem --key /run/secrets/coder-podman-client/key.pem --cacert /run/secrets/coder-podman-client/ca.pem https://llm01:2376/_ping
 ```
+
+From the Coder provisioner pod, separately run the mTLS `_ping` using `/run/secrets/coder-podman-client`; those client files are not expected to exist on llm01.
 
 - [ ] **Step 2: Registry + image checks**
 
@@ -854,7 +873,7 @@ curl -sk -H "Authorization: Bearer $KEY" "https://192.168.0.6/api/v2.0/pool/data
 
 - [ ] **Step 3: Workspace lifecycle**
 
-Create → Running → write file → stop → start → file persists → delete → verify TrueNAS zvol/target gone and podman volume removed.
+Create → lease acquired → Running → write file → stop (detach + lease release) → start (re-acquire + attach) → file persists → delete → verify TrueNAS zvol/target gone and Podman volume removed. Also verify a concurrent second start receives a lease conflict.
 
 - [ ] **Step 4: Update AGENTS.md if anything changed**
 
@@ -865,7 +884,7 @@ Add a `Coder workspaces (llm01)` section documenting the built-in provisioner, m
 ## Self-Review Notes
 
 - **Spec coverage:** Spec's components 1 (coder-host.nix/helper), 2 (image), 3 (registry), 4 (template) map to Tasks 1/2, 3, 4, 6 respectively; verification spec section maps to Task 8; data-flow/lifecycle map to Task 6 + 8.
-- **Placeholders:** Three intentional, labeled placeholders remain, each with an explicit resolution command: the `nixos/nix` image digest in Task 3 (Step 1), the exact iSCSI by-path device name in Task 6 (Step 2 note), and the coder v2.35.1 `fetchurl` hash in Task 1 (Step 2).
+- **Placeholders:** The image tag placeholder `<short-sha>` is resolved by Task 7 before template deployment. Provider versions, registry Secret names, and repository paths are fixed before implementation; no unresolved runtime behavior is accepted.
 - **Type/name consistency:** `coder-host.nix` options (`coderHost.enable`, `coderHost.podmanApiAddress`), helper endpoint, workspace naming `coder-<ws>`, IQN `iqn.2005-10.org.freenas.ctl:coder-<ws>`, TLS API endpoint, and uid/gid 27003 are used consistently across tasks.
 - **Verified against upstream sources:**
   - docker provider schema: `docker_container` uses `memory` (Int MB) and `cpus` (String) — NOT `cpu` (confirmed in `resource_docker_container.go:852,1168`). The plan uses `cpus = tostring(...)`.
@@ -873,5 +892,9 @@ Add a `Coder workspaces (llm01)` section documenting the built-in provisioner, m
   - `coder_parameter` `validation { min, max }` syntax confirmed in `docs/data-sources/parameter.md`.
   - TrueNAS API v2.0 endpoints for zvol/target/extent/targetextent and the `iqn.2005-10.org.freenas.ctl` basename confirmed live against TrueNAS at 192.168.0.6 and against democratic-csi `src/driver/freenas/ssh.js`.
   - Built-in provisioner runs Terraform in the Coder pod; Docker provider uses the mTLS Podman API and the helper handles privileged iSCSI operations.
-- **Concurrency:** provisioner build concurrency does not enforce a one-running-workspace policy; add an explicit policy if required.
-- **Version skew (caught in review):** nixpkgs coder 2.28.6 / unstable 2.33.11 both mismatch the deployed server 2.35.1; Task 1 pins v2.35.1 via `fetchurl`. This is why `pkgs.coder` from nixpkgs is not used directly.
+- **Concurrency:** the helper's durable global lease enforces exactly one active workspace; provisioner build concurrency remains an independent setting.
+- **Authorization:** mTLS authenticates the provisioner, while the opaque per-workspace capability authorizes lifecycle operations and is never logged or sent to TrueNAS.
+- **Lifecycle graph:** `llm01_workspace_target(active)` → `docker_volume(count=start_count)` → `docker_container(count=start_count)` creates resources; destruction reverses that order and releases the lease only after detach succeeds.
+- **Registry auth:** the Docker provider reads the provisioner-mounted read-only credential and sends it through the remote image-pull request; llm01 has no registry auth file.
+- **Image contract:** the image provides `/bin/sh`, CA certificates, writable `/tmp`/`/run`/`/home/coder`, UID/GID 1000, and a generated-init-script smoke test.
+- **Version pinning:** the compatibility gate records the exact NixOS/Podman and Docker-provider versions; the template lock file and evidence document are authoritative for deployment.
