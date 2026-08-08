@@ -27,11 +27,13 @@ variable "cert_path" {
 }
 
 variable "registry_auth_username" {
-  default = trimspace(file("/run/secrets/coder-registry-pull/username"))
+  description = "Registry pull username"
+  type        = string
 }
 
 variable "registry_auth_password" {
-  default = trimspace(file("/run/secrets/coder-registry-pull/password"))
+  description = "Registry pull password"
+  type        = string
 }
 
 provider "docker" {
