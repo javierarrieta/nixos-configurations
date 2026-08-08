@@ -561,6 +561,10 @@
         pkgs = nixpkgs.legacyPackages.x86_64-linux;
       };
 
+      packages.x86_64-linux.coder-iscsi-helper =
+        nixpkgs.legacyPackages.x86_64-linux.callPackage ./pkgs/coder-iscsi-helper
+          { };
+
       formatter.x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt-tree;
       formatter.aarch64-darwin = nixpkgs.legacyPackages.aarch64-darwin.nixfmt-tree;
     };
