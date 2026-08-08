@@ -247,7 +247,9 @@ class TrueNASClient:
             raise RuntimeError(f"TrueNAS {method} {path} unreachable: {exc}") from exc
 
     def dataset(self, name):
-        enc = urllib.request.quote(name, safe="")
+        # TrueNAS identifies datasets by their full path (parent/name).
+        full = f"{self._config.dataset_parent}/{name}"
+        enc = urllib.request.quote(full, safe="")
         return self._request("GET", f"/api/v2.0/pool/dataset?id={enc}")
 
     def create_zvol(self, name, size_gb):
