@@ -131,6 +131,7 @@ in
         "user-runtime-dir@27003.service"
       ];
       wants = [ "network-online.target" ];
+      path = [ "/run/wrappers" ];
       serviceConfig = {
         User = "coder";
         Group = "coder";
