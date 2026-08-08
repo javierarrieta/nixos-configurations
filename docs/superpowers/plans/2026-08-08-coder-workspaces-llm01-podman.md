@@ -36,15 +36,15 @@
 - Consumes: pinned NixOS/Podman release, pinned `kreuzwerker/docker` provider, disposable Coder-like provisioner pod.
 - Produces: recorded evidence that remote mTLS, private image pulls, local bind volumes, rootless filesystem access, `memory`, `cpus`, restart/destroy, and GPU/device isolation work together.
 
-- [ ] **Step 1: Pin the versions and build the disposable test**
+- [x] **Step 1: Pin the versions and build the disposable test**
 
 Use the exact Podman/NixOS version selected for llm01 and the exact Docker provider version committed in `.terraform.lock.hcl`. The test must use `host = "tcp://llm01:2376"`, the real three-file mTLS bundle, provider-supplied registry auth, a disposable image, and a disposable bind-mounted filesystem.
 
-- [ ] **Step 2: Run the compatibility matrix**
+- [x] **Step 2: Run the compatibility matrix**
 
 Verify mTLS certificate validation, private registry pull, `docker_volume` local bind options, non-root access to the bind mount, `memory` and `cpus` cgroup v2 enforcement, restart, destroy, and absence of host devices/GPU. A failure blocks all later tasks.
 
-- [ ] **Step 3: Record evidence and commit**
+- [x] **Step 3: Record evidence and commit**
 
 Record versions, Terraform source, commands, and results in `docs/superpowers/evidence/2026-08-08-coder-podman-compatibility.md` and commit the evidence before proceeding.
 
@@ -65,7 +65,7 @@ Record versions, Terraform source, commands, and results in `docs/superpowers/ev
 
 No Coder CLI, external provisioner key, or external provisioner daemon is installed on llm01; Terraform execution remains in Coder's built-in provisioner.
 
-- [ ] **Step 1: Create `modules/nixos/coder-host.nix`**
+- [x] **Step 1: Create `modules/nixos/coder-host.nix`**
 
 ```nix
 {
@@ -159,17 +159,17 @@ No Coder CLI, external provisioner key, or external provisioner daemon is instal
 }
 ```
 
-- [ ] **Step 2: Define the Podman mTLS and iSCSI helper interfaces**
+- [x] **Step 2: Define the Podman mTLS and iSCSI helper interfaces**
 
 Generate a dedicated CA, llm01 server certificate, and Coder provisioner client certificate. Store private material in SOPS/Kubernetes Secrets. Define the helper's authenticated `create`, `attach`, `detach`, and `destroy` operations, including validation, idempotency, filesystem formatting, mount readiness, and error responses.
 
-- [ ] **Step 3: Verify the NixOS options used exist**
+- [x] **Step 3: Verify the NixOS options used exist**
 
 Run NixOS evaluation and verify the Podman user service, TLS credentials, firewall rules, openiscsi module, and helper service all evaluate.
 
 **Note:** explicitly import `modules/nixos/openiscsi.nix`; it is not automatically imported by enabling `openiscsi.enable`.
 
-- [ ] **Step 4: Wire the module into llm01**
+- [x] **Step 4: Wire the module into llm01**
 
 Edit `hosts/llm01/configuration.nix`:
 
@@ -185,13 +185,13 @@ Add module enablement after `cominGitOps.pollInterval = 900;`:
 
 Do not configure a Coder provisioner key or external provisioner service on llm01.
 
-- [ ] **Step 5: Evaluate the llm01 config**
+- [x] **Step 5: Evaluate the llm01 config**
 
 Run: `nix --extra-experimental-features 'nix-command flakes' eval .#nixosConfigurations.llm01.config.system.build.toplevel.drvPath`
 
 Expected: prints a `/nix/store/...drv` path. If it fails on an unknown option, fix the option spelling before continuing.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add modules/nixos/coder-host.nix hosts/llm01/configuration.nix
@@ -208,7 +208,7 @@ git commit -m "feat(llm01): rootless Podman TLS API and iSCSI helper"
 **Interfaces:**
 - Produces: Podman server TLS credentials and iSCSI-helper credentials on llm01, plus a SOPS-encrypted Kubernetes Secret containing the Coder provisioner's Podman client bundle. No Coder external-provisioner key or TrueNAS credential is required.
 
-- [ ] **Step 1: Decrypt secrets.yaml**
+- [x] **Step 1: Decrypt secrets.yaml**
 
 Run: `SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt sops -d secrets.yaml > /tmp/secrets.dec.yaml`
 
@@ -249,13 +249,13 @@ Add these values to the existing Coder HelmRelease in `../k8s-casa/apply/50-apps
 
 The Docker provider uses `cert_path = "/run/secrets/coder-podman-client"`; it must find exactly `ca.pem`, `cert.pem`, and `key.pem`. The provider's registry auth reads the separate provisioner pull credential at `/run/secrets/coder-registry-pull`. These Secrets are mounted into the Coder provisioner pod, never into workspace containers or llm01's `coder` home.
 
-- [ ] **Step 3: Re-encrypt and verify**
+- [x] **Step 3: Re-encrypt and verify**
 
 Run: `sops -e /tmp/secrets.dec.yaml > secrets.yaml && rm /tmp/secrets.dec.yaml`
 
 Then: `grep -c "ENC\[" secrets.yaml` — Expected: number > 0 (fully encrypted).
 
-- [ ] **Step 4: Add the llm01 age key to `.sops.yaml`**
+- [x] **Step 4: Add the llm01 age key to `.sops.yaml`**
 
 The `coder` user does not have its own age key. llm01's SOPS decryption uses the bootstrap age key `age1rlvgte0l7225vqdusvkzmdqmsyfd3u255rfy7ku93xx99k4vldsqhxnyxx` (already in the key group). Confirm it is present:
 
@@ -271,7 +271,7 @@ Run the NixOS secret verification for llm01, then from `../k8s-casa` run `make v
 
 Expected: llm01 decrypts only its own runtime credentials; Kubernetes decrypts only the client bundle; no Coder template parameter, Terraform command, or Git-tracked plaintext contains a credential.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add secrets.yaml .sops.yaml
@@ -291,7 +291,7 @@ git commit -m "secrets: add Podman and iSCSI helper credentials"
 - Consumes: `nixpkgs` (pinned, x86_64-linux).
 - Produces: Docker image tarball at `result`; pushed to registry as `registry.l.arrieta.eu/coder-workspace:<tag>`.
 
-- [ ] **Step 1: Create `pkgs/coder-workspace/default.nix`**
+- [x] **Step 1: Create `pkgs/coder-workspace/default.nix`**
 
 ```nix
 {
@@ -345,7 +345,7 @@ pkgs.dockerTools.buildImage {
 
 The image is built from the pinned flake inputs, so there are no mutable remote base-image digests to resolve. The fixed UID/GID must remain aligned with the iSCSI helper's filesystem ownership strategy.
 
-- [ ] **Step 2: Register the package in `flake.nix`**
+- [x] **Step 2: Register the package in `flake.nix`**
 
 After the last `packages.*` entry (near line 558), add:
 
@@ -359,13 +359,13 @@ After the last `packages.*` entry (near line 558), add:
 
 The image package function accepts only `pkgs`; do not pass an undeclared `lib` argument.
 
-- [ ] **Step 3: Build and inspect the image**
+- [x] **Step 3: Build and inspect the image**
 
 Run: `nix --extra-experimental-features 'nix-command flakes' build .#coder-workspace --print-build-logs`
 
 Expected: succeeds; `result` is a Docker image tar. Load it into a local Podman/Docker engine and verify `/etc/passwd`, `/home/coder`, UID/GID 1000, non-root execution, `/bin/sh`, CA validation, writable `/tmp`/`/run`, and shell startup. Run the generated Coder init script in the image before publishing.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add pkgs/coder-workspace/default.nix flake.nix flake.lock
@@ -384,7 +384,7 @@ git commit -m "feat(coder): add NixOS coder-workspace container image"
 - Consumes: storage class `truenas-iscsi`, cert secret `l-arrieta-eu-cert` (reflected into `casa`), Traefik ingress controller, SOPS, and the cluster-side Flux Kustomizations.
 - Produces: authenticated registry service reachable at `https://registry.l.arrieta.eu` (Ingress terminates TLS and forwards to Service port 5000).
 
-- [ ] **Step 1: Create `registry.yaml`** (mirrors the spec's manifest sketch, fixed for k8s-casa conventions)
+- [x] **Step 1: Create `registry.yaml`** (mirrors the spec's manifest sketch, fixed for k8s-casa conventions)
 
 ```yaml
 ---
@@ -483,17 +483,17 @@ spec:
       secretName: l-arrieta-eu-cert
 ```
 
-- [ ] **Step 2: Confirm the cluster-side Flux Kustomizations pick it up**
+- [x] **Step 2: Confirm the cluster-side Flux Kustomizations pick it up**
 
 Run: `flux get kustomizations -A` and inspect the `k8s-casa-secrets` and `k8s-casa-apps` paths. This repository does not use a local `kustomization.yaml` glob for these directories; verify the cluster-side Kustomizations include `apply/01-secrets` and `apply/50-apps`.
 
-- [ ] **Step 3: Deploy via Flux**
+- [x] **Step 3: Deploy via Flux**
 
 Run: `git -C ../k8s-casa add apply/01-secrets/casa/registry-auth-secrets.yaml apply/50-apps/casa/registry.yaml && git -C ../k8s-casa commit -m "feat(casa): authenticated in-cluster docker registry" && git -C ../k8s-casa push`
 
 Then wait for Flux reconciliation or reconcile the actual `k8s-casa-secrets` and `k8s-casa-apps` Kustomizations.
 
-- [ ] **Step 4: Verify registry is up**
+- [x] **Step 4: Verify registry is up**
 
 Run: `curl -sI --max-time 10 https://registry.l.arrieta.eu/v2/ | head -1`
 
@@ -501,7 +501,7 @@ Expected: `HTTP/2 401` without credentials, proving the registry and TLS ingress
 
 Create the SOPS-encrypted `registry-auth-secrets.yaml` with a `data.htpasswd` entry containing the bcrypt/Apache htpasswd record. Provision a separate read-only pull credential to the Coder provisioner Secret; the image-push credential is kept separately on the image-build machine. Do not put registry credentials in the Coder template parameters, Terraform source, or llm01's `coder` home.
 
-- [ ] **Step 5: Commit (k8s-casa)**
+- [x] **Step 5: Commit (k8s-casa)**
 
 Covered by Step 3's commit.
 
