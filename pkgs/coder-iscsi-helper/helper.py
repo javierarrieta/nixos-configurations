@@ -411,6 +411,36 @@ class ISCSIActions:
         proc = self._run(["mountpoint", "-q", mountpoint], check=False)
         return proc.returncode == 0
 
+    def _run_as_coder(self, argv, timeout=120):
+        """Run argv as the coder user from a coder-accessible working dir."""
+        full = [
+            "setpriv",
+            "--reuid",
+            self._config.coder_user,
+            "--regid",
+            self._config.coder_user,
+            "--clear-groups",
+            "--init-groups",
+            "env",
+            f"HOME=/home/{self._config.coder_user}",
+            *argv,
+        ]
+        cwd = f"/home/{self._config.coder_user}"
+        proc = subprocess.run(
+            full,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            cwd=cwd,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"{' '.join(argv[:3])}... failed ({proc.returncode}): "
+                f"{proc.stderr.strip() or proc.stdout.strip()}"
+            )
+        return proc
+
     def chown_in_namespace(self, mountpoint):
         """chown 1000:1000 inside the coder user's rootless namespace.
 
@@ -418,26 +448,20 @@ class ISCSIActions:
         container uid/gid to the correct subordinate host ids. Never assumes
         container uid 1000 equals host uid 1000.
         """
-        argv = [
-            "setpriv",
-            "--reuid",
-            self._config.coder_user,
-            "--regid",
-            self._config.coder_user,
-            "--clear-groups",
-            "env",
-            f"HOME=/home/{self._config.coder_user}",
-            self._config.podman_bin,
-            "unshare",
-            "chown",
-            f"{self._config.container_uid}:{self._config.container_gid}",
-            mountpoint,
-        ]
-        self._run(argv, timeout=300)
+        self._run_as_coder(
+            [
+                self._config.podman_bin,
+                "unshare",
+                "chown",
+                f"{self._config.container_uid}:{self._config.container_gid}",
+                mountpoint,
+            ],
+            timeout=300,
+        )
 
     def running_coder_workspaces(self):
         """List workspace names with a running Coder-owned container."""
-        proc = self._run(
+        proc = subprocess.run(
             [
                 "setpriv",
                 "--reuid",
@@ -445,6 +469,7 @@ class ISCSIActions:
                 "--regid",
                 self._config.coder_user,
                 "--clear-groups",
+                "--init-groups",
                 "env",
                 f"HOME=/home/{self._config.coder_user}",
                 self._config.podman_bin,
@@ -454,7 +479,11 @@ class ISCSIActions:
                 "--format",
                 "{{.Names}}",
             ],
+            capture_output=True,
+            text=True,
+            timeout=120,
             check=False,
+            cwd=f"/home/{self._config.coder_user}",
         )
         if proc.returncode != 0:
             raise RuntimeError(
