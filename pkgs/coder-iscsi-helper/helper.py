@@ -414,52 +414,41 @@ class ISCSIActions:
         proc = self._run(["mountpoint", "-q", mountpoint], check=False)
         return proc.returncode == 0
 
-    def _run_as_coder(self, argv, timeout=120):
-        """Run argv as the coder user from a coder-accessible working dir."""
-        full = [
-            "setpriv",
-            "--reuid",
-            self._config.coder_user,
-            "--regid",
-            self._config.coder_user,
-            "--init-groups",
-            "env",
-            f"HOME=/home/{self._config.coder_user}",
-            *argv,
-        ]
-        cwd = f"/home/{self._config.coder_user}"
-        proc = subprocess.run(
-            full,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-            cwd=cwd,
-        )
-        if proc.returncode != 0:
-            raise RuntimeError(
-                f"{' '.join(argv[:3])}... failed ({proc.returncode}): "
-                f"{proc.stderr.strip() or proc.stdout.strip()}"
-            )
-        return proc
+    def _host_subid(self, path, user, container_id):
+        """Map a container uid/gid to its host subordinate id from /etc/sub{u,g}id.
+
+        The coder user's rootless namespace maps ns-uid 1..N to the configured
+        subid range, so container id X (X>=1) maps to host (start + X - 1).
+        uid 0 is the user's own host id and is never a workspace owner.
+        """
+        for line in open(path, "r", encoding="utf-8"):
+            name, start, count = line.strip().split(":")
+            if name != user:
+                continue
+            start = int(start)
+            count = int(count)
+            if not 1 <= container_id <= count:
+                raise RuntimeError(
+                    f"container id {container_id} outside {user} subid range"
+                )
+            return start + container_id - 1
+        raise RuntimeError(f"{user} has no {path} entry")
 
     def chown_in_namespace(self, mountpoint):
-        """chown 1000:1000 inside the coder user's rootless namespace.
+        """Set the workspace mount owner to the container uid/gid.
 
-        Runs as the `coder` user so /etc/subuid and /etc/subgid map the
-        container uid/gid to the correct subordinate host ids. Never assumes
-        container uid 1000 equals host uid 1000.
+        Reads the active /etc/subuid and /etc/subgid mappings for the coder
+        user and chowns as root to the resulting host ids. This is the host-side
+        id the rootless container (running as uid/gid 1000 in that mapping)
+        observes as its own ownership, so it never hardcodes a subuid offset.
         """
-        self._run_as_coder(
-            [
-                self._config.podman_bin,
-                "unshare",
-                "chown",
-                f"{self._config.container_uid}:{self._config.container_gid}",
-                mountpoint,
-            ],
-            timeout=300,
+        host_uid = self._host_subid(
+            "/etc/subuid", self._config.coder_user, self._config.container_uid
         )
+        host_gid = self._host_subid(
+            "/etc/subgid", self._config.coder_user, self._config.container_gid
+        )
+        self._run(["chown", f"{host_uid}:{host_gid}", mountpoint])
 
     def running_coder_workspaces(self):
         """List workspace names with a running Coder-owned container."""
