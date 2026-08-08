@@ -22,7 +22,7 @@ This design replaces the SSH-on-host approach with **containerized workspaces** 
 - **Podman** (rootless) as the container engine on llm01.
 - **One workspace at a time** on llm01 (enforced via Coder template concurrency limit).
 - **NixOS-based workspace image**, built in the flake, served from a registry in the k3s cluster.
-- **Named volumes** for workspace home persistence across stop/restart.
+- **TrueNAS iSCSI-backed volumes** for workspace home persistence, mounted on llm01 and bind-mounted into the container as podman named volumes. democratic-csi provisions k8s PVCs only; the workspace volumes are provisioned directly via the TrueNAS API.
 - **Resource limits** on containers (generous but bounded) so a runaway workspace can't starve host LLM services.
 - Agent binary **downloaded via init_script** (server-version-matched), not baked into the image.
 
@@ -38,6 +38,8 @@ A new Coder template (`llm01-podman`) uses the **docker provider** pointed at ll
    - Systemd user **linger** for the `coder` user so the rootless podman socket survives without an interactive login.
    - Subuid/subgid ranges for the `coder` user (rootless podman requirement).
    - `DOCKER_HOST` for the SSH session pointing at `/run/user/<uid>/docker.sock` (via the docker provider's SSH `env` or the user's SSH environment).
+   - Enable **openiscsi** (reuse existing `modules/nixos/openiscsi.nix`) so llm01 can connect the TrueNAS workspace targets.
+   - Mount target: workspace iSCSI targets mount at `/srv/coder/workspaces/<ws>` (root-owned systemd `.mount`).
 
 2. **NixOS workspace image** (flake package `coder-workspace`):
    - Built with `pkgs.dockerTools.buildImage` from a pinned `nixos/nix` base.
@@ -54,11 +56,21 @@ A new Coder template (`llm01-podman`) uses the **docker provider** pointed at ll
    - Podman on llm01 pulls over the LAN using trusted LE TLS (no insecure-registry config).
 
 4. **Coder template `llm01-podman`** (`coder/templates/llm01-podman/`):
-   - `coder_parameter` `docker_host` (default `ssh://coder@192.168.0.29`) and `ssh_private_key` (secret, `form_type = "textarea"`).
+   - `coder_parameter` `docker_host` (default `ssh://coder@192.168.0.29`), `ssh_private_key` (secret, `form_type = "textarea"`), and `truenas_api_key` (secret) for target provisioning.
    - `provider "docker"` with `host`, `ssh_key`, `ssh_opts` from the parameters. Key material written via Coder's mkfile mechanism so it stays out of state.
    - `docker_image` pulls the workspace image from the registry.
+   - **Target provisioning** via a TrueNAS API script (create zvol + iSCSI target + extent + association) run through `local-exec` before the container; destroys on teardown.
+   - `docker_volume` per workspace = podman named volume backed by the iSCSI mount:
+     ```hcl
+     driver     = "local"
+     driver_opts = {
+       type   = "none"
+       o      = "bind"
+       device = "/srv/coder/workspaces/coder-${data.coder_workspace.me.name}"
+     }
+     ```
    - `docker_container` (count = `data.coder_workspace.me.start_count`) creates the container:
-     - Named volume `coder-<workspace>` mounted at `/home/coder`.
+     - mounts the iSCSI-backed volume at `/home/coder`.
      - `memory = 32768` MB, `cpu = 16` (tuneable).
      - Env `CODER_AGENT_TOKEN`, `CODER_AGENT_URL`.
      - `command` runs `coder_agent.main.init_script`.
@@ -67,30 +79,35 @@ A new Coder template (`llm01-podman`) uses the **docker provider** pointed at ll
 
 ## Data Flow (workspace start)
 
-1. User clicks "Create workspace" on `llm01-podman`; pastes `ssh_private_key`, picks `docker_host`.
+1. User clicks "Create workspace" on `llm01-podman`; pastes `ssh_private_key` and `truenas_api_key`, picks `docker_host`.
 2. Provisioner pod runs Terraform:
+   - `local-exec` calls TrueNAS API → creates zvol + iSCSI target + extent + association for `coder-<workspace>`.
    - docker provider authenticates to `ssh://coder@llm01` with the key, sets `DOCKER_HOST=/run/user/<uid>/docker.sock`.
+   - (llm01) systemd mounts the new target at `/srv/coder/workspaces/coder-<workspace>`; the docker provider's SSH session discovers/attaches the mount.
    - `docker_image` pulls `registry.home.arrieta.eu/coder-workspace:<tag>` (valid TLS via ingress).
-   - `docker_container` creates the container with limits + named volume.
+   - `docker_volume` creates the podman named volume as a bind mount of the iSCSI-mounted host dir.
+   - `docker_container` creates the container with limits + iSCSI-backed volume.
    - Container runs `init_script` → downloads agent → agent reverse-tunnels to Coder server.
 3. Workspace shows "Running"; VS Code via `coder-remote` connects through the tunnel.
 
 ## Lifecycle
 
-- **Start**: apply creates container + pulls image.
-- **Stop**: `start_count = 0` destroys the container; named volume persists.
-- **Restart**: apply recreates container, remounts volume; `$HOME` intact.
-- **Delete**: full destroy removes container + volume.
-- **Host reboot**: workspace shows stopped; user starts it; container recreated, volume remounts. Data safe.
+- **Start**: provision target → attach mount → create container + image + volume.
+- **Stop**: `start_count = 0` destroys the container; iSCSI target + mount + volume persist.
+- **Restart**: apply re-attaches mount, recreates container, remounts volume; `$HOME` intact.
+- **Delete**: full destroy removes container + volume + target + mount; data removed from TrueNAS.
+- **Host reboot**: workspace shows stopped; user starts it; mount re-attached on boot via systemd, container recreated. Data safe on TrueNAS.
 - **Concurrency**: Coder template concurrency limit = 1.
 
 ## Error Handling
 
 - **SSH/docker_host failure** (bad key, missing user, socket down): docker provider errors fast; message visible in build logs.
 - **Image pull failure** (registry down, tag missing): `docker_image` errors; retry on re-start.
+- **Target provisioning failure** (TrueNAS API, target already exists, zvol conflict): `local-exec` errors before the container is created; workspace build fails with the API error.
+- **Mount failure** (iscsiadm/session, fs type): container create fails; destroy-then-retry cleans leftovers.
 - **Container create failure** (limits, volume conflict): apply fails; destroy-then-retry cleans leftovers.
 - **Agent crash mid-session**: Coder shows "agent lost connection"; reconnect restarts tunnel; container stays up.
-- **Volume leak**: podman `prune` or a cleanup step tracked in implementation.
+- **Leaked target/volume** (delete didn't clean): TrueNAS API cleanup script + podman `prune` tracked in implementation.
 
 ## llm01 NixOS Config Sketch
 
@@ -112,6 +129,7 @@ A new Coder template (`llm01-podman`) uses the **docker provider** pointed at ll
       enable = true;
       dockerSocket.enable = true;
     };
+    openiscsi.enable = true;   # reuse existing module; iSCSI initiator for workspace targets
     users.users.coder = {
       isSystemUser = true;
       group = "coder";
@@ -122,6 +140,7 @@ A new Coder template (`llm01-podman`) uses the **docker provider** pointed at ll
     users.groups.coder = {};
     systemd.user.linger = [ "coder" ];   # subject to option shape
     # subuid/subgid for coder
+    # workspace targets mount via per-target systemd .mount at /srv/coder/workspaces/<ws>
   };
 }
 ```
@@ -184,11 +203,12 @@ spec:
 
 ## Verification
 
-1. `nixos-rebuild switch --flake .#llm01` → confirm podman running, `coder` user exists, rootless socket answers the docker API.
+1. `nixos-rebuild switch --flake .#llm01` → confirm podman running, `coder` user exists, rootless socket answers the docker API, openiscsi active.
 2. `nix build .#coder-workspace`, push to registry; `curl -I https://registry.home.arrieta.eu/v2/` returns 200.
-3. Standalone docker-provider terraform run from the provisioner path confirms SSH → podman create.
-4. Push template `llm01-podman`; create workspace; confirm Running.
-5. `coder ssh` into workspace, run a build, confirm persistence across stop/start.
+3. Standalone TrueNAS API script run: create + destroy a test target/zvol end-to-end.
+4. Standalone docker-provider terraform run from the provisioner path confirms SSH → podman create.
+5. Push template `llm01-podman`; create workspace; confirm Running; confirm the iSCSI target is mounted and visible in the container at `/home/coder`.
+6. `coder ssh` into workspace, write a file, stop/start the workspace, confirm the file persists (data on TrueNAS).
 
 ## Open Items (confirm during implementation)
 
@@ -197,6 +217,9 @@ spec:
 - Coder template concurrency-limit option name in provider v2.18.0.
 - Existing ClusterIssuer name (`le-prod`) and cert reflection namespace list.
 - Registry image version pin (e.g. `registry:2.8.3`).
+- TrueNAS API auth: token vs basic auth; endpoint paths for zvol/target/extent/association creation (TrueNAS `freenas-api-iscsi` style, matching democratic-csi's secret usage).
+- How the docker provider's SSH session triggers/waits for the iSCSI mount on llm01 (systemd `iscsi` units vs explicit `iscsiadm` in the template).
+- Rootless podman access to a root-owned mount at `/srv/coder/workspaces/<ws>` (permissions/ownership strategy for the bind-mounted volume).
 
 ## Out of Scope
 
