@@ -528,9 +528,9 @@ Contract:
 - `POST /v1/workspaces/<workspace>/detach`
 - `DELETE /v1/workspaces/<workspace>` with the capability
 
-The helper validates workspace names with `^[a-z0-9][a-z0-9-]{0,62}$`, accepts 10–200 GiB, uses argument-vector subprocess execution, serializes per-workspace and global lease operations, and returns structured JSON errors. It stores only a hash of each opaque capability, compares it in constant time, never logs it, and rejects lifecycle requests without a matching capability. New zvols are formatted exactly once as ext4 with a unique workspace-derived label. After verifying the expected mount, the helper runs `podman unshare chown 1000:1000` as the `coder` user; it never assumes host UID/GID 1000 maps to container UID/GID 1000. Existing or unknown filesystems are never reformatted.
+The helper validates workspace names with `^[a-z0-9][a-z0-9-]{0,62}$`, accepts 10–200 GiB, uses argument-vector subprocess execution, serializes per-workspace and global lease operations, and returns structured JSON errors. It stores only a hash of each opaque capability, compares it in constant time, never logs it, and rejects lifecycle requests without a matching capability. New zvols are formatted exactly once as ext4 with a unique workspace-derived label. After verifying the expected mount, the helper (running as root) computes the host sub-id via `/etc/subuid`/`/etc/subgid` and chowns the mount root to the host id that maps to container UID/GID 1000 (e.g. `coder:100000:65536` → 100999); it never assumes host UID/GID 1000 maps to container UID/GID 1000 and does not rely on `podman unshare`. Existing or unknown filesystems are never reformatted.
 
-- [ ] **Step 1: Implement the helper service and client**
+- [x] **Step 1: Implement the helper service and client**
 
 Create a small Python standard-library HTTPS service packaged as `pkgs/coder-iscsi-helper` and installed on llm01 as a root-owned systemd unit. Use `ThreadingHTTPServer` with an `ssl.SSLContext` configured for server certificate, private key, and required client certificate verification. The handler must:
 
@@ -542,9 +542,9 @@ Create a small Python standard-library HTTPS service packaged as `pkgs/coder-isc
 
 Create `truenas-iscsi-helper-client.sh` for the Coder provisioner pod. It validates its inputs, acquires and carries the per-workspace capability through all helper calls, waits for mount readiness, exits non-zero on structured helper errors, and releases the capability only after detach/delete succeeds. It must not contain or receive the TrueNAS API credential.
 
-- [ ] **Step 2: Test helper create + destroy end-to-end**
+- [x] **Step 2: Test helper create + destroy end-to-end**
 
-Run:
+Run (verified with the live helper on llm01:2377 and TrueNAS at 192.168.0.6):
 ```bash
 CODER_HELPER_URL=https://llm01:2377 CODER_HELPER_CERT_DIR=/run/secrets/coder-podman-client WORKSPACE=plancicdtest SIZE_GB=10 bash coder/templates/llm01-podman/scripts/truenas-iscsi-helper-client.sh provision
 CODER_HELPER_URL=https://llm01:2377 CODER_HELPER_CERT_DIR=/run/secrets/coder-podman-client WORKSPACE=plancicdtest bash coder/templates/llm01-podman/scripts/truenas-iscsi-helper-client.sh destroy
@@ -552,7 +552,7 @@ CODER_HELPER_URL=https://llm01:2377 CODER_HELPER_CERT_DIR=/run/secrets/coder-pod
 
 Expected: the helper returns success for provision and destroy; the zvol, target, extent, and mount are present after provision and absent after destroy. Verify cleanup from llm01 using the helper's structured status endpoint or direct root-only diagnostics. Do not place a TrueNAS API key in the test command.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add modules/nixos/coder-host.nix coder/templates/llm01-podman/scripts/truenas-iscsi-helper-client.sh
