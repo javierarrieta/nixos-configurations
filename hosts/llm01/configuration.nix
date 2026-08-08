@@ -14,8 +14,12 @@ let
 
   # Shared-home dotfiles for the Coder workspace user (no home-manager user).
   # Copy rules (`C`) are idempotent: no-op if the destination already exists.
+  # Only `exec fish` for real interactive terminals. NixOS's fish foreign-env
+  # plugin (fenv) spawns a non-interactive bash to capture the environment on
+  # every fish startup; if that bash hit `exec fish` unconditionally, we got
+  # fish -> fenv->bash -> exec fish -> ... recursively until the CPU stalls.
   coderBashrc = pkgs.writeText "coder-bashrc" ''
-    if command -v fish > /dev/null; then exec fish; fi
+    if [[ $- == *i* ]] && command -v fish > /dev/null; then exec fish; fi
   '';
   coderGitconfig = pkgs.writeText "coder-gitconfig" ''
     [user]
