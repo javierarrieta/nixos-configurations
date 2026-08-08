@@ -174,6 +174,7 @@ in
     # Login shell must be POSIX (bash): Coder's SSH provisioning runs its
     # scripts through the login shell, and fish would hang/misparse them.
     # Interactive sessions still get fish via coderBashrc's `exec fish`.
+    shell = pkgs.bash;
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINvfTtJaSFJ4drj+LqoS0V0DXIi3LdRKhdcP8WVOqa3P coder-llm01"
     ];
