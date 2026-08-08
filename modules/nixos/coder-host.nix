@@ -148,13 +148,31 @@ in
       wantedBy = [ "multi-user.target" ];
       after = [
         "network-online.target"
-        "openiscsi.service"
+        "iscsid.service"
       ];
       wants = [ "network-online.target" ];
+      # mount/umount are setuid wrappers; the rest live in the system path.
+      path = [
+        "/run/wrappers"
+        "/run/current-system/sw/bin"
+      ];
       serviceConfig = {
         ExecStart = "${helperPackage}/bin/coder-iscsi-helper";
         User = "root";
         Restart = "on-failure";
+        Environment = [
+          "CODER_HELPER_LISTEN=0.0.0.0:2377"
+          "CODER_HELPER_TLS_CERT=/run/secrets/podman/server.crt"
+          "CODER_HELPER_TLS_KEY=/run/secrets/podman/server.key"
+          "CODER_HELPER_CLIENT_CA=/run/secrets/podman/client-ca.crt"
+          "CODER_HELPER_TRUENAS_API_KEY_FILE=/run/secrets/coder/truenas-api-key"
+          "CODER_HELPER_STATE_DIR=/var/lib/coder-iscsi-helper"
+          "CODER_HELPER_WORKSPACE_BASE=/srv/coder/workspaces"
+          "CODER_HELPER_DATASET_PARENT=tank/iscsi/k8s"
+          "CODER_HELPER_IQN_BASENAME=iqn.2005-10.org.freenas.ctl"
+          "CODER_HELPER_TARGET_PORTAL=192.168.0.6:3260"
+          "CODER_HELPER_PODMAN_BIN=/run/current-system/sw/bin/podman"
+        ];
       };
     };
 
