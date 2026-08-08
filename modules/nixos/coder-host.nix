@@ -152,9 +152,10 @@ in
       ];
       wants = [ "network-online.target" ];
       # mount/umount are setuid wrappers; the rest live in the system path.
+      # NixOS appends /bin to each entry, so use the parent directories.
       path = [
         "/run/wrappers"
-        "/run/current-system/sw/bin"
+        "/run/current-system/sw"
       ];
       serviceConfig = {
         ExecStart = "${helperPackage}/bin/coder-iscsi-helper";
