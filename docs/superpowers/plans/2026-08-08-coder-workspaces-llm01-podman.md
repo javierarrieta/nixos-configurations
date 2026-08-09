@@ -762,7 +762,7 @@ The built-in Coder provisioner runs the template and reaches llm01 through the c
 4. Stop/start preserves `/home/coder` (data on TrueNAS). Delete tears down the target + zvol.
 ```
 
-- [ ] **Step 4: Push the template**
+- [x] **Step 4: Push the template**
 
 Run:
 ```bash
@@ -773,11 +773,11 @@ coder templates push llm01-podman \
 
 Expected: template pushed; the built-in provisioner runs the build (verify in Coder UI under Templates → llm01-podman → activity).
 
-- [ ] **Step 5: Create a test workspace**
+- [x] **Step 5: Create a test workspace**
 
 In the Coder UI create a workspace from `llm01-podman` (memory 2, cpu 2, disk 10). Expected states: Connecting → Running. If the build fails, inspect the Coder build log and llm01 helper/Podman logs.
 
-- [ ] **Step 6: Verify persistence**
+- [x] **Step 6: Verify persistence**
 
 ```bash
 coder ssh <workspace-name> -- touch /home/coder/persist-test.txt
@@ -788,7 +788,7 @@ coder ssh <workspace-name> -- test -f /home/coder/persist-test.txt && echo PERSI
 
 Expected: `PERSISTS`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add coder/templates/llm01-podman
@@ -832,7 +832,7 @@ Edit `coder/templates/llm01-podman/main.tf`:
 ```
 Then push the template again (Task 6, Step 4).
 
-- [ ] **Step 4: Pull smoke test from the Coder provisioner**
+- [x] **Step 4: Pull smoke test from the Coder provisioner**
 
 Run the standalone Terraform image resource from a Coder-like provisioner pod with `/run/secrets/coder-registry-pull` mounted. Verify the remote Podman API receives the provider-supplied read-only registry credential and pulls over valid LE TLS. Verify llm01's `coder` home contains no registry auth file.
 
