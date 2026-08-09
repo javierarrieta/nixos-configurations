@@ -108,7 +108,7 @@ resource "docker_volume" "home" {
 }
 
 resource "docker_image" "workspace" {
-  name = "registry.l.arrieta.eu/coder-workspace:07176da"
+  name = "registry.l.arrieta.eu/coder-workspace:2b96a6c"
 }
 
 resource "docker_container" "workspace" {
