@@ -807,11 +807,11 @@ git commit -m "feat(coder): llm01-podman template with iSCSI-backed podman volum
 - Consumes: Task 3 image build, Task 4 registry.
 - Produces: `registry.l.arrieta.eu/coder-workspace:<short-sha>` pinned tag used by the template.
 
-- [ ] **Step 1: Determine the image tag**
+- [x] **Step 1: Determine the image tag**
 
 Run: `git rev-parse --short HEAD` — use the output as the tag.
 
-- [ ] **Step 2: Load and push the image**
+- [x] **Step 2: Load and push the image**
 
 Authenticate to the registry on the image-build machine with the dedicated push credential before pushing. Do not record the credential in shell history or the plan.
 
@@ -824,11 +824,11 @@ docker push registry.l.arrieta.eu/coder-workspace:<short-sha>
 
 (If the local docker daemon isn't configured, use `podman load`/`podman push` or `skopeo copy docker-archive:result docker://registry.l.arrieta.eu/coder-workspace:<short-sha>`.)
 
-- [ ] **Step 3: Update the template image reference**
+- [x] **Step 3: Update the template image reference**
 
 Edit `coder/templates/llm01-podman/main.tf`:
 ```hcl
-  name = "registry.l.arrieta.eu/coder-workspace:<short-sha>"
+  name = "registry.l.arrieta.eu/coder-workspace:07176da"
 ```
 Then push the template again (Task 6, Step 4).
 
@@ -840,7 +840,7 @@ Run the standalone Terraform image resource from a Coder-like provisioner pod wi
 
 ```bash
 git add coder/templates/llm01-podman/main.tf
-git commit -m "feat(coder): pin workspace image to registry tag <short-sha>"
+git commit -m "feat(coder): pin workspace image to registry tag 07176da"
 ```
 
 ---
