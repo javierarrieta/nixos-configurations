@@ -33,6 +33,7 @@
     pstree
     nodejs_24
     gh
+    bun
 
     hugo
   ];
