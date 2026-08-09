@@ -25,7 +25,7 @@
     dyff
     age
     sops
-    neowofetch
+    fastfetch
     nixfmt
     nixfmt-tree
     kubernetes-helm
