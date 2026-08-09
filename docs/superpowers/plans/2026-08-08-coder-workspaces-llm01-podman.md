@@ -574,9 +574,9 @@ git commit -m "feat(coder): add llm01 iSCSI helper and client"
 - Consumes: the pinned `llm01_workspace_target` helper-client provider, `coder-workspace` image (Task 3), registry (Task 4), and Coder's built-in provisioner.
 - Produces: workspace template named `llm01-podman` using the built-in provisioner.
 
-- [ ] **Step 1: Create `main.tf`**
+- [x] **Step 1: Create `main.tf`**
 
-First publish the `registry.casa.arrieta.eu/infra/llm01` provider built from `providers/llm01_workspace_target`. Its `llm01_workspace_target` resource must expose `workspace` (string), `size_gb` (integer), and `active` (boolean), return a sensitive capability internally, and implement the exact create/update/delete mapping documented above. Pin its checksum in `.terraform.lock.hcl`; the Coder provisioner must be able to install it without a local filesystem dependency.
+First publish the `registry.l.arrieta.eu/infra/llm01` provider built from `providers/llm01_workspace_target`. Its `llm01_workspace_target` resource must expose `workspace` (string), `size_gb` (integer), and `active` (boolean), return a sensitive capability internally, and implement the exact create/update/delete mapping documented above. Pin its checksum in `.terraform.lock.hcl`; the Coder provisioner must be able to install it without a local filesystem dependency.
 
 ```hcl
 terraform {
@@ -590,7 +590,7 @@ terraform {
       version = "~> 3.6"
     }
     llm01 = {
-      source  = "registry.casa.arrieta.eu/infra/llm01"
+      source  = "registry.l.arrieta.eu/infra/llm01"
       version = "~> 0.1"
     }
   }
@@ -641,7 +641,7 @@ data "coder_parameter" "disk_gb" {
 }
 
 provider "docker" {
-  host      = "tcp://llm01:2376"
+  host      = "tcp://192.168.0.29:2376"
   cert_path = "/run/secrets/coder-podman-client"
 
   registry_auth {
@@ -652,7 +652,7 @@ provider "docker" {
 }
 
 provider "llm01" {
-  endpoint  = "https://llm01:2377"
+  endpoint  = "https://192.168.0.29:2377"
   cert_path = "/run/secrets/coder-podman-client"
 }
 
@@ -732,11 +732,11 @@ resource "coder_metadata" "workspace_info" {
 }
 ```
 
-- [ ] **Step 2: Add boot-time lease reconciliation**
+- [x] **Step 2: Add boot-time lease reconciliation**
 
 The helper must inspect only Coder-owned Podman containers after a host reboot. It clears a lease only when no matching running container exists and fails closed if Podman inspection is unavailable. It must not log in, mount, or start workspaces at boot. A user start invokes the resource's `active=true` update, which acquires the lease, attaches the existing target, waits for mount readiness, and then allows the dependent volume/container resources to be created.
 
-- [ ] **Step 3: Write `README.md` with push + workspace instructions**
+- [x] **Step 3: Write `README.md` with push + workspace instructions**
 
 ```markdown
 # llm01-podman Coder Template
