@@ -6,9 +6,12 @@ provider "registry.l.arrieta.eu/infra/llm01" {
   constraints = "~> 0.1"
   hashes = [
     "h1:/iuNUJ2GkpcngvlF/qjF6BJPWYe+diQEotdm17xhS3E=",
+    "h1:Fcq4lCJwaPjkCIdJvp5/EPVWJ0kiDAqGDJG0kNSe2Jc=",
     "h1:mmworfZ+NzpQY0+b/G/KzZjncndf6dEonIyiAqadKuo=",
     "zh:348dfe83cc8ae860b82d4e90d427dc0c31a598b080b90da5290838a7e5481392",
+    "zh:3d57e62352e6fe49bc374f9caa6cf15985191511fa1b5d01f050461fbf22363d",
     "zh:8171ca3d835b3d8d2a1e7c1b58d1c4c9b4bc76422c1c1b7ade838735d7c6c9cd",
+    "zh:8e23ff6d3a302f2f19fe42d9c9711af2d495b2b9b9ab587ff9b016a160bf84fb",
     "zh:d25f354b6bdf24b6fb7666994cd975b9f3f4218a4a00d42d0e0840a1eb4c2af4",
   ]
 }
