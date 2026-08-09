@@ -18,7 +18,7 @@ pkgs.dockerTools.buildImage {
       gnugrep
       gnused
       which
-      tar
+      gnutar
       gzip
       openssh
     ];
