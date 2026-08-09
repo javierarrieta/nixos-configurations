@@ -30,7 +30,7 @@
 
 **Files:**
 - Create: `docs/superpowers/evidence/2026-08-08-coder-podman-compatibility.md`
-- Create: `coder/templates/llm01-podman/compatibility/main.tf`
+- Create: `coder-templates` repo, `llm01-podman/compatibility/main.tf`
 
 **Interfaces:**
 - Consumes: pinned NixOS/Podman release, pinned `kreuzwerker/docker` provider, disposable Coder-like provisioner pod.
@@ -510,7 +510,7 @@ Covered by Step 3's commit.
 ### Task 5: Root-owned llm01 iSCSI helper and client
 
 **Files:**
-- Create: `coder/templates/llm01-podman/scripts/truenas-iscsi-helper-client.sh` and the root-owned llm01 helper service
+- Create: `coder-templates` repo, `llm01-podman/scripts/truenas-iscsi-helper-client.sh` and the root-owned llm01 helper service
 - Test: run the script standalone against TrueNAS with a throwaway workspace name, then verify the target/zvol and destroy it.
 
 **Interfaces:**
@@ -546,8 +546,8 @@ Create `truenas-iscsi-helper-client.sh` for the Coder provisioner pod. It valida
 
 Run (verified with the live helper on llm01:2377 and TrueNAS at 192.168.0.6):
 ```bash
-CODER_HELPER_URL=https://llm01:2377 CODER_HELPER_CERT_DIR=/run/secrets/coder-podman-client WORKSPACE=plancicdtest SIZE_GB=10 bash coder/templates/llm01-podman/scripts/truenas-iscsi-helper-client.sh provision
-CODER_HELPER_URL=https://llm01:2377 CODER_HELPER_CERT_DIR=/run/secrets/coder-podman-client WORKSPACE=plancicdtest bash coder/templates/llm01-podman/scripts/truenas-iscsi-helper-client.sh destroy
+CODER_HELPER_URL=https://llm01:2377 CODER_HELPER_CERT_DIR=/run/secrets/coder-podman-client WORKSPACE=plancicdtest SIZE_GB=10 bash coder-templates/llm01-podman/scripts/truenas-iscsi-helper-client.sh provision
+CODER_HELPER_URL=https://llm01:2377 CODER_HELPER_CERT_DIR=/run/secrets/coder-podman-client WORKSPACE=plancicdtest bash coder-templates/llm01-podman/scripts/truenas-iscsi-helper-client.sh destroy
 ```
 
 Expected: the helper returns success for provision and destroy; the zvol, target, extent, and mount are present after provision and absent after destroy. Verify cleanup from llm01 using the helper's structured status endpoint or direct root-only diagnostics. Do not place a TrueNAS API key in the test command.
@@ -555,7 +555,7 @@ Expected: the helper returns success for provision and destroy; the zvol, target
 - [x] **Step 3: Commit**
 
 ```bash
-git add modules/nixos/coder-host.nix coder/templates/llm01-podman/scripts/truenas-iscsi-helper-client.sh
+git add modules/nixos/coder-host.nix coder-templates/llm01-podman/scripts/truenas-iscsi-helper-client.sh
 git commit -m "feat(coder): add llm01 iSCSI helper and client"
 ```
 
@@ -564,10 +564,10 @@ git commit -m "feat(coder): add llm01 iSCSI helper and client"
 ### Task 6: Coder template `llm01-podman`
 
 **Files:**
-- Create: `coder/templates/llm01-podman/main.tf`
-- Create: `coder/templates/llm01-podman/.terraform.lock.hcl`
-- Create: `coder/templates/llm01-podman/providers/llm01_workspace_target/` (pinned helper-client provider source)
-- Create: `coder/templates/llm01-podman/README.md` (push instructions)
+- Create: `coder-templates` repo, `llm01-podman/main.tf`
+- Create: `coder-templates` repo, `llm01-podman/.terraform.lock.hcl`
+- Create: `coder-templates` repo, `llm01-podman/providers/llm01_workspace_target/` (pinned helper-client provider source)
+- Create: `coder-templates` repo, `llm01-podman/README.md` (push instructions)
 - Test: `coder templates push llm01-podman` then a workspace create.
 
 **Interfaces:**
@@ -748,7 +748,7 @@ Workspaces run as rootless podman containers on llm01 with homes on TrueNAS iSCS
 ```bash
 coder login https://coder.home.arrieta.eu
 coder templates push llm01-podman \
-  --directory coder/templates/llm01-podman \
+  --directory coder-templates/llm01-podman \
   --yes
 ```
 
@@ -767,7 +767,7 @@ The built-in Coder provisioner runs the template and reaches llm01 through the c
 Run:
 ```bash
 coder templates push llm01-podman \
-  --directory coder/templates/llm01-podman \
+  --directory coder-templates/llm01-podman \
   --yes
 ```
 
@@ -791,7 +791,7 @@ Expected: `PERSISTS`.
 - [x] **Step 7: Commit**
 
 ```bash
-git add coder/templates/llm01-podman
+git add coder-templates/llm01-podman
 git commit -m "feat(coder): llm01-podman template with iSCSI-backed podman volumes"
 ```
 
@@ -826,7 +826,7 @@ docker push registry.l.arrieta.eu/coder-workspace:<short-sha>
 
 - [x] **Step 3: Update the template image reference**
 
-Edit `coder/templates/llm01-podman/main.tf`:
+Edit `coder-templates/llm01-podman/main.tf`:
 ```hcl
   name = "registry.l.arrieta.eu/coder-workspace:07176da"
 ```
@@ -839,7 +839,7 @@ Run the standalone Terraform image resource from a Coder-like provisioner pod wi
 - [x] **Step 5: Commit**
 
 ```bash
-git add coder/templates/llm01-podman/main.tf
+git add coder-templates/llm01-podman/main.tf
 git commit -m "feat(coder): pin workspace image to registry tag 07176da"
 ```
 

@@ -21,7 +21,7 @@ predicted earlier. The lock file and evidence doc are authoritative.
 
 ## Terraform source
 
-`coder/templates/llm01-podman/compatibility/main.tf`
+`coder-templates` repo (`llm01-podman/compatibility/main.tf`)
 
 - `host = "tcp://192.168.0.29:2376"`
 - `cert_path` = dir with `ca.pem`, `cert.pem`, `key.pem` (mTLS bundle)

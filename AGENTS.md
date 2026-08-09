@@ -408,7 +408,7 @@ iSCSI-backed home directories (TrueNAS zvols) and an in-cluster Docker registry.
 
 ### Template
 
-- Location: `coder/templates/llm01-podman/`
+- Location: `https://github.com/javierarrieta/coder-templates` (repo `coder-templates`, template `llm01-podman`)
 - `main.tf`: Coder `~>0.17`, Docker `~>3.6`, `llm01_workspace_target` provider.
 - Resources: `llm01_workspace_target.workspace` (lease acquire/provision/attach),
   `docker_volume.home` (count = start_count), `docker_container` (count = start_count).

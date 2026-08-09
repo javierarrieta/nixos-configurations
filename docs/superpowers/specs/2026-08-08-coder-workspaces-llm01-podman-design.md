@@ -76,7 +76,7 @@ The Podman API client certificate is a high-privilege credential: the Docker-com
    - Registry uses basic authentication backed by a SOPS-encrypted Kubernetes Secret. The Docker provider supplies a separate read-only pull credential from the Coder provisioner pod when requesting the remote Podman image pull; no insecure-registry config is used.
    - The registry Secret contains only the htpasswd record. Pull credentials are scoped to the provisioner and push credentials stay on the image-build machine; no registry credential is stored in llm01's `coder` home or Podman auth file.
 
-4. **Coder template `llm01-podman`** (`coder/templates/llm01-podman/`):
+4. **Coder template `llm01-podman`** ([`coder-templates`](https://github.com/javierarrieta/coder-templates), `llm01-podman/`):**
    - No provisioner tag is required. No TrueNAS API key is a template parameter; the template calls the authenticated iSCSI helper.
    - `coder_parameter` `memory_gb` (default 4, min 2, max 8, step 1), `cpu_count` (default 8, min 2, max 24, step 2), and `disk_gb` (default 50, min 10, max 200, step 10) — bounded so a workspace can't starve host LLM services or exhaust TrueNAS capacity. Memory/CPU values are mutable through a workspace update; disk size is immutable after creation and requires delete/recreate to change.
    - Pin the `kreuzwerker/docker` provider version and use `provider "docker"` with `host = "tcp://llm01:2376"` and `cert_path = "/run/secrets/coder-podman-client"`. The mounted bundle contains only `ca.pem`, `cert.pem`, and `key.pem`; no secret is a template parameter.
