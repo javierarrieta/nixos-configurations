@@ -4,3 +4,5 @@ result
 .superpowers/
 __pycache__/
 *.pyc
+
+/target/

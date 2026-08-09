@@ -1,0 +1,25 @@
+[package]
+name = "terraform-provider-llm01"
+version = "0.1.0"
+edition = "2021"
+description = "llm01 workspace target provider: iSCSI volume lifecycle over the llm01 helper API"
+license = "Apache-2.0"
+
+[lib]
+name = "terraform_provider_llm01"
+path = "src/lib.rs"
+
+[[bin]]
+name = "terraform-provider-llm01"
+path = "src/main.rs"
+
+[dependencies]
+tf-provider = "0.2.2"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+anyhow = "1"
+async-trait = "0.1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
