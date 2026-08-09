@@ -18,6 +18,8 @@ pkgs.dockerTools.buildImage {
       gnugrep
       gnused
       which
+      tar
+      gzip
       openssh
     ];
     pathsToLink = [

@@ -391,7 +391,7 @@ iSCSI-backed home directories (TrueNAS zvols) and an in-cluster Docker registry.
 
 ### Architecture
 
-- **Coder server**: v2.35.1 at `https://coder.home.arrietta.eu`, backed by a
+- **Coder server**: v2.35.1 at `https://coder.home.arrieta.eu`, backed by a
   Postgres instance (`postgres-18` database `coder`).
 - **Built-in provisioner**: runs Terraform in the Coder pod. The Docker provider
   talks to `llm01`'s rootless Podman API over mTLS (`tcp://192.168.0.29:2376`).
@@ -401,9 +401,9 @@ iSCSI-backed home directories (TrueNAS zvols) and an in-cluster Docker registry.
   privileged iSCSI operations (TrueNAS zvol create/delete, login/logout,
   mount/umount). Provisioner calls it over mTLS (`https://192.168.0.29:2377`)
   with per-workspace capabilities.
-- **Workspace image**: `registry.l.arrietta.eu/coder-workspace:<sha>` (Nix-built,
+- **Workspace image**: `registry.l.arrieta.eu/coder-workspace:<sha>` (Nix-built,
   includes `/etc/os-release` for the Coder agent's `clistat`).
-- **Registry**: `registry.l.arrietta.eu` (nginx + Docker registry), TLS via
+- **Registry**: `registry.l.arrieta.eu` (nginx + Docker registry), TLS via
   Traefik. Push user `push`, pull user `coder`.
 
 ### Template
@@ -418,7 +418,7 @@ iSCSI-backed home directories (TrueNAS zvols) and an in-cluster Docker registry.
 
 ```bash
 # Login (no OIDC; API key in /tmp/coder_session_token.txt)
-export CODER_URL=https://coder.home.arrietta.eu
+export CODER_URL=https://coder.home.arrieta.eu
 export CODER_SESSION_TOKEN="$(cat /tmp/coder_session_token.txt)"
 
 # Workspace lifecycle
@@ -432,7 +432,7 @@ coder ssh <name>
 coder templates push llm01-podman   # must clear stale provider cache first
 
 # Clear stale provisioner cache (after provider rebuild)
-kubectl exec -n casa deploy/coder -- rm -rf /home/coder/.cache/coder/provisioner-2/tf/registry.l.arrietta.eu
+kubectl exec -n casa deploy/coder -- rm -rf /home/coder/.cache/coder/provisioner-2/tf/registry.l.arrieta.eu
 ```
 
 ### TrueNAS Helper Flow
