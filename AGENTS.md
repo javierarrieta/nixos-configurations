@@ -381,6 +381,84 @@ services.comfyui = {
 
 ---
 
+## Coder Workspaces (llm01)
+
+### Overview
+
+Coder OSS runs in the Kubernetes cluster (`casa` namespace) using its built-in
+provisioner. Workspaces are rootless Podman containers on `llm01` with
+iSCSI-backed home directories (TrueNAS zvols) and an in-cluster Docker registry.
+
+### Architecture
+
+- **Coder server**: v2.35.1 at `https://coder.home.arrietta.eu`, backed by a
+  Postgres instance (`postgres-18` database `coder`).
+- **Built-in provisioner**: runs Terraform in the Coder pod. The Docker provider
+  talks to `llm01`'s rootless Podman API over mTLS (`tcp://192.168.0.29:2376`).
+- **Podman API**: `systemd.services.podman-api` on `llm01` (UID/GID 27003),
+  mTLS with certs from `coder-podman-client-secrets`.
+- **iSCSI helper**: `coder-iscsi-helper` (root service on `llm01`) handles
+  privileged iSCSI operations (TrueNAS zvol create/delete, login/logout,
+  mount/umount). Provisioner calls it over mTLS (`https://192.168.0.29:2377`)
+  with per-workspace capabilities.
+- **Workspace image**: `registry.l.arrietta.eu/coder-workspace:<sha>` (Nix-built,
+  includes `/etc/os-release` for the Coder agent's `clistat`).
+- **Registry**: `registry.l.arrietta.eu` (nginx + Docker registry), TLS via
+  Traefik. Push user `push`, pull user `coder`.
+
+### Template
+
+- Location: `https://github.com/javierarrieta/coder-templates` (repo `coder-templates`, template `llm01-podman`)
+- `main.tf`: Coder `~>0.17`, Docker `~>3.6`, `llm01_workspace_target` provider.
+- Resources: `llm01_workspace_target.workspace` (lease acquire/provision/attach),
+  `docker_volume.home` (count = start_count), `docker_container` (count = start_count).
+- Workspace naming: `coder-<ws>`, IQN: `iqn.2005-10.org.freenas.ctl:coder-<ws>`.
+
+### Commands
+
+```bash
+# Login (no OIDC; API key in /tmp/coder_session_token.txt)
+export CODER_URL=https://coder.home.arrietta.eu
+export CODER_SESSION_TOKEN="$(cat /tmp/coder_session_token.txt)"
+
+# Workspace lifecycle
+coder create llm01-podman <name> --yes
+coder start <name>
+coder stop <name> --yes
+coder delete <name> --yes
+coder ssh <name>
+
+# Template management
+coder templates push llm01-podman   # must clear stale provider cache first
+
+# Clear stale provisioner cache (after provider rebuild)
+kubectl exec -n casa deploy/coder -- rm -rf /home/coder/.cache/coder/provisioner-2/tf/registry.l.arrietta.eu
+```
+
+### TrueNAS Helper Flow
+
+1. **Provision**: acquire global lease → create zvol (`tank/iscsi/k8s/<ws>`) →
+   create iSCSI target/extent → login → format ext4 → mount at
+   `/srv/coder/workspaces/coder-<ws>` → chown to coder.
+2. **Attach** (start): login → mount → chown.
+3. **Detach** (stop): unmount → logout. Lease released by Terraform.
+4. **Destroy** (delete): detach → delete TrueNAS target/extent/zvol.
+5. **Lease**: global, one active workspace at a time. Conflicting acquire
+   returns HTTP 409. Capabilities are per-workspace, passed via
+   `X-Coder-Capability` header, never logged or sent to TrueNAS.
+
+### Notes
+
+- The helper caches lease state in memory; restart `coder-iscsi-helper` to
+  clear a stuck lease.
+- Workspace size: 10–200 GiB.
+- The provisioner pod's Docker provider reads the read-only pull credential
+  from `/run/secrets/coder-registry-pull/{username,password}` via `file()`.
+- llm01's `coder` home must NOT contain a registry auth file (pulls use the
+  provisioner-supplied credential).
+
+---
+
 ## GitOps with Comin
 
 ### Configuration

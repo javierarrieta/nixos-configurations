@@ -27,6 +27,8 @@ in
     ../../modules/nixos/sops-base.nix
     ../../modules/nixos/nix-sweep.nix
     ../../modules/nixos/comin.nix
+    ../../modules/nixos/coder-host.nix
+    ../../modules/nixos/openiscsi.nix
 
     # Users
     ../../common/users.nix
@@ -43,6 +45,10 @@ in
   nixSweep.enable = true;
   cominGitOps.enable = true;
   cominGitOps.pollInterval = 900;
+  coderHost.enable = true;
+  # The built-in Coder provisioner runs in k3s and reaches llm01's Podman/helper
+  # APIs from the LAN; restrict to the cluster network only.
+  coderHost.allowedApiSources = [ "192.168.0.0/24" ];
 
   # SOPS host-specific secrets (base secrets are provided by sops-base module)
   sops.secrets."wireguard/private_key" = {
