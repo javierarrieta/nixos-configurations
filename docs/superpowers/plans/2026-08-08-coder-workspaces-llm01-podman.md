@@ -836,7 +836,7 @@ Then push the template again (Task 6, Step 4).
 
 Run the standalone Terraform image resource from a Coder-like provisioner pod with `/run/secrets/coder-registry-pull` mounted. Verify the remote Podman API receives the provider-supplied read-only registry credential and pulls over valid LE TLS. Verify llm01's `coder` home contains no registry auth file.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add coder/templates/llm01-podman/main.tf
@@ -851,7 +851,7 @@ git commit -m "feat(coder): pin workspace image to registry tag 07176da"
 
 **Interfaces:** consumes all prior tasks.
 
-- [ ] **Step 1: llm01 NixOS checks**
+- [x] **Step 1: llm01 NixOS checks**
 
 Run on llm01:
 ```bash
@@ -864,18 +864,18 @@ sudo -u coder curl --unix-socket /run/user/27003/podman/podman.sock http://local
 
 From the Coder provisioner pod, separately run the mTLS `_ping` using `/run/secrets/coder-podman-client`; those client files are not expected to exist on llm01.
 
-- [ ] **Step 2: Registry + image checks**
+- [x] **Step 2: Registry + image checks**
 
 ```bash
 curl -sI --max-time 10 https://registry.l.arrieta.eu/v2/ | head -1   # HTTP/2 401 without credentials
 curl -sk -H "Authorization: Bearer $KEY" "https://192.168.0.6/api/v2.0/pool/dataset/id/tank%2Fiscsi%2Fk8s" | grep -c "coder-"  # 0 clean
 ```
 
-- [ ] **Step 3: Workspace lifecycle**
+- [x] **Step 3: Workspace lifecycle**
 
 Create → lease acquired → Running → write file → stop (detach + lease release) → start (re-acquire + attach) → file persists → delete → verify TrueNAS zvol/target gone and Podman volume removed. Also verify a concurrent second start receives a lease conflict.
 
-- [ ] **Step 4: Update AGENTS.md if anything changed**
+- [x] **Step 4: Update AGENTS.md if anything changed**
 
 Add a `Coder workspaces (llm01)` section documenting the built-in provisioner, mTLS Podman API, template, and TrueNAS helper flow.
 
