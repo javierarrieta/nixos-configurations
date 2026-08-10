@@ -11,7 +11,9 @@
 {
   home.packages = with pkgs; [
     nvtopPackages.apple
-    mactop
+    # Disabled: mactop's Nix build currently fails its integration test because
+    # the test tries to create /homeless-shelter, which is read-only in the sandbox.
+    # mactop
 
     nodejs_24
 
