@@ -8,7 +8,6 @@
 
 {
   home.packages = with pkgs; [
-    unstablePkgsUnfree.jetbrains.idea
     zed-editor
   ];
 
