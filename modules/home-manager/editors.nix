@@ -7,10 +7,6 @@
 }:
 
 {
-  home.packages = with pkgs; [
-    zed-editor
-  ];
-
   programs.vscode = {
     enable = true;
     package = unstablePkgsUnfree.vscode;
