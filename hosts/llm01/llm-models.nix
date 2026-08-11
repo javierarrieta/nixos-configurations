@@ -19,20 +19,9 @@
     filename = "Qwen3.5-4B-Q4_K_M.gguf";
     extraProperties = {
       "flash-attn" = "on";
-      "ctx-size" = "65536";
-    };
-  };
-  "Qwen3.5-9B" = {
-    modelId = "unsloth/Qwen3.5-9B-GGUF";
-    filename = "Qwen3.5-9B-Q4_K_M.gguf";
-    extraProperties = {
-      "flash-attn" = "on";
-      "ctx-size" = "65536";
-      "temp" = "0.6";
-      "top-k" = "20";
-      "top-p" = "0.95";
-      "min-p" = "0.0";
-      "repeat-penalty" = "1.0";
+      "ctx-size" = "131072";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
     };
   };
   "Mellum-4B" = {
@@ -116,6 +105,8 @@
     extraProperties = {
       "flash-attn" = "on";
       "ctx-size" = "200000";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
     };
   };
   "Laguna-S-2.1" = {
@@ -124,7 +115,7 @@
     # modelDraft = "laguna-s-2.1-DFlash-BF16.gguf";
     # modelDraftModelId = "poolside/Laguna-S-2.1-GGUF";
     extraProperties = {
-      "ctx-size" = "128000";
+      "ctx-size" = "131072";
       "flash-attn" = "on";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q8_0";
