@@ -53,8 +53,10 @@ in
   services.tlp = {
     enable = true;
     settings = {
-      CPU_SCALING_GOVERNOR_ON_AC = "powersave";
-      ENERGY_PERF_POLICY_ON_AC = "balance-power";
+      # powersave governor pinned the CPU at 800 MHz even on AC, crippling
+      # the k3s workloads. Force performance since this is a headless server.
+      CPU_SCALING_GOVERNOR_ON_AC = "performance";
+      ENERGY_PERF_POLICY_ON_AC = "performance";
     };
   };
 
