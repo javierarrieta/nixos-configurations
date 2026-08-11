@@ -29,9 +29,6 @@
 
     systemd.services."network-addresses-${config.k8sNetwork.primaryInterface}".serviceConfig.EnvironmentFile =
       lib.mkForce config.sops.secrets."${config.k8sNetwork.hostName}/network_env".path;
-    systemd.services.network-setup.serviceConfig.EnvironmentFile =
-      lib.mkForce
-        config.sops.secrets."${config.k8sNetwork.hostName}/network_env".path;
     systemd.services.k3s.serviceConfig.EnvironmentFile =
       lib.mkForce
         config.sops.secrets."${config.k8sNetwork.hostName}/network_env".path;
