@@ -6,7 +6,8 @@
 }:
 let
   isPlaceholder = s: lib.hasPrefix "$" s;
-  useRuntimeConfig = isPlaceholder config.staticNetwork.ipAddress
+  useRuntimeConfig =
+    isPlaceholder config.staticNetwork.ipAddress
     || isPlaceholder config.staticNetwork.defaultGateway
     || lib.any isPlaceholder config.staticNetwork.nameservers;
 in
@@ -61,27 +62,30 @@ in
     # runtime service instead of baking shell placeholders into the NixOS
     # networking config.
     networking.defaultGateway = lib.mkIf (
-      !isPlaceholder config.staticNetwork.ipAddress
-      && !isPlaceholder config.staticNetwork.defaultGateway
+      !isPlaceholder config.staticNetwork.ipAddress && !isPlaceholder config.staticNetwork.defaultGateway
     ) config.staticNetwork.defaultGateway;
-    networking.nameservers = lib.mkIf (! lib.any isPlaceholder config.staticNetwork.nameservers) config.staticNetwork.nameservers;
+    networking.nameservers = lib.mkIf (
+      !lib.any isPlaceholder config.staticNetwork.nameservers
+    ) config.staticNetwork.nameservers;
 
     systemd.services.network-runtime-config = lib.mkIf useRuntimeConfig {
       description = "Runtime network configuration from SOPS";
+      requires = [ "network-addresses-${config.staticNetwork.interface}.service" ];
       after = [ "network-addresses-${config.staticNetwork.interface}.service" ];
       wantedBy = [ "network.target" ];
+      path = [ pkgs.iproute2 ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
         EnvironmentFile = config.sops.secrets."${config.networking.hostName}/network_env".path;
       };
       script = ''
-        ${lib.optionalString (
-          isPlaceholder config.staticNetwork.ipAddress
-          || isPlaceholder config.staticNetwork.defaultGateway
-        ) ''
-          ip route replace default via "$DEFAULT_GATEWAY" dev ${config.staticNetwork.interface} || true
-        ''}
+        ${lib.optionalString
+          (isPlaceholder config.staticNetwork.ipAddress || isPlaceholder config.staticNetwork.defaultGateway)
+          ''
+            ip route replace default via "$DEFAULT_GATEWAY" dev ${config.staticNetwork.interface}
+          ''
+        }
         ${lib.optionalString (lib.any isPlaceholder config.staticNetwork.nameservers) ''
           rm -f /etc/resolv.conf
           cat > /etc/resolv.conf <<EOF
