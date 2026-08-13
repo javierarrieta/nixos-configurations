@@ -33,6 +33,25 @@ pkgs.dockerTools.buildImage {
     useradd --uid 1000 --gid 1000 --create-home --home-dir /home/coder --shell /bin/bash coder
     ln -sfn ${pkgs.bash}/bin/bash /bin/sh
     mkdir -p /tmp /run /etc
+    # Runtime glibc wiring so unpatched binaries (VS Code Server's node and
+    # code-server, extension native modules) can exec and resolve shared
+    # libraries through standard FHS paths, equivalent to NixOS nix-ld.
+    mkdir -p /lib /lib64 /usr/lib /usr/lib64
+    ln -sfn ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
+    ln -sfn ${pkgs.glibc}/lib/ld-linux-x86-64.so.2 /lib/ld-linux-x86-64.so.2
+    for lib in libc.so.6 libm.so.6 libdl.so.2 libpthread.so.0 librt.so.1 libresolv.so.2 libnss_dns.so.2 libnss_files.so.2; do
+      ln -sfn ${pkgs.glibc}/lib/\$lib /lib64/\$lib
+      ln -sfn ${pkgs.glibc}/lib/\$lib /usr/lib/\$lib
+    done
+    ln -sfn ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so.6 /lib64/libstdc++.so.6
+    ln -sfn ${pkgs.stdenv.cc.cc.lib}/lib/libstdc++.so.6 /usr/lib/libstdc++.so.6
+    ln -sfn ${pkgs.libgcc}/lib/libgcc_s.so.1 /lib64/libgcc_s.so.1
+    ln -sfn ${pkgs.libgcc}/lib/libgcc_s.so.1 /usr/lib/libgcc_s.so.1
+    ln -sfn ${pkgs.zlib}/lib/libz.so.1 /lib64/libz.so.1
+    ln -sfn ${pkgs.zlib}/lib/libz.so.1 /usr/lib/libz.so.1
+    # musl loader at /lib for VS Code's alpine CLI pre-requisite check.
+    ln -sfn ${pkgs.musl}/lib/ld-musl-x86_64.so.1 /lib/ld-musl-x86_64.so.1
+    ln -sfn ${pkgs.musl}/lib/libc.musl-x86_64.so.1 /lib/libc.musl-x86_64.so.1
     cat > /etc/os-release <<'EOF'
     NAME="NixOS"
     ID=nixos
