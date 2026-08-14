@@ -85,9 +85,17 @@ pkgs.dockerTools.buildImage {
   runAsRoot = ''
     ${pkgs.dockerTools.shadowSetup}
     groupadd --gid 1000 coder
-    useradd --uid 1000 --gid 1000 --create-home --home-dir /home/coder --shell /bin/fish coder
+    useradd --uid 1000 --gid 1000 --create-home --home-dir /home/coder --shell /bin/bash coder
     ln -sfn ${pkgs.bash}/bin/bash /bin/sh
+    echo /bin/bash >> /etc/shells
     echo /bin/fish >> /etc/shells
+    cat > /etc/bashrc <<'EOF'
+    # Hand off interactive TTY sessions to fish; VS Code Remote-SSH spawns a
+    # non-interactive piped-stdin shell and must stay on bash.
+    if [[ -o interactive ]] && [[ -t 0 ]] && command -v fish >/dev/null 2>&1; then
+      exec fish
+    fi
+    EOF
     mkdir -p /tmp /run /etc
     # Runtime glibc wiring so unpatched binaries (VS Code Server's node and
     # code-server, extension native modules) can exec and resolve shared
@@ -146,7 +154,7 @@ pkgs.dockerTools.buildImage {
     Env = [
       "PATH=/bin:/usr/bin:/home/coder/.cargo/bin:/home/coder/.local/bin:/home/coder/.bun/bin"
       "HOME=/home/coder"
-      "SHELL=/bin/fish"
+      "SHELL=/bin/bash"
       "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
       "LD_LIBRARY_PATH=/lib64:/usr/lib64:/usr/lib"
     ];
