@@ -82,6 +82,7 @@ pkgs.dockerTools.buildImage {
       "PATH=/bin:/usr/bin"
       "HOME=/home/coder"
       "SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt"
+      "LD_LIBRARY_PATH=/lib64:/usr/lib64:/usr/lib"
     ];
     Cmd = [ "/bin/sh" ];
   };
