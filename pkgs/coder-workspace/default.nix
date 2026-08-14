@@ -91,8 +91,17 @@ pkgs.dockerTools.buildImage {
     echo /bin/fish >> /etc/shells
     cat > /etc/bashrc <<'EOF'
     # Hand off interactive TTY sessions to fish; VS Code Remote-SSH spawns a
-    # non-interactive piped-stdin shell and must stay on bash.
-    if [[ -o interactive ]] && [[ -t 0 ]] && command -v fish >/dev/null 2>&1; then
+    # non-interactive piped-stdin shell and must stay on bash. Note that
+    # [[ -o interactive ]] is always false (no such option); use $- like this.
+    if [[ $- == *i* ]] && [[ -t 0 ]] && command -v fish >/dev/null 2>&1; then
+      exec fish
+    fi
+    EOF
+    cat > /etc/profile <<'EOF'
+    # Login shells source this file. Hand off interactive TTY login sessions to
+    # fish; non-interactive login shell runs (VS Code Remote-SSH piped bootstrap)
+    # must stay on bash.
+    if [[ $- == *i* ]] && [[ -t 0 ]] && command -v fish >/dev/null 2>&1; then
       exec fish
     fi
     EOF
