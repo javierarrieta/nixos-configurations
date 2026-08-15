@@ -10,6 +10,11 @@ let
     isPlaceholder config.staticNetwork.ipAddress
     || isPlaceholder config.staticNetwork.defaultGateway
     || lib.any isPlaceholder config.staticNetwork.nameservers;
+  iface = config.staticNetwork.interface;
+  # The SOPS network_env secret holds the runtime-resolved address, gateway and
+  # DNS. It is provisioned early in activation, so it is already on disk by the
+  # time activationScripts run.
+  envFile = config.sops.secrets."${config.networking.hostName}/network_env".path;
 in
 {
   options = {
@@ -95,5 +100,22 @@ in
         ''}
       '';
     };
+
+    # switch-to-configuration does not re-trigger units whose OnlyBy/WantedBy
+    # target is already active (e.g. network.target during a `nixos-rebuild
+    # switch`), so the network-runtime-config service defined above is NOT run
+    # on a switch -- only on a fresh boot. That left static-network hosts
+    # (notably k3s servers) without a default route after the nixpkgs 26.05
+    # switch, which made k3s crash with "unable to select an IP from default
+    # routes". Re-apply the runtime gateway/DNS here, on every activation
+    # (boot + switch), so the route is always present before services restart.
+    system.activationScripts.network-runtime = lib.mkIf useRuntimeConfig ''
+      if [ -f "${envFile}" ]; then
+        . "${envFile}"
+        ip route replace default via "$DEFAULT_GATEWAY" dev ${iface}
+        rm -f /etc/resolv.conf
+        printf "nameserver %s\nnameserver %s\n" "$DNS1" "$DNS2" > /etc/resolv.conf
+      fi
+    '';
   };
 }
