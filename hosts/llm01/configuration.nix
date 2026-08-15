@@ -124,9 +124,9 @@ in
       wireguard-tools
       dig
       hdparm
-      python311Packages.huggingface-hub
       nix-tree
       nix-index
+      python3Packages.huggingface-hub
       qemu
     ])
     ++ (with unstablePkgs; [
@@ -270,14 +270,14 @@ in
             in
             ''
               echo "Downloading ${entry-name} from ${modelId}..."
-              ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" ${downloadArgs} --local-dir /opt/llm/models/llama-cpp --repo-type model
+              ${pkgs.python3Packages.huggingface-hub}/bin/hf download "${modelId}" ${downloadArgs} --local-dir /opt/llm/models/llama-cpp --repo-type model
               ${lib.optionalString (mmproj != null) ''
                 echo "Downloading mmproj for ${entry-name}..."
-                ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelId}" "${mmproj}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+                ${pkgs.python3Packages.huggingface-hub}/bin/hf download "${modelId}" "${mmproj}" --local-dir /opt/llm/models/llama-cpp --repo-type model
               ''}
               ${lib.optionalString (modelDraft != null) ''
                 echo "Downloading model-draft for ${entry-name}..."
-                ${pkgs.python311Packages.huggingface-hub}/bin/hf download "${modelDraftModelId}" "${modelDraft}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+                ${pkgs.python3Packages.huggingface-hub}/bin/hf download "${modelDraftModelId}" "${modelDraft}" --local-dir /opt/llm/models/llama-cpp --repo-type model
               ''}
             ''
           ) models
