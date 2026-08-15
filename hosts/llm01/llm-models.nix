@@ -125,4 +125,25 @@
       # "spec-draft-n-max" = "15";
     };
   };
+  "Qwen-3.8-27B" = {
+    modelId = "unsloth/Qwen3.8-27B-GGUF";
+    filename = "Qwen3.8-27B-Q6_K.gguf";
+    # modelDraft = "laguna-s-2.1-DFlash-BF16.gguf";
+    # modelDraftModelId = "poolside/Laguna-S-2.1-GGUF";
+    extraProperties = {
+      "ctx-size" = "131072";
+      "flash-attn" = "on";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
+      "temp" = "1.0";
+      "top-p" = "0.95";
+      "top-k" = "20";
+      "min-p" = "0.0";
+      "presence-penalty" = "0.0";
+      "repeat-penalty" = "1.0";
+      # "spec-type" = "draft-dflash";
+      # "spec-draft-n-max" = "15";
+    };
+    mmproj = "mmproj-F16.gguf";
+  };
 }
