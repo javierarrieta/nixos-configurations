@@ -109,13 +109,16 @@ in
     # switch, which made k3s crash with "unable to select an IP from default
     # routes". Re-apply the runtime gateway/DNS here, on every activation
     # (boot + switch), so the route is always present before services restart.
-    system.activationScripts.network-runtime = lib.mkIf useRuntimeConfig ''
-      if [ -f "${envFile}" ]; then
-        . "${envFile}"
-        ip route replace default via "$DEFAULT_GATEWAY" dev ${iface}
-        rm -f /etc/resolv.conf
-        printf "nameserver %s\nnameserver %s\n" "$DNS1" "$DNS2" > /etc/resolv.conf
-      fi
-    '';
+    system.activationScripts.network-runtime = lib.mkIf useRuntimeConfig {
+      text = ''
+        if [ -f "${envFile}" ]; then
+          . "${envFile}"
+          ip route replace default via "$DEFAULT_GATEWAY" dev ${iface}
+          rm -f /etc/resolv.conf
+          printf "nameserver %s\nnameserver %s\n" "$DNS1" "$DNS2" > /etc/resolv.conf
+        fi
+      '';
+      deps = [ pkgs.iproute2 ];
+    };
   };
 }
