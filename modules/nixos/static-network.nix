@@ -110,6 +110,11 @@ in
     # routes". Re-apply the runtime gateway/DNS here, on every activation
     # (boot + switch), so the route is always present before services restart.
     system.activationScripts.network-runtime = lib.mkIf useRuntimeConfig {
+      # sops-nix provisions /run/secrets via the `setupSecrets` activation
+      # script. Without this dependency the network_env file may not exist yet
+      # when this script runs on a fresh switch (hosts whose /run/secrets was
+      # recreated), leaving the default route unset and k3s unable to start.
+      deps = [ "setupSecrets" ];
       text = ''
         if [ -f "${envFile}" ]; then
           . "${envFile}"
