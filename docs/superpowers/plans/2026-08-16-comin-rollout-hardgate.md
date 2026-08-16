@@ -521,6 +521,13 @@ the cluster Prometheus via the DS node_exporter textfile mount.
 - [ ] Health gate for `llm01` (no k3s/staticNetwork; needs a
       current-system-only check).
 - [ ] Migrate remaining hosts to 26.05: pi02 -> pi03 -> llm01; final sweep.
+- [ ] Replace the hardcoded `comin.devices` target list in
+      `k8s-casa/apply/50-apps/monitoring/prom-scrapes.yaml` with k8s
+      autodiscovery (`kubernetesSDConfigs.role: node`, relabel
+      `__meta_kubernetes_node_address_InternalIP` -> `$IP:4243`, plus
+      `instance`/`node`/`hostname` labels). Covers all cluster nodes
+      automatically; non-node hosts (llm01, esphome) stay as a small
+      static list.
 ```
 
 - [ ] **Step 2: Commit**
