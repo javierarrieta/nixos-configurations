@@ -113,12 +113,11 @@ in
       text = ''
         if [ -f "${envFile}" ]; then
           . "${envFile}"
-          ip route replace default via "$DEFAULT_GATEWAY" dev ${iface}
+          ${pkgs.iproute2}/bin/ip route replace default via "$DEFAULT_GATEWAY" dev ${iface}
           rm -f /etc/resolv.conf
           printf "nameserver %s\nnameserver %s\n" "$DNS1" "$DNS2" > /etc/resolv.conf
         fi
       '';
-      deps = [ pkgs.iproute2 ];
     };
   };
 }
