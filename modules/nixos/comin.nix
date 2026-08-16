@@ -18,6 +18,21 @@
         default = 300;
         description = "Poll interval in seconds";
       };
+      confirmerMode = lib.mkOption {
+        type = lib.types.enum [
+          "manual"
+          "auto"
+          "without"
+        ];
+        default = "manual";
+        description = "Comin deploy confirmer mode. manual requires 'comin confirmation accept' on each host before deploying.";
+      };
+      healthGate = {
+        enable = lib.mkEnableOption "Post-deployment health gate (route/k3s/current-system check with rollback)";
+      };
+      pendingMetric = {
+        enable = lib.mkEnableOption "Emit comin_pending_confirmation textfile metric via node_exporter";
+      };
     };
   };
 
@@ -32,6 +47,8 @@
           poller.period = config.cominGitOps.pollInterval;
         }
       ];
+      buildConfirmer.mode = "without";
+      deployConfirmer.mode = config.cominGitOps.confirmerMode;
     };
   };
 }
