@@ -92,6 +92,57 @@ sudo chmod 600 /var/lib/sops-nix/key.txt
 
 Once the key is in place, `comin` will automatically evaluate `.#nixosConfigurations.k8s-pi01`, decrypt all secrets, install `k3s`, and seamlessly deploy the full configuration.
 
+## Performance & Package Slimming (2026-08)
+
+The Raspberry Pis are `aarch64-linux` k3s worker nodes. A full `nixos-rebuild switch`
+pulls a closure where the **only derivations that compile natively are heavy**:
+
+- `linuxPackages_rpi4` (`linux-rpi-6.12.75-1+rpt1`) — the custom Raspberry Pi kernel,
+  **~5 hours** of native ARM compile per Pi.
+- `sops-install-secrets` and `comin` (local Go modules) — ~15 min each.
+- Everything else (nodejs, python, rustup, scala-cli, k9s, helm, …) is a plain
+  download from `cache.nixos.org`.
+
+To keep the closure small and the install/download step fast, the Pis exclude the
+common heavy tooling via two knobs:
+
+```nix
+# hosts/k8s-piXX/configuration.nix
+systemPackages.excludePackages = [
+  pkgs.kubernetes-helm
+  pkgs.tpm2-tss      # Raspberry Pi 4 has no TPM
+];
+```
+
+and in `modules/home-manager/base.nix`, Pi hostnames (`k8s-pi01..03`) get only the
+`host-common` + `shell` home-manager modules — `dev-tools`, `python`, and `k8s`
+(rustup, scala-cli, bun, nodejs, uv, k9s, …) are skipped via `lib.optionals`.
+`nfs-utils` is intentionally kept (the cluster uses NFS mounts).
+
+### Pitfalls (learned the hard way — read before touching the Pis)
+
+1. **All three Pis compile the kernel independently and in parallel.** There is no
+   built-in coordination: comin polls the same repo on every host and each Pi
+   realizes the same store paths by compiling them itself. If you push a change,
+   you pay the ~5h kernel build **everywhere at once**.
+2. **To share a build you must do it manually** (no shared cache is configured):
+   build/switch one Pi first, then `nix copy --from ssh-ng://user@<pi>.x --to ssh-ng://user@<pi>.y`
+   the `.#nixosConfigurations.k8s-piXX.config.system.build.toplevel` closure to the
+   others **before** they start building. Identical flake lock = identical store
+   paths, so a copy dedupes perfectly.
+3. **Killing a running build is non-trivial.** Stop comin first
+   (`systemctl stop comin.service`), then kill the `nixos-rebuild` wrapper, then the
+   reparented `nix` build process, then any lingering `make -j4` / `cc1` from the
+   daemon sandbox. The kernel `make -j4` runs as a child of the *nix daemon* and
+   survives killing just the client.
+4. **A fresh worker switch drops the default route mid-activation** despite the
+   `network-runtime` ordering fix. Keep a watchdog running during builds/switches:
+   `sudo systemd-run --unit=routewatch --collect bash -c 'while true; do /run/current-system/sw/bin/ip route replace default via 192.168.0.1 dev eth0; sleep 10; done'`.
+5. `nixos-rebuild` must be launched with `NIX_CONFIG="experimental-features = nix-command flakes"`
+   (the `nixos-rebuild --extra-experimental-features` flag does not exist).
+6. The `linux-rpi` series is deprecated upstream; the eval emits
+   `linux-rpi series will be removed in a future release. Please change to use nixos-hardware.`
+
 ## Troubleshooting
 
 ### Build Fails with "Undefined error: 0"

@@ -32,6 +32,10 @@ in
 
   base.enable = true;
   systemPackages.enable = true;
+  systemPackages.excludePackages = [
+    pkgs.kubernetes-helm
+    pkgs.tpm2-tss
+  ];
   ssh.enable = true;
   raspberryPi.enable = true;
 
@@ -50,7 +54,7 @@ in
   networking.interfaces.eth0.useDHCP = false;
 
   prometheus.nodeExporter.enable = true;
-  services.prometheus.exporters.node.port = 9002;
+  prometheus.nodeExporter.port = 9002;
 
   rsyslog.enable = true;
 

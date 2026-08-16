@@ -32,6 +32,10 @@ in
 
   base.enable = true;
   systemPackages.enable = true;
+  systemPackages.excludePackages = [
+    pkgs.kubernetes-helm
+    pkgs.tpm2-tss
+  ];
   ssh.enable = true;
   raspberryPi.enable = true;
 

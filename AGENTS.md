@@ -339,6 +339,43 @@ export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
 nixos-rebuild build-image --flake .#k8s-pi01 --image-variant sd-card
 ```
 
+### Package Slimming (2026-08)
+
+Pis compile the RPi kernel **natively on-device** (~5h each) — that's the dominant
+build cost and cannot be removed (custom `linuxPackages_rpi4` is not in the public
+aarch64 binary cache). To keep everything else fast, the Pis exclude heavy common
+tooling that has no value on a worker node:
+
+- `systemPackages.excludePackages` (in each `hosts/k8s-piXX/configuration.nix`)
+  removes `kubernetes-helm` and `tpm2-tss` from the common set. `nfs-utils` is
+  deliberately kept (cluster uses NFS mounts).
+- `modules/home-manager/base.nix` gates on `hostname`: `k8s-pi01..03` only import
+  `host-common` + `shell`; the heavy `dev-tools`, `python`, and `k8s` home-manager
+  modules (rustup, scala-cli, bun, nodejs_24, uv, k9s, …) are skipped.
+
+### Pi Upgrade Pitfalls (learned 2026-08 — read before any Pi migration)
+
+1. **No shared cache is configured.** All three Pis poll the same repo via comin
+   and each compiles the kernel itself, in parallel. Pushing a config change costs
+   a ~5h kernel build on **every** Pi. Identical flake lock ⇒ identical store paths,
+   so a manual `nix copy --from ssh-ng://<pi1> --to ssh-ng://<pi2>` of the toplevel
+   closure dedupes perfectly — but must be done **before** the slower Pis start
+   building (i.e. comin stopped on them) or it's wasted.
+2. **Cancelling a running Pi build** requires killing the process tree in stages:
+   `systemctl stop comin` → kill `nixos-rebuild` → kill the reparented `nix build`
+   process → `pkill -9` any lingering `make -j4`/`cc1` (these run under the *nix
+   daemon* sandbox and survive killing the client).
+3. **Fresh worker switches drop the default route** mid-activation despite the
+   `network-runtime` ordering fix. Keep the gateway watchdog running through every
+   build + switch:
+   `sudo systemd-run --unit=routewatch --collect bash -c 'while true; do /run/current-system/sw/bin/ip route replace default via 192.168.0.1 dev eth0; sleep 10; done'`
+   (stop after settle with `systemctl stop routewatch`).
+4. Launch rebuilds as
+   `sudo NIX_CONFIG="experimental-features = nix-command flakes" nixos-rebuild switch --flake /var/lib/comin/repository#k8s-piXX`
+   (`nixos-rebuild --extra-experimental-features` flag does not exist).
+5. Eval warning `linux-rpi series will be removed in a future release` is expected;
+   the migration target is `nixos-hardware` eventually.
+
 ---
 
 ## Services Configuration
@@ -485,6 +522,84 @@ services.comin = {
 | `remotes.*.branches.main.name` | Branch to deploy |
 | `remotes.*.poller.period` | Poll interval (seconds, default 60) |
 | `hostname` | Machine name (defaults to `networking.hostName`) |
+
+### Unsticking Comin after a force-push to `main` (learned 2026-08)
+
+Comin (and pis run an older `v0.12.0` while x86 hosts run `0.14.0`) can end up in a
+loop / never deploy after an interactive rebase or `git push --force` to `main`.
+The two symptoms seen:
+
+- **Stuck on unborn `master`**: `git -C /var/lib/comin/repository branch -a` shows
+  only `master` with no commits, even though fetches succeed. Comin never switches
+  the local branch and never builds (pis' `0.12.0` also never logs deploys, so no
+  feedback). Fix: repoint the local checkout at upstream before deploying manually:
+  ```bash
+  sudo git -C /var/lib/comin/repository checkout -B main origin/main
+  ```
+- **Stuck in a build/apply loop after a force-push**: comin evaluates the *new*
+  commit but its done-path never converges. Stop it, settle the machine, then let it
+  poll the new main:
+  ```bash
+  sudo systemctl stop comin.service
+  sudo ip route replace default via 192.168.0.1 dev <iface>   # see network section
+  sudo systemctl reset-failed k3s.service
+  sudo systemctl start k3s.service
+  sudo systemctl start comin.service
+  ```
+  Verify convergence with:
+  ```bash
+  nix-env --list-generations
+  readlink /run/current-system
+  ```
+  `generations[0].out_path` must equal `/run/current-system`; if not, apply a
+  manual deploy (below).
+
+**Manual deploy is the reliable path.** With comin stopped, run
+`sudo NIX_CONFIG="experimental-features = nix-command flakes" nixos-rebuild switch
+--flake /var/lib/comin/repository#<host>` (or `--flake .#<host>` from a checkout on
+the host). Do this after any force-push rather than waiting out the loop.
+
+### Known Network Issues (learned 2026-08 during the 26.05 migration)
+
+Static network is applied in two layers (see `modules/nixos/static-network.nix`):
+`network-addresses-<iface>.service` from the interface config, plus a runtime
+gateway/DNS layer from the SOPS `network_env` secret via the `network-runtime-config`
+oneshot and the `network-runtime` activation script. These are the issues hit and the
+known caveats:
+
+1. **Fresh worker switches drop the default route mid-activation.** Despite the
+   `network-runtime` activation script (depends on `setupSecrets`) and the
+   `network-runtime-config` service, every *fresh* worker `nixos-rebuild switch`
+   still loses the default route. Servers survive (persistent `EnvironmentFile` +
+   interface ordering), Pis and freshly-switched workers do not. Until fixed
+   properly, run the watchdog around any build/switch:
+   ```bash
+   sudo systemd-run --unit=routewatch --collect bash -c 'while true; do /run/current-system/sw/bin/ip route replace default via 192.168.0.1 dev <iface>; sleep 10; done'
+   # stop after the switch settles:
+   sudo systemctl stop routewatch
+   ```
+   If the route is already gone, re-add it and bounce k3s:
+   `sudo ip route replace default via 192.168.0.1 dev <iface>` then
+   `systemctl reset-failed k3s.service && systemctl start k3s.service`.
+
+2. **`network-runtime-config` is not re-run on `switch`.** Because
+   `switch-to-configuration` does not re-trigger units whose
+   `WantedBy`/`OnlyBy` target (`network.target`) is already active, the oneshot only
+   fires on a *fresh boot*. The `network-runtime` activation script was the
+   workaround for switches — it is the correct layer but still insufficient on its
+   own for workers (see above).
+
+3. **`nixpkgs >= 26.05` parses addresses/gateways at eval time.** Placeholders like
+   `$IP_ADDRESS`/`$DEFAULT_GATEWAY` can no longer be baked into
+   `networking.defaultGateway`/`nameservers`; the module only sets those when the
+   values are real, deferring everything to the runtime layers.
+
+4. **open-iscsi 2.1.11 → 2.1.12 regression** (cluster-wide during the migration):
+   stale `/etc/iscsi/nodes/*` records carry a `node.session.conn_reopen_log_freq`
+   param that breaks `iscsiadm`, killing Longhorn engine frontends. Fix per host:
+   `sudo iscsid stop`, `rm -rf /etc/iscsi/nodes /etc/iscsi/send_targets`,
+   `sudo mkdir -p /etc/iscsi/nodes /etc/iscsi/send_targets`, `sudo iscsid start`,
+   then verify `iscsiadm -m node` is clean.
 
 ---
 

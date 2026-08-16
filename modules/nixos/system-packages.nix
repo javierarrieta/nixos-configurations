@@ -13,13 +13,17 @@
         default = [ ];
         description = "Additional packages to install";
       };
+      excludePackages = lib.mkOption {
+        type = lib.types.listOf lib.types.package;
+        default = [ ];
+        description = "Packages to exclude from the common set (e.g. heavy/irrelevant ones on low-power nodes)";
+      };
     };
   };
 
   config = lib.mkIf config.systemPackages.enable {
     environment.systemPackages =
-      with pkgs;
-      [
+      lib.foldl (acc: p: lib.remove p acc) (with pkgs; [
         vim
         wget
         screen
@@ -40,7 +44,7 @@
         rsyslog
         tpm2-tss
         iptables
-      ]
+      ]) config.systemPackages.excludePackages
       ++ config.systemPackages.extraPackages;
   };
 }
