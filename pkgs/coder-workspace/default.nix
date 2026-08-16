@@ -76,6 +76,8 @@ pkgs.dockerTools.buildImage {
       eza
       tmux
       procps
+      nvim
+      vim
       sops
       age
       scala

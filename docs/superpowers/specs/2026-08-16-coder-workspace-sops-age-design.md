@@ -53,6 +53,7 @@ nodejs
 - `skopeo`: push images to `registry.l.arrieta.eu` without a daemon.
 - `kubectl`: work with `k8s-casa`.
 - `nodejs`: node/npm/npx for TypeScript projects; per-project `npm install` brings `typescript`/`tsx`/`eslint`/`prettier`/`vite`/`vitest` at the right versions.
+- `nvim` + `vim`: editor (none was present before); `vim` as a classic fallback. Per-project dotfiles (`init.lua`/`init.vim`) in the shared `/home/coder` are used if present.
 - All are nixpkgs packages in the flake's pinned nixpkgs (rev `c0b0e0f`), matching the image's convention and reproducibility.
 
 ## Build / deploy host
