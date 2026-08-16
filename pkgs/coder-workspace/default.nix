@@ -76,7 +76,7 @@ pkgs.dockerTools.buildImage {
       eza
       tmux
       procps
-      nvim
+      neovim
       vim
       sops
       age
