@@ -76,6 +76,18 @@ pkgs.dockerTools.buildImage {
       eza
       tmux
       procps
+      sops
+      age
+      scala
+      sbt
+      postgresql
+      sqlite
+      nixd
+      nixfmt-tree
+      go
+      skopeo
+      kubectl
+      nodejs
     ];
     pathsToLink = [
       "/bin"
