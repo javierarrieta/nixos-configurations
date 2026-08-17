@@ -19,6 +19,8 @@
             ".continue/**/*.yaml"
           ];
         };
+        "python.terminal.activateEnvironment" = false;
+        "git.confirmSync" = false;
       };
       extensions = with unstablePkgsUnfree.vscode-extensions; [
         dracula-theme.theme-dracula
