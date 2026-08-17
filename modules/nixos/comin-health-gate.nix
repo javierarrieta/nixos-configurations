@@ -9,8 +9,9 @@ let
   checks = config.cominGitOps.healthGate.checks;
   hasCheck = name: builtins.elem name checks;
 
-  envFile = lib.optionalString (config.sops.secrets ? "${config.networking.hostName}/network_env")
-    config.sops.secrets."${config.networking.hostName}/network_env".path;
+  envFile = lib.optionalString (
+    config.sops.secrets ? "${config.networking.hostName}/network_env"
+  ) config.sops.secrets."${config.networking.hostName}/network_env".path;
 
   routeCheck = lib.optionalString (hasCheck "route") ''
     if ! ${pkgs.iproute2}/bin/ip route show default | ${pkgs.gnugrep}/bin/grep -q default; then
