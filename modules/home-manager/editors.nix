@@ -21,6 +21,11 @@
         };
         "python.terminal.activateEnvironment" = false;
         "git.confirmSync" = false;
+        "extensions.autoUpdate" = false;
+        "telemetry.telemetryLevel" = "off";
+        "update.mode" = "none";
+        "extensions.autoCheckUpdates" = false;
+        "settingsSync.keybindingsPerPlatform" = true;
       };
       extensions = with unstablePkgsUnfree.vscode-extensions; [
         dracula-theme.theme-dracula
