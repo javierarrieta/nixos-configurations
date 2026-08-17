@@ -15,7 +15,6 @@ in
     ../../modules/nixos/system-packages.nix
     ../../modules/nixos/ssh.nix
     ../../modules/nixos/static-network.nix
-    ../../modules/nixos/prometheus.nix
     ../../modules/nixos/rsyslog.nix
     ../../modules/nixos/openiscsi.nix
     ../../modules/nixos/sops-base.nix
@@ -39,8 +38,6 @@ in
 
   networking.interfaces.enp3s0.useDHCP = false;
   networking.interfaces.enp1s0.useDHCP = false;
-
-  prometheus.nodeExporter.enable = true;
 
   rsyslog.enable = true;
 
