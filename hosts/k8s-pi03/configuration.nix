@@ -27,6 +27,7 @@ in
     ../../modules/nixos/sops-base.nix
     ../../modules/nixos/k3s.nix
     ../../modules/nixos/comin.nix
+    ../../modules/nixos/comin-health-gate.nix
     ../../modules/nixos/raspberry-pi.nix
   ];
 
@@ -67,6 +68,8 @@ in
   cominGitOps = {
     enable = true;
     pollInterval = 300;
+    branch = "stable";
+    healthGate.enable = true;
   };
 
   networking.hostName = vars.hostname;

@@ -23,6 +23,7 @@ in
     ../../modules/nixos/k3s.nix
     ../../modules/nixos/k8s-network.nix
     ../../modules/nixos/comin.nix
+    ../../modules/nixos/comin-health-gate.nix
     ../../modules/nixos/nix-sweep.nix
   ];
 
@@ -57,6 +58,8 @@ in
   };
 
   cominGitOps.enable = true;
+  cominGitOps.branch = "stable";
+  cominGitOps.healthGate.enable = true;
 
   nixSweep.enable = true;
 
