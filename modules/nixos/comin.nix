@@ -4,6 +4,17 @@
   pkgs,
   ...
 }:
+let
+  pendingMetricText = ''
+    set -u
+    json=$(${config.services.comin.package}/bin/comin status --json 2>/dev/null || ${pkgs.coreutils}/bin/echo -n ''')
+    pending=$(${pkgs.coreutils}/bin/printf '%s' "$json" \
+      | ${pkgs.jq}/bin/jq -r 'if (.deploy_confirmer.submitted? != "" and .deploy_confirmer.confirmed? == "") then 1 else 0 end' 2>/dev/null \
+      || ${pkgs.coreutils}/bin/printf '0')
+    ${pkgs.coreutils}/bin/printf 'comin_pending_confirmation %s\n' "$pending" > /tmp/comin.prom.$$
+    ${pkgs.coreutils}/bin/mv /tmp/comin.prom.$$ /var/lib/node-exporter/textfiles/comin.prom
+  '';
+in
 {
   options = {
     cominGitOps = {
@@ -70,6 +81,29 @@
       ];
       buildConfirmer.mode = "without";
       deployConfirmer.mode = config.cominGitOps.confirmerMode;
+    };
+
+    systemd.tmpfiles.rules = [
+      "d /var/lib/node-exporter/textfiles 0755 root root -"
+    ];
+
+    systemd.services.comin-pending-metric = {
+      description = "Write comin_pending_confirmation textfile metric";
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = pkgs.writeShellScript "comin-pending-metric" pendingMetricText;
+      };
+    };
+
+    systemd.timers.comin-pending-metric = {
+      description = "Periodically refresh comin_pending_confirmation";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "60";
+        OnUnitActiveSec = "60";
+        AccuracySec = "10";
+      };
     };
   };
 }
