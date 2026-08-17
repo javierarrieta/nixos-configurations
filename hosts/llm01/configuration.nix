@@ -27,6 +27,7 @@ in
     ../../modules/nixos/sops-base.nix
     ../../modules/nixos/nix-sweep.nix
     ../../modules/nixos/comin.nix
+    ../../modules/nixos/comin-health-gate.nix
     ../../modules/nixos/coder-host.nix
     ../../modules/nixos/openiscsi.nix
 
@@ -45,6 +46,12 @@ in
   nixSweep.enable = true;
   cominGitOps.enable = true;
   cominGitOps.pollInterval = 900;
+  cominGitOps.confirmerMode = "auto";
+  cominGitOps.healthGate.enable = true;
+  cominGitOps.healthGate.checks = [
+    "current-system"
+    "llama-cpp"
+  ];
   coderHost.enable = true;
   # The built-in Coder provisioner runs in k3s and reaches llm01's Podman/helper
   # APIs from the LAN; restrict to the cluster network only.

@@ -601,6 +601,73 @@ known caveats:
    `sudo mkdir -p /etc/iscsi/nodes /etc/iscsi/send_targets`, `sudo iscsid start`,
    then verify `iscsiadm -m node` is clean.
 
+### Branch-Based Rollout (2026-08)
+
+Two rings, two branches:
+
+- **Canary ring (branch `main`, auto-deploy):** `k8s-node05` + `llm01`.
+  Every commit to `main` auto-deploys to both (`deployConfirmer.mode =
+  "auto"`), exercising the health-gate rollback path with a two-host blast
+  radius.
+- **Fleet ring (branch `stable`, manual-confirm):** `k8s-node01..04`,
+  `k8s-server01..03`, `k8s-pi01..03` (`deployConfirmer.mode = "manual"`).
+  They fetch/build automatically but pause before
+  `switch-to-configuration switch` until `comin confirmation accept` runs
+  on that host (local unix socket only — never from the Mac).
+
+Promotion is a manual git merge — the human gate:
+```bash
+git checkout stable && git merge main && git push origin stable
+```
+
+Manual fleet order (least -> most critical): `k8s-node04 -> k8s-node03 ->
+k8s-node02 -> k8s-node01 -> k8s-pi01 -> k8s-pi02 -> k8s-pi03 ->
+k8s-server01 -> k8s-server02 -> k8s-server03`.
+
+Gatekeeper:
+```bash
+./scripts/comin-approve.sh
+```
+Run 1 waits for both canaries to converge (deploy done **and** not
+suspended, node Ready where applicable) and prints "merge main -> stable".
+Run it again after the merge: it verifies canaries again, then auto-accepts
+the fleet in order with a `kubectl get node` wait between hosts. Aborts if
+a canary (or any host) is suspended — the health gate rolled it back.
+
+Health gate (`postDeploymentCommand`, all 12 hosts): per-host `checks`.
+k3s hosts (node05 + fleet) check the default route, the k3s service, and
+that `/run/current-system` matches the switched generation's `out_path`.
+`llm01` checks current-system plus llama-cpp-server (active **and** listening
+on `:8001`, with a warmup retry for model reloads). Auto-heal (restore route
+from the SOPS `network_env` / restart k3s) and on persistent failure roll back
+the comin profile (`/nix/var/nix/profiles/system-profiles/comin`, NOT
+`nixos-rebuild --rollback`) and suspend comin. On `COMIN_STATUS=failed` it
+suspends comin. Note: after a rollback `deployer.deployment.status` stays
+`"done"` — the approve script detects rollback via `is_suspended`, not status.
+
+Metric: `comin_pending_confirmation` is written to
+`/var/lib/node-exporter/textfiles/comin.prom` every 60s and scraped by the
+cluster Prometheus via the DS node_exporter textfile mount.
+
+#### TODO features (not yet implemented)
+- [ ] Alert rule `comin_pending_confirmation > 0` — blocked on enabling Alertmanager.
+- [ ] Pi closure-copy: after package trims, build once on pi01 then
+      `nix-copy-closure --to k8s-pi02 / --to k8s-pi03` (kernel drv
+      unaffected by trims; pi01 kernel build currently running in
+      background).
+- [ ] Reboot watchdog (`modules/nixos/comin-reboot.nix` on k8s-server01):
+      drain -> reboot -> uncordon per host when
+      `/run/current-system/kernel` != `/run/booted-system/kernel`;
+      skip servers, llm01 notify-only.
+- [ ] Migrate remaining hosts to 26.05: pi02 -> pi03; final sweep.
+- [ ] Replace the hardcoded `comin.devices` target list in
+      `k8s-casa/apply/50-apps/monitoring/prom-scrapes.yaml` with k8s
+      autodiscovery (`kubernetesSDConfigs.role: node`, relabel
+      `__meta_kubernetes_node_address_InternalIP` -> `$IP:4243`, plus
+      `instance`/`node`/`hostname` labels). Covers all cluster nodes
+      automatically; non-node hosts (llm01, esphome) stay as a small
+      static list.
+
 ---
 
 ## Host Management
