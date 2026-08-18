@@ -15,11 +15,6 @@
     };
     nix-sweep.url = "github:jzbor/nix-sweep";
     comfyui-nix.url = "github:utensils/comfyui-nix";
-    # Point directly to Poolside's fork and branch layout
-    poolside-llama = {
-      url = "github:poolsideai/llama.cpp/laguna";
-      flake = false;
-    };
     nixos-wsl = {
       url = "github:nix-community/nixos-wsl";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -43,7 +38,6 @@
       comfyui-nix,
       nixos-wsl,
       codex-cli-nix,
-      poolside-llama,
       ...
     }:
     let
@@ -78,38 +72,7 @@
             inherit hostname;
             userOptions = import ./home/hosts/${hostname}/userOptions.nix;
           };
-        };      # Define the package globally here where inputs are accessible
-      
-
-      # 1. Instantiate the target architecture environment variables explicitly
-      llm01Args = mkExtraArgs "x86_64-linux";
-
-      # 2. Derive the package from the unfree-enabled unstable package tree instance
-      laguna-server = llm01Args.unstablePkgsUnfree.llama-cpp.overrideAttrs (oldAttrs: {
-        version = "poolside-laguna";
-        src = poolside-llama;
-        
-        # 1. Update the nested dependency hash to match Poolside's lock structure
-        npmDepsHash = "sha256-6s9skw1wzEfm9QKktTqea3J+oudQAsS6O2VnZEMXAdw=";   
-
-        nativeBuildInputs = (oldAttrs.nativeBuildInputs or [ ]) ++ [
-          llm01Args.unstablePkgsUnfree.shaderc
-          llm01Args.unstablePkgsUnfree.pkg-config
-        ];
-
-        buildInputs = (oldAttrs.buildInputs or [ ]) ++ [
-          llm01Args.unstablePkgsUnfree.vulkan-headers
-          llm01Args.unstablePkgsUnfree.vulkan-loader
-          llm01Args.unstablePkgsUnfree.spirv-headers
-          llm01Args.unstablePkgsUnfree.vulkan-extension-layer
-        ];
-
-        # Explicitly hook glslc path variables down to sub-module generators
-        cmakeFlags = (oldAttrs.cmakeFlags or [ ]) ++ [ 
-          "-DGGML_VULKAN=ON" 
-          "-DVulkan_GLSLC_EXECUTABLE=${llm01Args.unstablePkgsUnfree.shaderc}/bin/glslc"
-        ];
-      });
+        };
     in
     {
       homeConfigurations = {
@@ -132,7 +95,6 @@
             home-manager
             comfyui-nix
             nix-sweep
-            laguna-server
             ;
         }
         // (mkExtraArgs "x86_64-linux");

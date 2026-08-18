@@ -6,13 +6,11 @@
   unstable,
   nix-sweep,
   home-manager,
-  laguna-server,
   ...
 }:
 let
   models = import ./llm-models.nix;
-  llamaPackage = laguna-server;
-  # llamaPackage = unstablePkgs.llama-cpp-vulkan;
+  llamaPackage = unstablePkgs.llama-cpp-vulkan;
 in
 {
   imports = [
@@ -142,8 +140,7 @@ in
       rocmPackages.rocm-smi
       rocmPackages.clr
       llama-cpp-vulkan
-    ])
-    ++ [ laguna-server ];
+    ]);
 
   home-manager.users.javier.imports = [
     ../../modules/home-manager/llm.nix
