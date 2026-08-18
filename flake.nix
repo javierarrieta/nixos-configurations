@@ -15,6 +15,11 @@
     };
     nix-sweep.url = "github:jzbor/nix-sweep";
     comfyui-nix.url = "github:utensils/comfyui-nix";
+    # Point directly to Poolside's fork and branch layout
+    poolside-llama = {
+      url = "github:poolsideai/llama.cpp/laguna";
+      flake = false;
+    };
     nixos-wsl = {
       url = "github:nix-community/nixos-wsl";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -38,6 +43,7 @@
       comfyui-nix,
       nixos-wsl,
       codex-cli-nix,
+      poolside-llama,
       ...
     }:
     let
@@ -72,7 +78,18 @@
             inherit hostname;
             userOptions = import ./home/hosts/${hostname}/userOptions.nix;
           };
-        };
+        };      # Define the package globally here where inputs are accessible
+      
+
+      # 1. Instantiate the target architecture environment variables explicitly
+      llm01Args = mkExtraArgs "x86_64-linux";
+
+      # 2. Derive the package from the unfree-enabled unstable package tree instance
+      laguna-server = llm01Args.unstablePkgsUnfree.llama-cpp.overrideAttrs (oldAttrs: {
+        version = "poolside-laguna";
+        src = poolside-llama;
+        cmakeFlags = (oldAttrs.cmakeFlags or []) ++ [ "-DGGML_VULKAN=ON" ];
+      });
     in
     {
       homeConfigurations = {
@@ -95,6 +112,7 @@
             home-manager
             comfyui-nix
             nix-sweep
+            laguna-server
             ;
         }
         // (mkExtraArgs "x86_64-linux");
