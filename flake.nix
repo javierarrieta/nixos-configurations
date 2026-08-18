@@ -91,17 +91,21 @@
         
         # 1. Update the nested dependency hash to match Poolside's lock structure
         npmDepsHash = "sha256-6s9skw1wzEfm9QKktTqea3J+oudQAsS6O2VnZEMXAdw=";   
-             
-        # 1. Provide the glslc shader compiler to the native build tools
+
+        # 1. Native Build Tools (Executables used to run the build)
         nativeBuildInputs = (oldAttrs.nativeBuildInputs or [ ]) ++ [
-          llm01Args.unstablePkgsUnfree.shaderc
+          llm01Args.unstablePkgsUnfree.shaderc       # Provides glslc shader compiler
+          llm01Args.unstablePkgsUnfree.pkg-config    # Resolves internal BLAS and Vulkan paths
         ];
 
-        # 2. Provide the Vulkan headers and loader libraries to the sandbox linker
+        # 2. Build Libraries (C/C++ Header tables and runtime .so link layers)
         buildInputs = (oldAttrs.buildInputs or [ ]) ++ [
           llm01Args.unstablePkgsUnfree.vulkan-headers
           llm01Args.unstablePkgsUnfree.vulkan-loader
+          llm01Args.unstablePkgsUnfree.spirv-headers
+          llm01Args.unstablePkgsUnfree.vulkan-extension-layer # Maps runtime memory spaces for Vulkan 
         ];
+        
         cmakeFlags = (oldAttrs.cmakeFlags or []) ++ [ "-DGGML_VULKAN=ON" ];
       });
     in
