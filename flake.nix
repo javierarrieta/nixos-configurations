@@ -90,7 +90,18 @@
         src = poolside-llama;
         
         # 1. Update the nested dependency hash to match Poolside's lock structure
-        npmDepsHash = "sha256-6s9skw1wzEfm9QKktTqea3J+oudQAsS6O2VnZEMXAdw=";
+        npmDepsHash = "sha256-6s9skw1wzEfm9QKktTqea3J+oudQAsS6O2VnZEMXAdw=";   
+             
+        # 1. Provide the glslc shader compiler to the native build tools
+        nativeBuildInputs = (oldAttrs.nativeBuildInputs or [ ]) ++ [
+          llm01Args.unstablePkgsUnfree.shaderc
+        ];
+
+        # 2. Provide the Vulkan headers and loader libraries to the sandbox linker
+        buildInputs = (oldAttrs.buildInputs or [ ]) ++ [
+          llm01Args.unstablePkgsUnfree.vulkan-headers
+          llm01Args.unstablePkgsUnfree.vulkan-loader
+        ];
         cmakeFlags = (oldAttrs.cmakeFlags or []) ++ [ "-DGGML_VULKAN=ON" ];
       });
     in
