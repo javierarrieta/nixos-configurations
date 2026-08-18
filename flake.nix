@@ -43,6 +43,7 @@
       comfyui-nix,
       nixos-wsl,
       codex-cli-nix,
+      poolside-llama,
       ...
     }:
     let
@@ -78,7 +79,13 @@
             userOptions = import ./home/hosts/${hostname}/userOptions.nix;
           };
         };      # Define the package globally here where inputs are accessible
-      laguna-server = pkgs.llama-cpp.overrideAttrs (oldAttrs: {
+      
+
+      # 1. Instantiate the target architecture environment variables explicitly
+      llm01Args = mkExtraArgs "x86_64-linux";
+
+      # 2. Derive the package from the unfree-enabled unstable package tree instance
+      laguna-server = llm01Args.unstablePkgsUnfree.llama-cpp.overrideAttrs (oldAttrs: {
         version = "poolside-laguna";
         src = poolside-llama;
         cmakeFlags = (oldAttrs.cmakeFlags or []) ++ [ "-DGGML_VULKAN=ON" ];
