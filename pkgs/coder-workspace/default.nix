@@ -3,6 +3,8 @@ let
   # fish's compiled $__fish_sysconf_dir points at the package's store-path
   # etc/fish (not /etc/fish), so bake the global config into the package.
   fish = pkgs.fish.overrideAttrs (old: {
+    # tests fail in the container build env (indent/cd/path check scripts)
+    doCheck = false;
     postInstall = (old.postInstall or "") + ''
       mkdir -p $out/etc/fish/conf.d
       cat > $out/etc/fish/conf.d/00-coder-workspace.fish <<'EOF'
@@ -44,16 +46,25 @@ pkgs.dockerTools.buildImage {
       binutils
       findutils
       gnugrep
+      gawk
       gnused
+      diffutils
       which
       gnutar
       gzip
+      iputils
+      iproute2
+      net-tools
       openssh
+      rsync
+      sudo
       python3
       ripgrep
       fd
       jq
       htop
+      less
+      strace
       wget
       unzip
       xz
@@ -76,6 +87,11 @@ pkgs.dockerTools.buildImage {
       eza
       tmux
       procps
+      psmisc
+      patch
+      man-db
+      bc
+      ed
       neovim
       vim
       sops
