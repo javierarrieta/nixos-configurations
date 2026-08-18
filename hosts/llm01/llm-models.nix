@@ -123,9 +123,9 @@
       "cache-type-v" = "q4_1";
       "temperature" = "0.0";
       "top-p" = "0.95";
-      "batch-size" = "4096";
-      "ubatch-size" = "1024";
-      "threads" = "4";
+      "batch-size" = "512";
+      "ubatch-size" = "128";
+      "threads" = "8";
       "spec-type" = "ngram-simple";
       "spec-draft-n-max" = "4";
       "load-mode" = "dio";
