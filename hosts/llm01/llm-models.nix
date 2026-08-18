@@ -127,7 +127,7 @@
       "ubatch-size" = "128";
       "threads" = "8";
       "spec-type" = "ngram-simple";
-      "spec-draft-n-max" = "4";
+      "spec-draft-n-max" = "8";
       "load-mode" = "dio";
     };
   };
