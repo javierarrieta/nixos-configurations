@@ -92,21 +92,23 @@
         # 1. Update the nested dependency hash to match Poolside's lock structure
         npmDepsHash = "sha256-6s9skw1wzEfm9QKktTqea3J+oudQAsS6O2VnZEMXAdw=";   
 
-        # 1. Native Build Tools (Executables used to run the build)
         nativeBuildInputs = (oldAttrs.nativeBuildInputs or [ ]) ++ [
-          llm01Args.unstablePkgsUnfree.shaderc       # Provides glslc shader compiler
-          llm01Args.unstablePkgsUnfree.pkg-config    # Resolves internal BLAS and Vulkan paths
+          llm01Args.unstablePkgsUnfree.shaderc
+          llm01Args.unstablePkgsUnfree.pkg-config
         ];
 
-        # 2. Build Libraries (C/C++ Header tables and runtime .so link layers)
         buildInputs = (oldAttrs.buildInputs or [ ]) ++ [
           llm01Args.unstablePkgsUnfree.vulkan-headers
           llm01Args.unstablePkgsUnfree.vulkan-loader
           llm01Args.unstablePkgsUnfree.spirv-headers
-          llm01Args.unstablePkgsUnfree.vulkan-extension-layer # Maps runtime memory spaces for Vulkan 
+          llm01Args.unstablePkgsUnfree.vulkan-extension-layer
         ];
-        
-        cmakeFlags = (oldAttrs.cmakeFlags or []) ++ [ "-DGGML_VULKAN=ON" ];
+
+        # Explicitly hook glslc path variables down to sub-module generators
+        cmakeFlags = (oldAttrs.cmakeFlags or [ ]) ++ [ 
+          "-DGGML_VULKAN=ON" 
+          "-DVulkan_GLSLC_EXECUTABLE=${llm01Args.unstablePkgsUnfree.shaderc}/bin/glslc"
+        ];
       });
     in
     {
