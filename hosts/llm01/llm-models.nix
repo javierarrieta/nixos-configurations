@@ -126,8 +126,7 @@
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "threads" = "4";
-      "grp-attn-n" = "4";
-      "grp-attn-w" = "512";
+      "spec-draft-ngl" = "all";
       "moe-force-cpu" = "off";
       "spec-draft-n-max" = "4";
       "spec-draft-p-min" = "0.75";
