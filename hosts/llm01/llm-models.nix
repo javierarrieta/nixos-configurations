@@ -132,23 +132,23 @@
   "Qwen-3.8-27B" = {
     modelId = "unsloth/Qwen3.8-27B-GGUF";
     filename = "Qwen3.8-27B-Q6_K.gguf";
+    mmproj = "mmproj-F16.gguf";
     extraProperties = {
-      "ctx-size" = "250000";
+      "ctx-size" = "180000";
       "flash-attn" = "on";
       "cache-type-k" = "q4_1";
       "cache-type-v" = "q4_1";
-      "temp" = "1.0";
+      "temperature" = "1.0";
       "top-p" = "0.95";
       "top-k" = "20";
       "min-p" = "0.0";
       "presence-penalty" = "0.0";
       "repeat-penalty" = "1.0";
-      "spec-type" = "draft-dflash";
+      "spec-type" = "draft-mtp";
       "spec-draft-n-max" = "2";
       "spec-draft-p-min" = "0.80";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
     };
-    mmproj = "mmproj-F16.gguf";
   };
 }
