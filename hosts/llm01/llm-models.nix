@@ -20,8 +20,10 @@
     extraProperties = {
       "flash-attn" = "on";
       "ctx-size" = "131072";
-      "cache-type-k" = "q8_0";
-      "cache-type-v" = "q8_0";
+      "cache-type-k" = "q4_1";
+      "cache-type-v" = "q4_1";
+      "batch-size" = "4096";
+      "ubatch-size" = "1024";
     };
   };
   "Mellum-4B" = {
@@ -117,10 +119,12 @@
     extraProperties = {
       "ctx-size" = "131072";
       "flash-attn" = "on";
-      "cache-type-k" = "q8_0";
-      "cache-type-v" = "q8_0";
+      "cache-type-k" = "q4_1";
+      "cache-type-v" = "q4_1";
       "temp" = "0.7";
       "top-p" = "0.95";
+      "batch-size" = "4096";
+      "ubatch-size" = "1024";
       # "spec-type" = "draft-dflash";
       # "spec-draft-n-max" = "15";
     };
@@ -128,21 +132,22 @@
   "Qwen-3.8-27B" = {
     modelId = "unsloth/Qwen3.8-27B-GGUF";
     filename = "Qwen3.8-27B-Q6_K.gguf";
-    # modelDraft = "laguna-s-2.1-DFlash-BF16.gguf";
-    # modelDraftModelId = "poolside/Laguna-S-2.1-GGUF";
     extraProperties = {
       "ctx-size" = "250000";
       "flash-attn" = "on";
-      "cache-type-k" = "q8_0";
-      "cache-type-v" = "q8_0";
+      "cache-type-k" = "q4_1";
+      "cache-type-v" = "q4_1";
       "temp" = "1.0";
       "top-p" = "0.95";
       "top-k" = "20";
       "min-p" = "0.0";
       "presence-penalty" = "0.0";
       "repeat-penalty" = "1.0";
-      # "spec-type" = "draft-dflash";
-      # "spec-draft-n-max" = "15";
+      "spec-type" = "draft-dflash";
+      "spec-draft-n-max" = "2";
+      "spec-draft-p-min" = "0.80";
+      "batch-size" = "4096";
+      "ubatch-size" = "1024";
     };
     mmproj = "mmproj-F16.gguf";
   };
