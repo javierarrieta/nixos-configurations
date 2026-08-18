@@ -6,11 +6,12 @@
   unstable,
   nix-sweep,
   home-manager,
+  laguna-server,
   ...
 }:
 let
   models = import ./llm-models.nix;
-  llamaPackage = unstablePkgs.llama-cpp-vulkan;
+  # llamaPackage = unstablePkgs.llama-cpp-vulkan;
 in
 {
   imports = [
@@ -140,7 +141,8 @@ in
       rocmPackages.rocm-smi
       rocmPackages.clr
       llama-cpp-vulkan
-    ]);
+    ])
+    ++ [ laguna-server ];
 
   home-manager.users.javier.imports = [
     ../../modules/home-manager/llm.nix
@@ -202,7 +204,7 @@ in
       LimitMEMLOCK = "infinity";
       WorkingDirectory = "/opt/llm/models";
       CacheDirectory = "llama.cpp";
-      ExecStart = "${llamaPackage}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 99 --threads 8 --log-verbosity 2 --load-mode dio --flash-attn on --metrics";
+      ExecStart = "${laguna-server}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 99 --threads 8 --log-verbosity 2 --load-mode dio --flash-attn on --metrics";
       Restart = "on-failure";
       RestartSec = "5s";
     };
