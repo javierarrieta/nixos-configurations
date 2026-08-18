@@ -88,6 +88,9 @@
       laguna-server = llm01Args.unstablePkgsUnfree.llama-cpp.overrideAttrs (oldAttrs: {
         version = "poolside-laguna";
         src = poolside-llama;
+        
+        # 1. Update the nested dependency hash to match Poolside's lock structure
+        npmDepsHash = "sha256-6s9skw1wzEfm9QKktTqea3J+oudQAsS6O2VnZEMXAdw=";
         cmakeFlags = (oldAttrs.cmakeFlags or []) ++ [ "-DGGML_VULKAN=ON" ];
       });
     in
