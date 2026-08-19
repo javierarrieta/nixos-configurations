@@ -130,7 +130,7 @@
       "spec-type" = "ngram-simple";
       "spec-draft-n-max" = "8";
       "load-mode" = "dio";
-      "no-cache-reuse" = "true"; # <-- Prevents cache fragmentation locks
+      "cache-prompt" = "false"; # <-- Prevents cache fragmentation locks
     };
   };
   "Qwen3.8-27B" = {
@@ -156,7 +156,7 @@
       "ubatch-size" = "1024";
       "load-mode" = "dio";
       "image-min-tokens" = "1024";
-      "no-cache-reuse" = "true"; # <-- Prevents cache fragmentation locks
+      "cache-prompt" = "false"; # <-- Prevents cache fragmentation locks
       "chat-template-kwargs" = "{\"reasoning_effort\": \"low\"}";
     };
   };
