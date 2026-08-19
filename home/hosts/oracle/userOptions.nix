@@ -3,7 +3,7 @@
   userHome = "/Users/jaarriet";
   gitName = "Javier Arrieta";
   gitEmail = "javier.arrieta@oracle.com";
-  gitDefaultBranch = "main";
+  gitDefaultBranch = "master";
   githubUser = "javierarrieta";
   pythonVersion = "3.12";
   llmModelsDir = "/Users/jaarriet/llm/models";
