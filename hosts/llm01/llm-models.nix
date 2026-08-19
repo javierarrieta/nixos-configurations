@@ -131,7 +131,7 @@
       "load-mode" = "dio";
     };
   };
-  "Qwen-3.8-27B" = {
+  "Qwen3.8-27B" = {
     modelId = "unsloth/Qwen3.8-27B-GGUF";
     filename = "Qwen3.8-27B-Q6_K.gguf";
     mmproj = "mmproj-F16.gguf";
@@ -147,11 +147,12 @@
       "presence-penalty" = "0.0";
       "repeat-penalty" = "1.0";
       "spec-type" = "draft-mtp";
-      "spec-draft-n-max" = "2";
+      "spec-draft-n-max" = "6";
       "spec-draft-p-min" = "0.80";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "load-mode" = "dio";
+      "image-min-tokens" = "1024";
     };
   };
 }
