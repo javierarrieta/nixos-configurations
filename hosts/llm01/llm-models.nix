@@ -117,6 +117,7 @@
     # modelDraft = "laguna-s-2.1-DFlash-BF16.gguf";
     # modelDraftModelId = "poolside/Laguna-S-2.1-GGUF";
     extraProperties = {
+      "alias" = "default";
       "ctx-size" = "160000";
       "flash-attn" = "on";
       "cache-type-k" = "q4_1";
@@ -136,6 +137,7 @@
     filename = "Qwen3.8-27B-Q6_K.gguf";
     mmproj = "mmproj-F16.gguf";
     extraProperties = {
+      "alias" = "Qwen-3.8-27B,qwen-current";
       "ctx-size" = "160000";
       "flash-attn" = "on";
       "cache-type-k" = "q4_1";
@@ -153,6 +155,7 @@
       "ubatch-size" = "1024";
       "load-mode" = "dio";
       "image-min-tokens" = "1024";
+      "reasoning-effort" = "medium";
     };
   };
 }
