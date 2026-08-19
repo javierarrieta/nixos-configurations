@@ -124,12 +124,13 @@
       "cache-type-v" = "q4_1";
       "temperature" = "0.0";
       "top-p" = "0.95";
-      "batch-size" = "512";
-      "ubatch-size" = "128";
+      "batch-size" = "2048";
+      "ubatch-size" = "512";
       "threads" = "8";
       "spec-type" = "ngram-simple";
       "spec-draft-n-max" = "8";
       "load-mode" = "dio";
+      "no-cache-reuse" = "true"; # <-- Prevents cache fragmentation locks
     };
   };
   "Qwen3.8-27B" = {
@@ -155,7 +156,8 @@
       "ubatch-size" = "1024";
       "load-mode" = "dio";
       "image-min-tokens" = "1024";
-      "chat-template-kwargs" = "{\"reasoning_effort\": \"medium\"}";
+      "no-cache-reuse" = "true"; # <-- Prevents cache fragmentation locks
+      "chat-template-kwargs" = "{\"reasoning_effort\": \"low\"}";
     };
   };
 }
