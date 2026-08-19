@@ -155,7 +155,7 @@
       "ubatch-size" = "1024";
       "load-mode" = "dio";
       "image-min-tokens" = "1024";
-      "reasoning-effort" = "medium";
+      "chat-template-kwargs" = "{\"reasoning_effort\": \"medium\"}";
     };
   };
 }
