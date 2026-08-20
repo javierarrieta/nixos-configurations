@@ -17,10 +17,13 @@ tag history.
 
 - New GitHub repo: `github.com/javierarrieta/coder-workspaces` (plural — room for
   more workspace images).
-- Canonical publish target: GHCR only (`ghcr.io/javierarrieta/coder-workspace`).
-  The private LAN registry (`registry.l.arrieta.eu`) is NOT used by the new
-  project; the podman template consumer must be repointed (follow-up, out of
-  scope for this repo).
+- Canonical publish target: GHCR only, image name **`coder-workspaces-nix`**
+  (`ghcr.io/javierarrieta/coder-workspaces-nix`). Renamed from the original
+  `coder-workspace` so the new repo's package does not collide with the infra
+  repo's still-live `coder-workspace` GHCR package until the infra workflow is
+  removed. The private LAN registry (`registry.l.arrieta.eu`) is NOT used by the
+  new project; the podman template consumer must be repointed (follow-up, out
+  of scope for this repo).
 - Remove all touchpoints from `nixos-configurations` in the same change.
 
 ## Current state
@@ -37,7 +40,8 @@ Coupling points in `nixos-configurations`:
 | Specs/plans | `docs/superpowers/*` | Keep as history |
 
 The derivation only consumes `pkgs` (via `import ./pkgs/coder-workspace { pkgs = nixpkgs.legacyPackages.x86_64-linux; }`). No SOPS, no host modules, no
-other infra packages.
+other infra packages. Copied verbatim — the internal docker image name stays
+`coder-workspace`; the external GHCR package is published as `coder-workspaces-nix`.
 
 ## New repo layout
 
@@ -52,11 +56,15 @@ coder-workspaces/
 └── .gitignore         # /result
 ```
 
+The repo is created at `gh repo create javierarrieta/coder-workspaces` and worked
+on in a clone at `/home/coder/.cache/coder-workspaces` (the sandbox uid cannot
+write under `/home/coder` directly; `.cache` is writable).
+
 ### flake.nix
 
 ```nix
 {
-  description = "Coder workspace container image";
+  description = "Coder workspace container images";
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   outputs = { self, nixpkgs }:
     let
@@ -64,7 +72,7 @@ coder-workspaces/
     in
     {
       packages.x86_64-linux.default = import ./image.nix { inherit pkgs; };
-      packages.x86_64-linux.coder-workspace = self.packages.x86_64-linux.default;
+      packages.x86_64-linux.coder-workspaces-nix = self.packages.x86_64-linux.default;
       formatter.x86_64-linux = pkgs.nixfmt-tree;
     };
 }
@@ -93,9 +101,9 @@ Ported from the current `workspace-image.yml`:
   1. `actions/checkout@v4` with `fetch-depth: 0`
   2. `DeterminateSystems/nix-installer-action@v22`
   3. `DeterminateSystems/magic-nix-cache-action@v14`
-  4. `nix build .#coder-workspace --option system-features "benchmark big-parallel kvm nixos-test uid-range"`
+  4. `nix build .#coder-workspaces-nix --option system-features "benchmark big-parallel kvm nixos-test uid-range"`
   5. Compute tag `YYYYMMDD-<short-sha>` (SHA of the new repo commit)
-  6. `docker load -i result`; tag `coder-workspace:pinned` → `ghcr.io/javierarrieta/coder-workspace:$TAG` and `:latest`
+  6. `docker load -i result`; tag `coder-workspace:pinned` → `ghcr.io/javierarrieta/coder-workspaces-nix:$TAG` and `:latest`
   7. `docker login ghcr.io` with `GITHUB_TOKEN`; push both tags
   8. Append row to `IMAGE_TAGS.md`, commit `docs: record workspace image tag ...` via `github-actions[bot]`, push
 
@@ -110,9 +118,9 @@ builds lived in the infra repo.
 1. `git rm pkgs/coder-workspace/` (whole dir)
 2. `git rm .github/workflows/workspace-image.yml`
 3. `git rm IMAGE_TAGS.md`
-4. `flake.nix`: remove the `packages.x86_64-linux.coder-workspace = ...` block
+4. `flake.nix`: remove the `packages.x86_64-linux.coder-workspaces-nix = ...` block
 5. `AGENTS.md`: update the Coder "Workspace image" bullet to point at
-   `ghcr.io/javierarrieta/coder-workspace` and the new repo
+   `ghcr.io/javierarrieta/coder-workspaces-nix` and the new repo
 6. Verify: `nix flake check` (or eval of `.#nixosConfigurations.<host>`) still
    evaluates; run `nixfmt .`
 
@@ -120,7 +128,7 @@ builds lived in the infra repo.
 
 1. `coder-templates` podman-template: repoint `workspace_image` default from
    `registry.l.arrieta.eu/coder-workspace:6fd2505` to
-   `ghcr.io/javierarrieta/coder-workspace`, using the first tag produced by the
+   `ghcr.io/javierarrieta/coder-workspaces-nix`, using the first tag produced by the
    new repo's CI run. Requires:
    - internet egress from llm01 (rootless podman pulls via Docker provider)
    - GHCR image readable (public visibility, or `registry_auth` in the
