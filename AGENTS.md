@@ -438,8 +438,7 @@ iSCSI-backed home directories (TrueNAS zvols) and an in-cluster Docker registry.
   privileged iSCSI operations (TrueNAS zvol create/delete, login/logout,
   mount/umount). Provisioner calls it over mTLS (`https://192.168.0.29:2377`)
   with per-workspace capabilities.
-- **Workspace image**: `registry.l.arrieta.eu/coder-workspace:<sha>` (Nix-built,
-  includes `/etc/os-release` for the Coder agent's `clistat`).
+- **Workspace image**: `ghcr.io/javierarrieta/coder-workspaces-nix:<tag>` (built in the `javierarrieta/coder-workspaces` repo, includes `/etc/os-release` for the Coder agent's `clistat`).
 - **Registry**: `registry.l.arrieta.eu` (nginx + Docker registry), TLS via
   Traefik. Push user `push`, pull user `coder`.
 
