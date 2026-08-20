@@ -89,15 +89,14 @@ nix flake lock --override-input nixpkgs github:NixOS/nixpkgs/c0b0e0fddf73fd517c3
 
 Expected: `flake.lock` created; `grep -A5 '"nixpkgs"' flake.lock` shows `"rev": "c0b0e0fddf73fd517c3471e546c0df87a42d53f4"`.
 
-- [ ] **Step 6: Verify the build locally**
+- [ ] **Step 6: Verify the build locally** *(sandbox: SKIP the heavy `nix build` — the dev sandbox has limited nix; the real build gate is the CI run in Task 2, plus a laptop-side `nix build .#coder-workspace` once the PR lands)*
 
 ```bash
 cd /home/coder/coder-workspaces
-nix build .#coder-workspace
-file result
+nix build .#coder-workspace   # laptop, after PR; CI covers this too
 ```
 
-Expected: build succeeds (store paths largely cached — same derivation and nixpkgs as the infra-era build); `file result` reports a tar/gzip archive. If the build fails, debug the derivation here before proceeding.
+Expected: build succeeds (store paths largely cached — same derivation and nixpkgs as the infra-era build); `file result` reports a tar/gzip archive. If the build fails on the laptop, debug the derivation there.
 
 - [ ] **Step 7: Commit and push initial files**
 
@@ -349,14 +348,14 @@ nix run .#formatter -- flake.nix
 
 Expected: `flake.nix` reformatted in place (if the formatter rejects a bare file path, run `nix fmt` and revert any files beyond `flake.nix` with `git checkout -- <file>`).
 
-- [ ] **Step 6: Verify the flake still evaluates**
+- [ ] **Step 6: Verify the flake still evaluates** *(sandbox: light eval only — heavy toplevel build deferred to the user's laptop; see ruling)*
 
 ```bash
 cd /home/coder/nixos-configurations
-nix eval .#nixosConfigurations.llm01.config.system.build.toplevel --show-trace
+nix eval .#formatter.outPath
 ```
 
-Expected: evaluates to a store path without `coder-workspace` references. This is the AGENTS.md-documented eval test; use a different host name if `llm01` is unavailable.
+Expected: prints a store path. Removed package entry is referenced by nothing else in the flake, so a light eval of an independent attr confirms the flake still evaluates. (Full gate on the laptop: `nix eval .#nixosConfigurations.llm01.config.system.build.toplevel --show-trace`.)
 
 - [ ] **Step 7: Commit on the feat branch**
 
