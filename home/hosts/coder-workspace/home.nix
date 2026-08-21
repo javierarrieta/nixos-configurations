@@ -1,6 +1,6 @@
 {
   imports = [
-    ../../modules/home-manager/base.nix
+    ../../../modules/home-manager/base.nix
   ];
 
   home.stateVersion = "25.11";
