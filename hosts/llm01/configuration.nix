@@ -10,14 +10,7 @@
 }:
 let
   models = import ./llm-models.nix;
-
-  # Custom llama-cpp package with patch to add loaded_context_length and
-  # max_context_length to /v1/models response. This fixes OpenCode's
-  # model capability detection which falls back to 4096 when these fields
-  # are missing.
-  llamaPackage = (unstablePkgs.llama-cpp.overrideAttrs (oldAttrs: {
-    patches = (oldAttrs.patches or [ ]) ++ [ ./llama-cpp-add-context-fields.patch ];
-  })).override { vulkanSupport = true; };
+  llamaPackage = unstablePkgs.llama-cpp-vulkan;
 in
 {
   imports = [
@@ -146,10 +139,8 @@ in
     ++ (with unstablePkgs; [
       rocmPackages.rocm-smi
       rocmPackages.clr
-    ])
-    ++ [
-      llamaPackage
-    ];
+      llama-cpp-vulkan
+    ]);
 
   home-manager.users.javier.imports = [
     ../../modules/home-manager/llm.nix
