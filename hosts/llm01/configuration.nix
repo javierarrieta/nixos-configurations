@@ -10,7 +10,16 @@
 }:
 let
   models = import ./llm-models.nix;
-  llamaPackage = unstablePkgs.llama-cpp-vulkan;
+
+  # Custom llama-cpp package with patch to add loaded_context_length and
+  # max_context_length to /v1/models response. This fixes OpenCode's
+  # model capability detection which falls back to 4096 when these fields
+  # are missing.
+  llama-cpp-with-context-patch = unstablePkgs.llama-cpp.overrideAttrs (oldAttrs: {
+    patches = (oldAttrs.patches or [ ]) ++ [ ./llama-cpp-add-context-fields.patch ];
+  });
+
+  llamaPackage = llama-cpp-with-context-patch.override { vulkanSupport = true; };
 in
 {
   imports = [
@@ -139,8 +148,10 @@ in
     ++ (with unstablePkgs; [
       rocmPackages.rocm-smi
       rocmPackages.clr
-      llama-cpp-vulkan
-    ]);
+    ])
+    ++ [
+      llamaPackage
+    ];
 
   home-manager.users.javier.imports = [
     ../../modules/home-manager/llm.nix
@@ -202,7 +213,7 @@ in
       LimitMEMLOCK = "infinity";
       WorkingDirectory = "/opt/llm/models";
       CacheDirectory = "llama.cpp";
-      ExecStart = "${llamaPackage}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 99 --threads 8 --log-verbosity 2 --load-mode dio --flash-attn on --ctx-checkpoints 0 --fit on --cont-batching --cache-prompt --cache-reuse 256 --parallel 16 --mlock --metrics";
+      ExecStart = "${llamaPackage}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 99 --threads 8 --log-verbosity 2 --load-mode dio --flash-attn on --ctx-checkpoints 0 --fit on --cont-batching --cache-prompt --cache-reuse 256 --mlock --metrics";
       Restart = "on-failure";
       RestartSec = "5s";
     };
