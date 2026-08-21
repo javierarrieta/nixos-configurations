@@ -19,9 +19,9 @@
     filename = "Qwen3.5-4B-Q4_K_M.gguf";
     extraProperties = {
       "flash-attn" = "on";
-      "ctx-size" = "131072";
-      "cache-type-k" = "q4_1";
-      "cache-type-v" = "q4_1";
+      "ctx-size" = "12000";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q5_0";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
     };
@@ -101,16 +101,16 @@
   #     "ctx-size" = "200000";
   #   };
   # };
-  "VibeThinker-3B" = {
-    modelId = "mradermacher/VibeThinker-3B-i1-GGUF";
-    filename = "VibeThinker-3B.i1-Q6_K.gguf";
-    extraProperties = {
-      "flash-attn" = "on";
-      "ctx-size" = "200000";
-      "cache-type-k" = "q8_0";
-      "cache-type-v" = "q8_0";
-    };
-  };
+  # "VibeThinker-3B" = {
+  #   modelId = "mradermacher/VibeThinker-3B-i1-GGUF";
+  #   filename = "VibeThinker-3B.i1-Q6_K.gguf";
+  #   extraProperties = {
+  #     "flash-attn" = "on";
+  #     "ctx-size" = "200000";
+  #     "cache-type-k" = "q8_0";
+  #     "cache-type-v" = "q5_0";
+  #   };
+  # };
   "Laguna-S-2.1" = {
     modelId = "unsloth/Laguna-S-2.1-GGUF";
     filename = "UD-Q4_K_M/Laguna-S-2.1-UD-Q4_K_M-00001-of-00003.gguf";
@@ -118,10 +118,10 @@
     # modelDraftModelId = "poolside/Laguna-S-2.1-GGUF";
     extraProperties = {
       "alias" = "default";
-      "ctx-size" = "160000";
+      "ctx-size" = "130000";
       "flash-attn" = "on";
-      "cache-type-k" = "q4_1";
-      "cache-type-v" = "q4_1";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q5_0";
       "temperature" = "0.0";
       "top-p" = "0.95";
       "batch-size" = "2048";
@@ -139,10 +139,10 @@
     mmproj = "mmproj-F16.gguf";
     extraProperties = {
       "alias" = "Qwen-3.8-27B,qwen-current";
-      "ctx-size" = "160000";
+      "ctx-size" = "130000";
       "flash-attn" = "on";
-      "cache-type-k" = "q4_1";
-      "cache-type-v" = "q4_1";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q5_0";
       "temperature" = "1.0";
       "top-p" = "0.95";
       "top-k" = "20";
