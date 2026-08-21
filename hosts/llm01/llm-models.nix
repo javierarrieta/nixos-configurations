@@ -121,7 +121,7 @@ extraProperties = {
       "ctx-size" = "131072";
       # With parallel=2, each slot gets 65536 (131072/2 = 65536 after padding).
       # --parallel 16 would split into 8K/slot, causing tools to reject model.
-      "parallel" = "2";
+      "parallel" = "8";
       "flash-attn" = "on";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q5_0";
@@ -145,7 +145,7 @@ extraProperties = {
       "ctx-size" = "131072";
       # With parallel=2, each slot gets 65536 (131072/2 = 65536 after padding).
       # --parallel 16 would split into 8K/slot, causing tools to reject model.
-      "parallel" = "2";
+      "parallel" = "8";
       "flash-attn" = "on";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q5_0";
