@@ -122,7 +122,7 @@
       # With parallel=1, each slot gets the full ctx-size (130048 after padding).
       # --parallel 16 (global default) would split this into 8K/slot, causing
       # tools that check n_ctx in /v1/models to reject the model.
-      "parallel" = "1";
+      "parallel" = "4";
       "flash-attn" = "on";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q5_0";
@@ -147,7 +147,7 @@
       # With parallel=1, each slot gets the full ctx-size (130048 after padding).
       # --parallel 16 (global default) would split this into 8K/slot, causing
       # tools that check n_ctx in /v1/models to reject the model.
-      "parallel" = "1";
+      "parallel" = "4";
       "flash-attn" = "on";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q5_0";

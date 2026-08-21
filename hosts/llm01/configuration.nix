@@ -15,11 +15,9 @@ let
   # max_context_length to /v1/models response. This fixes OpenCode's
   # model capability detection which falls back to 4096 when these fields
   # are missing.
-  llama-cpp-with-context-patch = unstablePkgs.llama-cpp.overrideAttrs (oldAttrs: {
+  llamaPackage = (unstablePkgs.llama-cpp.overrideAttrs (oldAttrs: {
     patches = (oldAttrs.patches or [ ]) ++ [ ./llama-cpp-add-context-fields.patch ];
-  });
-
-  llamaPackage = llama-cpp-with-context-patch.override { vulkanSupport = true; };
+  })).override { vulkanSupport = true; };
 in
 {
   imports = [
