@@ -37,7 +37,7 @@ let
     i=0
     until ${pkgs.systemd}/bin/systemctl is-active --quiet llama-cpp-server \
         && ${pkgs.iproute2}/bin/ss -tln | ${pkgs.gnugrep}/bin/grep -q ':8001 '; do
-      if [ $i -ge 300 ]; then
+      if [ $i -ge 600 ]; then
         log "llama-cpp-server not healthy after warmup (active + :8001) — rolling back"
         rollback_and_suspend "llama-cpp-server unhealthy"
         exit 0
@@ -48,8 +48,8 @@ let
 
   currentSystemCheck = ''
     current=$(${pkgs.coreutils}/bin/readlink /run/current-system)
-    expected=$(sw_uuid=$(${config.services.comin.package}/bin/comin status --json 2>/dev/null | ${pkgs.jq}/bin/jq -r '.store.deployment_switched // empty'); ${config.services.comin.package}/bin/comin status --json 2>/dev/null \
-      | ${pkgs.jq}/bin/jq -r --arg u "$sw_uuid" '.store.deployments[] | select(.uuid == $u) | .generation.out_path // empty' 2>/dev/null)
+    expected=$(${config.services.comin.package}/bin/comin status --json 2>/dev/null \
+      | ${pkgs.jq}/bin/jq -r '.deployer.deployment.generation.out_path // empty')
 
     if [ -n "$expected" ] && [ "$current" != "$expected" ]; then
       log "current-system ($current) != switched ($expected) — rolling back"

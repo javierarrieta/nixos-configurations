@@ -558,6 +558,40 @@ The two symptoms seen:
 --flake /var/lib/comin/repository#<host>` (or `--flake .#<host>` from a checkout on
 the host). Do this after any force-push rather than waiting out the loop.
 
+#### Deployer Suspension After Restart (comin issue #159)
+
+When the health gate calls `comin suspend` and comin then restarts (which happens
+when the switch changes the comin unit file), the deployer restores `isSuspended =
+true` from the persisted store but the manager does **not** restore its own
+`isSuspended` (it stays `false`). The deployer's `Run()` goroutine receives the
+pending-generation signal but then blocks on `<-d.resumeCh` — no "deployer:
+deploying generation..." log appears. `comin resume` fails because the manager
+thinks it's not suspended.
+
+**Recovery:**
+```bash
+# 1. Sync the manager state so resume() will accept the call
+comin suspend
+# 2. Now clear both the manager and deployer suspension
+comin resume
+# 3. The pending generation will be picked up automatically
+```
+
+**Check if affected:**
+```bash
+# Manager state (false after restart even if deployer is suspended)
+comin status --json | jq '.is_suspended'
+# Deployer state (true if suspended from store restore)
+comin status --json | jq '.deployer.is_suspended'
+# Health gate logs for the cause
+cat /var/log/comin-health-gate.log
+journalctl -u comin -n 50 --no-pager | grep "deployer: suspended because of"
+```
+
+This is a known comin bug: https://github.com/nlewo/comin/issues/159. The
+`scripts/comin-approve.sh` `is_suspended()` helper checks both `.is_suspended`
+and `.deployer.is_suspended` to detect this state.
+
 ### Known Network Issues (learned 2026-08 during the 26.05 migration)
 
 Static network is applied in two layers (see `modules/nixos/static-network.nix`):

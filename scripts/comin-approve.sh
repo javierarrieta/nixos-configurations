@@ -17,8 +17,9 @@ deploy_status() { # host -> deployer.deployment.status
   ssh "$1" 'comin status --json' 2>/dev/null | jq -r '.deployer.deployment.status? // "none"'
 }
 
-is_suspended() { # host -> "true" if comin is suspended
-  ssh "$1" 'comin status --json' 2>/dev/null | jq -r '.is_suspended // "false"'
+is_suspended() { # host -> "true" if comin deployer is suspended (manager or deployer level)
+  ssh "$1" 'comin status --json' 2>/dev/null \
+    | jq -r 'if (.is_suspended // false) or (.deployer.is_suspended // false) then "true" else "false" end'
 }
 
 pending() { # host -> prints 1 if a deploy confirmation is pending
