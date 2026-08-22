@@ -29,7 +29,7 @@ in
   ];
 
   # Pin node: no heavy dev/python/k8s tooling (avoids native aarch64 builds)
-  home.packages = lib.mkIf (!isPiNode) (with pkgs; [ nixd ]);
+  home.packages = lib.mkIf (!isPiNode && !(userOptions.configOnly or false)) (with pkgs; [ nixd ]);
 
   programs.home-manager.enable = true;
 }

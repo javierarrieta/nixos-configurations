@@ -1,44 +1,52 @@
 {
   config,
   pkgs,
+  lib,
+  userOptions,
   ...
 }:
 
+let
+  configOnly = userOptions.configOnly or false;
+in
 {
-  home.packages = with pkgs; [
-    htop
-    git
-    curl
-    wget
-    tmux
-    btop
-    ripgrep
-    yq
-    jq
-    rustup
-    fzf
-    bash
-    zsh
-    bat
-    lsd
-    difftastic
-    dyff
-    age
-    sops
-    fastfetch
-    nixfmt
-    nixfmt-tree
-    kubernetes-helm
-    scala-cli
-    pstree
-    nodejs_24
-    gh
-    bun
+  home.packages = lib.mkIf (!configOnly) (
+    with pkgs;
+    [
+      htop
+      git
+      curl
+      wget
+      tmux
+      btop
+      ripgrep
+      yq
+      jq
+      rustup
+      fzf
+      bash
+      zsh
+      bat
+      lsd
+      difftastic
+      dyff
+      age
+      sops
+      fastfetch
+      nixfmt
+      nixfmt-tree
+      kubernetes-helm
+      scala-cli
+      pstree
+      nodejs_24
+      gh
+      bun
 
-    hugo
-  ];
+      hugo
+    ]
+  );
 
-  programs.neovim = {
+  programs.neovim = lib.mkIf (!configOnly) {
     enable = true;
     defaultEditor = true;
     viAlias = true;
