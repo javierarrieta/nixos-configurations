@@ -1,13 +1,21 @@
 {
   config,
   pkgs,
+  lib,
+  userOptions,
   ...
 }:
 
+let
+  configOnly = userOptions.configOnly or false;
+in
 {
-  home.packages = with pkgs; [
-    kubectl
-    kubectx
-    k9s
-  ];
+  home.packages = lib.mkIf (!configOnly) (
+    with pkgs;
+    [
+      kubectl
+      kubectx
+      k9s
+    ]
+  );
 }

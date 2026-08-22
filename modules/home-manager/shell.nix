@@ -7,14 +7,23 @@
   unstablePkgs,
   ...
 }:
+
+let
+  configOnly = userOptions.configOnly or false;
+in
 {
-  home.packages = with pkgs; [
-    starship
-    zoxide
-    fishPlugins.tide
-    fishPlugins.fzf
-    ncdu
-  ];
+  home.packages = (
+    lib.mkIf (!configOnly) (
+      with pkgs;
+      [
+        starship
+        zoxide
+        fishPlugins.tide
+        fishPlugins.fzf
+        ncdu
+      ]
+    )
+  );
 
   home.sessionVariables = {
     EDITOR = "nvim";
@@ -27,7 +36,7 @@
 
   programs.fish = {
     enable = true;
-    package = unstablePkgs.fish;
+    package = if configOnly then pkgs.fish else unstablePkgs.fish;
     generateCompletions = false;
     interactiveShellInit = ''
       set fish_greeting
@@ -116,7 +125,8 @@
       "hm-pull" =
         "set -l dir (pwd); cd $CODE_DIR/nixos-configurations; and git pull --ff-only origin; cd $dir";
       "hm-update" = "nix flake update --flake $CODE_DIR/nixos-configurations";
-      "hm-apply" = "nix run home-manager -- switch --flake ${userOptions.homeManagerConfigDir}#${hostname}";
+      "hm-apply" =
+        "nix run home-manager -- switch --flake ${userOptions.homeManagerConfigDir}#${hostname}";
       "hm-gc" = "nix-store -gc";
       "sshe" = "ssh -o \"UserKnownHostsFile=/dev/null\"";
       "kssh" = "kitten ssh";
