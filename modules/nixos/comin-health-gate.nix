@@ -46,15 +46,24 @@ let
     done
   '';
 
+  # /run/current-system can legitimately lag behind the last comin-switched
+  # generation right after a boot (boot entry vs last switch); that mismatch
+  # caused false rollbacks on 2026-08-18/21. Give the machine 10 min of uptime
+  # before enforcing this check.
   currentSystemCheck = ''
-    current=$(${pkgs.coreutils}/bin/readlink /run/current-system)
-    expected=$(${config.services.comin.package}/bin/comin status --json 2>/dev/null \
-      | ${pkgs.jq}/bin/jq -r '.deployer.deployment.generation.out_path // empty')
+    uptime_s=$(cut -d. -f1 /proc/uptime)
+    if [ "$uptime_s" -lt 600 ]; then
+      log "up $uptime_s s — skipping current-system check (post-boot grace period)"
+    else
+      current=$(${pkgs.coreutils}/bin/readlink /run/current-system)
+      expected=$(${config.services.comin.package}/bin/comin status --json 2>/dev/null \
+        | ${pkgs.jq}/bin/jq -r '.deployer.deployment.generation.out_path // empty')
 
-    if [ -n "$expected" ] && [ "$current" != "$expected" ]; then
-      log "current-system ($current) != switched ($expected) — rolling back"
-      rollback_and_suspend "current-system != switched generation"
-      exit 0
+      if [ -n "$expected" ] && [ "$current" != "$expected" ]; then
+        log "current-system ($current) != switched ($expected) — rolling back"
+        rollback_and_suspend "current-system != switched generation"
+        exit 0
+      fi
     fi
   '';
 
@@ -72,10 +81,14 @@ let
       current=$(${pkgs.coreutils}/bin/readlink /run/current-system)
       prev=$(${config.services.comin.package}/bin/comin status --json 2>/dev/null \
         | ${pkgs.jq}/bin/jq -r --arg cur "$current" '[.store.deployments[] | select(.status == "done" and .generation.out_path != $cur) | .generation.out_path] | .[0] // empty' 2>/dev/null)
-      if [ -n "$prev" ] && [ "$prev" != "$current" ]; then
+      if [ -n "$prev" ] && [ "$prev" != "$current" ] && [ -x "$prev/bin/switch-to-configuration" ]; then
         log "rolling back to $prev ($reason)"
         ${pkgs.nix}/bin/nix-env --profile /nix/var/nix/profiles/system-profiles/comin --set "$prev"
         "$prev/bin/switch-to-configuration" switch >> "$LOG" 2>&1
+      elif [ -n "$prev" ] && [ ! -x "$prev/bin/switch-to-configuration" ]; then
+        # Rollback target was garbage-collected (seen 2026-08-21) — switching to
+        # it would fail anyway; keep the running system and just suspend.
+        log "rollback target $prev not usable ($reason) — suspending without rollback"
       else
         log "no previous generation to roll back to ($reason)"
       fi
