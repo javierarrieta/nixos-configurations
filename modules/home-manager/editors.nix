@@ -21,7 +21,10 @@
         };
         "python.terminal.activateEnvironment" = false;
         "git.confirmSync" = false;
-        "extensions.autoUpdate" = false;
+        # Must match VS Code's own serialization exactly ("off", not false) or
+        # VS Code tries to rewrite settings.json on every window open/close,
+        # which fails with EACCES since home-manager symlinks it read-only.
+        "extensions.autoUpdate" = "off";
         "telemetry.telemetryLevel" = "off";
         "update.mode" = "none";
         "extensions.autoCheckUpdates" = false;
