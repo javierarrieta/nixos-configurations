@@ -18,8 +18,9 @@
     modelId = "unsloth/Qwen3.5-4B-GGUF";
     filename = "Qwen3.5-4B-Q4_K_M.gguf";
     extraProperties = {
+      "parallel" = "1";
       "flash-attn" = "on";
-      "ctx-size" = "12000";
+      "ctx-size" = "120000";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q5_0";
       "batch-size" = "4096";
