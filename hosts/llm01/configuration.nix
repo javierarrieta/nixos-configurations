@@ -264,6 +264,7 @@ in
             entry-name: config:
             let
               modelId = config.modelId;
+              mmprojModelId = config.mmprojModelId or modelId;
               filename = config.filename;
               mmproj = config.mmproj or null;
               modelDraft = config.modelDraft or null;
@@ -280,7 +281,7 @@ in
               ${pkgs.python3Packages.huggingface-hub}/bin/hf download "${modelId}" ${downloadArgs} --local-dir /opt/llm/models/llama-cpp --repo-type model
               ${lib.optionalString (mmproj != null) ''
                 echo "Downloading mmproj for ${entry-name}..."
-                ${pkgs.python3Packages.huggingface-hub}/bin/hf download "${modelId}" "${mmproj}" --local-dir /opt/llm/models/llama-cpp --repo-type model
+                ${pkgs.python3Packages.huggingface-hub}/bin/hf download "${mmprojModelId}" "${mmproj}" --local-dir /opt/llm/models/llama-cpp --repo-type model
               ''}
               ${lib.optionalString (modelDraft != null) ''
                 echo "Downloading model-draft for ${entry-name}..."

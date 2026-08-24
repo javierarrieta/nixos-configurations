@@ -139,11 +139,12 @@
   # };
   "Ornith-1.5-35B" = {
     modelId = "EryriLabs/Ornith-1.5-35B-A3B-BigBang-MTP-GGUF";
+    mmprojModelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
     filename = "Ornith-1.5-35B-Q6_K.gguf";
     modelDraft = "mtpdraft-Q8_0.gguf";
     mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
     extraProperties = {
-      "alias" = "default,hermes,ornith-current";
+      "alias" = "default,hermes,opencode,ornith-current";
       "flash-attn" = "on";
       "ctx-size" = "131072";
       "parallel" = "1";
