@@ -140,7 +140,7 @@
   "Ornith-1.5-35B" = {
     modelId = "EryriLabs/Ornith-1.5-35B-A3B-BigBang-MTP-GGUF";
     filename = "Ornith-1.5-35B-A3B-BigBang-MTP-Q6_K.gguf";
-    modelDraft = "mtpdraft-Q8_0.gguf";
+    # modelDraft = "mtpdraft-Q8_0.gguf";
     mmprojModelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
     mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
     extraProperties = {
@@ -156,9 +156,9 @@
       "min-p" = "0.0";
       "presence-penalty" = "0.0";
       "repeat-penalty" = "1.0";
+      "spec-type" = "draft-mtp";
       "spec-draft-n-max" = "4";
       "spec-draft-n-min" = "1";
-      "fit" = "off";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "load-mode" = "dio";
