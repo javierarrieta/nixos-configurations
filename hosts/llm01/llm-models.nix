@@ -112,28 +112,54 @@
   #     "cache-type-v" = "q5_0";
   #   };
   # };
-  "Laguna-S-2.1" = {
-    modelId = "unsloth/Laguna-S-2.1-GGUF";
-    filename = "UD-Q4_K_M/Laguna-S-2.1-UD-Q4_K_M-00001-of-00003.gguf";
-    # modelDraft = "laguna-s-2.1-DFlash-BF16.gguf";
-    # modelDraftModelId = "poolside/Laguna-S-2.1-GGUF";
-extraProperties = {
-      "alias" = "default";
-      "ctx-size" = "131072";
-      # With parallel=2, each slot gets 65536 (131072/2 = 65536 after padding).
-      # --parallel 16 would split into 8K/slot, causing tools to reject model.
-      "parallel" = "1";
+  # "Laguna-S-2.1" = {
+  #   modelId = "unsloth/Laguna-S-2.1-GGUF";
+  #   filename = "UD-Q4_K_M/Laguna-S-2.1-UD-Q4_K_M-00001-of-00003.gguf";
+  #   # modelDraft = "laguna-s-2.1-DFlash-BF16.gguf";
+  #   # modelDraftModelId = "poolside/Laguna-S-2.1-GGUF";
+  #   extraProperties = {
+  #     "alias" = "default";
+  #     "ctx-size" = "131072";
+  #     # With parallel=2, each slot gets 65536 (131072/2 = 65536 after padding).
+  #     # --parallel 16 would split into 8K/slot, causing tools to reject model.
+  #     "parallel" = "1";
+  #     "flash-attn" = "on";
+  #     "cache-type-k" = "q8_0";
+  #     "cache-type-v" = "q5_0";
+  #     "temperature" = "0.0";
+  #     "top-p" = "0.95";
+  #     "batch-size" = "2048";
+  #     "ubatch-size" = "512";
+  #     "threads" = "8";
+  #     "spec-type" = "ngram-simple";
+  #     "spec-draft-n-max" = "8";
+  #     "load-mode" = "dio";
+  #     "cache-prompt" = "false"; # <-- Prevents cache fragmentation locks
+  #   };
+  # };
+  "Ornith-1.5-35B" = {
+    modelId = "EryriLabs/Ornith-1.5-35B-A3B-BigBang-MTP-GGUF";
+    filename = "Ornith-1.5-35B-Q6_K.gguf";
+    modelDraft = "mtpdraft-Q8_0.gguf";
+    mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
+    extraProperties = {
       "flash-attn" = "on";
-      "cache-type-k" = "q8_0";
-      "cache-type-v" = "q5_0";
-      "temperature" = "0.0";
+      "ctx-size" = "131072";
+      "parallel" = "1";
+      "cache-type-k" = "q6_k";
+      "cache-type-v" = "q6_k";
+      "temperature" = "0.6";
       "top-p" = "0.95";
-      "batch-size" = "2048";
-      "ubatch-size" = "512";
-      "threads" = "8";
-      "spec-type" = "ngram-simple";
-      "spec-draft-n-max" = "8";
+      "top-k" = "20";
+      "min-p" = "0.0";
+      "presence-penalty" = "0.0";
+      "repeat-penalty" = "1.0";
+      "spec-draft-n-max" = "4";
+      "spec-draft-n-min" = "1";
+      "batch-size" = "4096";
+      "ubatch-size" = "1024";
       "load-mode" = "dio";
+      "image-min-tokens" = "1024";
       "cache-prompt" = "false"; # <-- Prevents cache fragmentation locks
     };
   };
@@ -141,7 +167,7 @@ extraProperties = {
     modelId = "unsloth/Qwen3.8-27B-GGUF";
     filename = "Qwen3.8-27B-Q6_K.gguf";
     mmproj = "mmproj-F16.gguf";
-extraProperties = {
+    extraProperties = {
       "alias" = "Qwen-3.8-27B,qwen-current";
       "ctx-size" = "131072";
       # With parallel=2, each slot gets 65536 (131072/2 = 65536 after padding).
