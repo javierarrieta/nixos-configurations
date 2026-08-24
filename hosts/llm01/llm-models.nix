@@ -146,8 +146,8 @@
       "flash-attn" = "on";
       "ctx-size" = "131072";
       "parallel" = "1";
-      "cache-type-k" = "q6_k";
-      "cache-type-v" = "q6_k";
+      "cache-type-k" = "q5_1";
+      "cache-type-v" = "q5_1";
       "temperature" = "0.6";
       "top-p" = "0.95";
       "top-k" = "20";
