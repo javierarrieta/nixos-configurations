@@ -139,7 +139,7 @@
   # };
   "Ornith-1.5-35B" = {
     modelId = "EryriLabs/Ornith-1.5-35B-A3B-BigBang-MTP-GGUF";
-    filename = "Ornith-1.5-35B-Q6_K.gguf";
+    filename = "Ornith-1.5-35B-A3B-BigBang-MTP-Q6_K.gguf";
     # modelDraft = "mtpdraft-Q8_0.gguf";
     # mmprojModelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
     # mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
