@@ -18,9 +18,10 @@
     modelId = "unsloth/Qwen3.5-4B-GGUF";
     filename = "Qwen3.5-4B-Q4_K_M.gguf";
     extraProperties = {
+      "alias" = "Qwen-3.5-4B,fast,4B";
       "parallel" = "1";
       "flash-attn" = "on";
-      "ctx-size" = "120000";
+      "ctx-size" = "140000";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q5_0";
       "batch-size" = "4096";
@@ -170,7 +171,7 @@
     filename = "Qwen3.8-27B-Q6_K.gguf";
     mmproj = "mmproj-F16.gguf";
     extraProperties = {
-      "alias" = "Qwen-3.8-27B,qwen-current";
+      "alias" = "Qwen-3.8-27B,qwen-current,quality,slow";
       "ctx-size" = "131072";
       # With parallel=2, each slot gets 65536 (131072/2 = 65536 after padding).
       # --parallel 16 would split into 8K/slot, causing tools to reject model.
