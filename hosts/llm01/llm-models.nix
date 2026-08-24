@@ -139,10 +139,10 @@
   # };
   "Ornith-1.5-35B" = {
     modelId = "EryriLabs/Ornith-1.5-35B-A3B-BigBang-MTP-GGUF";
-    mmprojModelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
     filename = "Ornith-1.5-35B-Q6_K.gguf";
-    modelDraft = "mtpdraft-Q8_0.gguf";
-    mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
+    # modelDraft = "mtpdraft-Q8_0.gguf";
+    # mmprojModelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
+    # mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
     extraProperties = {
       "alias" = "default,hermes,opencode,ornith-current";
       "flash-attn" = "on";
@@ -156,8 +156,8 @@
       "min-p" = "0.0";
       "presence-penalty" = "0.0";
       "repeat-penalty" = "1.0";
-      "spec-draft-n-max" = "4";
-      "spec-draft-n-min" = "1";
+      # "spec-draft-n-max" = "4";
+      # "spec-draft-n-min" = "1";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "load-mode" = "dio";
