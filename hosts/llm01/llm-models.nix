@@ -158,6 +158,7 @@
       "repeat-penalty" = "1.0";
       "spec-draft-n-max" = "4";
       "spec-draft-n-min" = "1";
+      "fit" = "off";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "load-mode" = "dio";
