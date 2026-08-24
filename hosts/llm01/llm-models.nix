@@ -143,6 +143,7 @@
     modelDraft = "mtpdraft-Q8_0.gguf";
     mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
     extraProperties = {
+      "alias" = "default,hermes,ornith-current";
       "flash-attn" = "on";
       "ctx-size" = "131072";
       "parallel" = "1";
