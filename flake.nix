@@ -23,6 +23,9 @@
       url = "github:sadjow/codex-cli-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    llama-cpp = {
+      url = "github:ggml-org/llama.cpp/v0.2.0";
+    };
   };
 
   outputs =
@@ -38,6 +41,7 @@
       comfyui-nix,
       nixos-wsl,
       codex-cli-nix,
+      llama-cpp,
       ...
     }:
     let
@@ -54,6 +58,7 @@
           localSystem = system;
           config.allowUnfree = true;
         };
+        llamaPkgs = llama-cpp.packages.${system};
       };
 
       mkHomeConfig =

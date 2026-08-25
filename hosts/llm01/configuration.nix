@@ -3,14 +3,14 @@
   lib,
   pkgs,
   unstablePkgs,
-  unstable,
+  llamaPkgs,
   nix-sweep,
   home-manager,
   ...
 }:
 let
   models = import ./llm-models.nix;
-  llamaPackage = unstablePkgs.llama-cpp-vulkan;
+  llamaPackage = llamaPkgs.vulkan;
 in
 {
   imports = [
@@ -139,8 +139,8 @@ in
     ++ (with unstablePkgs; [
       rocmPackages.rocm-smi
       rocmPackages.clr
-      llama-cpp-vulkan
-    ]);
+    ])
+    ++ [ llamaPkgs.vulkan ];
 
   home-manager.users.javier.imports = [
     ../../modules/home-manager/llm.nix
