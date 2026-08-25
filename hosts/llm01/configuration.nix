@@ -202,7 +202,7 @@ in
       LimitMEMLOCK = "infinity";
       WorkingDirectory = "/opt/llm/models";
       CacheDirectory = "llama.cpp";
-      ExecStart = "${llamaPackage}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 99 --threads 8 --log-verbosity 2 --load-mode dio --flash-attn on --ctx-checkpoints 0 --fit on --cont-batching --cache-prompt --cache-reuse 256 --mlock --metrics";
+      ExecStart = "${llamaPackage}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 99 --threads 8 --log-verbosity 2 --load-mode mlock --flash-attn on --ctx-checkpoints 0 --fit on --cont-batching --cache-prompt --cache-reuse 256 --metrics";
       Restart = "on-failure";
       RestartSec = "5s";
     };
