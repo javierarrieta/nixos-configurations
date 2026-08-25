@@ -111,12 +111,12 @@ in
       };
     };
     shellAliases = {
-      "ls" = "lsd";
-      "lsa" = "lsd -a";
-      "ll" = "lsd -l";
-      "lla" = "lsd -la";
-      "lt" = "ls --tree";
-      "l." = "lsd -d .* --color=auto";
+      "ls" = "eza --icons";
+      "lsa" = "eza -a --icons";
+      "ll" = "eza -l --icons";
+      "lla" = "eza -la --icons";
+      "lt" = "eza --tree";
+      "l." = "eza -a --icons | grep '^\\.'";
       "z" = "zoxide";
       "k" = "kubectl";
       "kx" = "kubectx";
@@ -234,6 +234,13 @@ in
     enableZshIntegration = true;
   };
 
+  programs.atuin = {
+    enable = true;
+    enableFishIntegration = true;
+    enableZshIntegration = true;
+    flags = [ "--disable-up-arrow" ];
+  };
+
   programs.zsh = {
     enable = true;
     enableCompletion = true;
@@ -265,13 +272,11 @@ in
       gch = "git checkout";
       cat = "bat";
       du = "dust";
-      el = "erd -H -L 1";
-      ela = "erd -H -L 1 -.";
-      ls = "lsd";
-      lsa = "lsd -a";
-      ll = "lsd -l";
-      lla = "ls -la";
-      lt = "ls --tree";
+      ls = "eza --icons";
+      lsa = "eza -a --icons";
+      ll = "eza -l --icons";
+      lla = "eza -la --icons";
+      lt = "eza --tree";
       python = "python3";
       pip = "pip3";
       pym = "python3 -m";

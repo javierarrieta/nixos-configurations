@@ -27,7 +27,7 @@ in
       bash
       zsh
       bat
-      lsd
+      eza
       difftastic
       dyff
       age
