@@ -27,6 +27,7 @@ in
     ../../modules/nixos/k3s.nix
     ../../modules/nixos/comin.nix
     ../../modules/nixos/comin-health-gate.nix
+    ../../modules/nixos/nix-sweep.nix
     ../../modules/nixos/raspberry-pi.nix
   ];
 
@@ -67,6 +68,8 @@ in
     branch = "stable";
     healthGate.enable = true;
   };
+
+  nixSweep.enable = true;
 
   networking.hostName = vars.hostname;
 

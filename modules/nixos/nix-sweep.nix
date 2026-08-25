@@ -32,6 +32,17 @@
       interval = config.nixSweep.interval;
       removeOlder = config.nixSweep.removeOlder;
       keepMin = config.nixSweep.keepMin;
+      # cleanout alone only prunes profile generations; without gc the store
+      # paths stay on disk forever
+      gc = true;
+      gcQuota = 60;
+      gcModest = true;
+      # comin keeps a full system closure per deployed commit in its own
+      # profile; without sweeping it those closures pin the store
+      profiles = [
+        "system"
+        "/nix/var/nix/profiles/system-profiles/comin"
+      ];
     };
   };
 }

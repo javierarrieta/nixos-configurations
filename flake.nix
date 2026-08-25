@@ -309,7 +309,7 @@
       nixosConfigurations.k8s-pi01 = nixpkgs.lib.nixosSystem {
         system = "aarch64-linux";
         specialArgs = {
-          inherit unstable home-manager;
+          inherit unstable home-manager nix-sweep;
         }
         // (mkExtraArgs "aarch64-linux");
         modules = [
@@ -317,6 +317,7 @@
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           comin.nixosModules.comin
+          nix-sweep.nixosModules.default
         ];
       };
 
@@ -335,7 +336,7 @@
       nixosConfigurations.k8s-pi02 = nixpkgs.lib.nixosSystem {
         system = "aarch64-linux";
         specialArgs = {
-          inherit unstable home-manager;
+          inherit unstable home-manager nix-sweep;
         }
         // (mkExtraArgs "aarch64-linux");
         modules = [
@@ -343,6 +344,7 @@
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           comin.nixosModules.comin
+          nix-sweep.nixosModules.default
         ];
       };
 
@@ -361,7 +363,7 @@
       nixosConfigurations.k8s-pi03 = nixpkgs.lib.nixosSystem {
         system = "aarch64-linux";
         specialArgs = {
-          inherit unstable home-manager;
+          inherit unstable home-manager nix-sweep;
         }
         // (mkExtraArgs "aarch64-linux");
         modules = [
@@ -369,6 +371,7 @@
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
           comin.nixosModules.comin
+          nix-sweep.nixosModules.default
         ];
       };
 
