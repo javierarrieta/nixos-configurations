@@ -254,6 +254,37 @@ jq '.key = "value"' file.json > new.json
 yq -y . new.json > file.yaml
 ```
 
+### Longhorn iSCSI Disk Medium Errors (2026-08-26)
+
+**Observed**: During `nixos-rebuild switch` on k8s-node03 (and node02), kernel logged critical medium errors on iSCSI devices (sdy, sdz - Longhorn volumes from TrueNAS):
+```
+critical medium error, dev sdz, sector 0 ...
+Unrecovered read error
+Buffer I/O error on dev sdz, logical block 0
+```
+
+**Impact**: Likely contributed to I/O slowness during switch, exacerbating dbus-broker reload timeout. Not the direct cause of exit 4 (that was dbus-broker), but a compounding factor.
+
+**Investigation needed**:
+1. Check TrueNAS SMART status for underlying zvols/disks
+2. Check TrueNAS pool health (`zpool status`)
+3. Check iSCSI network path (MTU, switch ports, cables)
+4. Consider Longhorn replica rebuild if data integrity at risk
+
+**Commands for investigation**:
+```bash
+# On TrueNAS
+smartctl -a /dev/<disk>
+zpool status <pool>
+iscsiadm -m session -P 3
+
+# On NixOS nodes
+iscsiadm -m session
+dmesg -T | grep -iE "medium error|unrecovered read|Buffer I/O"
+```
+
+**Workaround**: The dbus-broker timeout fix (Task 3) provides headroom. If disk errors persist, consider migrating Longhorn volumes to healthy storage.
+
 ---
 
 ## Kubernetes (k3s) Configuration
