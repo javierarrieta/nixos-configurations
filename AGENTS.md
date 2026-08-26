@@ -673,8 +673,9 @@ the fleet in order with a `kubectl get node` wait between hosts. Aborts if
 a canary (or any host) is suspended — the health gate rolled it back.
 
 Runner requirements (portable since 2026-08-26, macOS optional):
-ssh access to all 12 hosts, `jq`, `kubectl` with node read access.
-Desktop notifications only fire when `osascript` exists.
+ssh access to all 12 hosts by `<hostname>.casa.arrieta` (bind zone;
+override the suffix with `COMIN_DOMAIN`), `jq`, `kubectl` with node
+read access. Desktop notifications only fire when `osascript` exists.
 
 #### Hermes rollout account (`modules/nixos/hermes-ssh.nix`)
 

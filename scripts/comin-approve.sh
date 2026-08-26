@@ -9,6 +9,10 @@ ORDER=(k8s-node04 k8s-node03 k8s-node02 k8s-node01 k8s-pi01 k8s-pi02 k8s-pi03 k8
 # k8s nodes only (llm01 is not a cluster node — skip its node_ready wait)
 K8S_NODES=(k8s-node04 k8s-node03 k8s-node02 k8s-node01 k8s-pi01 k8s-pi02 k8s-pi03 k8s-server01 k8s-server02 k8s-server03 k8s-node05)
 
+# ssh targets are FQDNs (bind zone casa.arrieta); kubectl keeps short names
+DOMAIN="${COMIN_DOMAIN:-casa.arrieta}"
+ssh_host() { echo "$1.$DOMAIN"; }
+
 is_k8s_node() { # host -> 0 if the host is a k8s node
   printf '%s\n' "${K8S_NODES[@]}" | grep -qx "$1"
 }
@@ -22,16 +26,16 @@ notify() { # message — desktop notification where available (macOS), no-op els
 }
 
 deploy_status() { # host -> deployer.deployment.status
-  ssh "$1" 'comin status --json' 2>/dev/null | jq -r '.deployer.deployment.status? // "none"'
+  ssh "$(ssh_host "$1")" 'comin status --json' 2>/dev/null | jq -r '.deployer.deployment.status? // "none"'
 }
 
 is_suspended() { # host -> "true" if comin deployer is suspended (manager or deployer level)
-  ssh "$1" 'comin status --json' 2>/dev/null \
+  ssh "$(ssh_host "$1")" 'comin status --json' 2>/dev/null \
     | jq -r 'if (.is_suspended // false) or (.deployer.is_suspended // false) then "true" else "false" end'
 }
 
 pending() { # host -> prints 1 if a deploy confirmation is pending
-  ssh "$1" 'comin status --json' 2>/dev/null | jq -r 'if (.deploy_confirmer.submitted? != "" and .deploy_confirmer.confirmed? == "") then 1 else 0 end'
+  ssh "$(ssh_host "$1")" 'comin status --json' 2>/dev/null | jq -r 'if (.deploy_confirmer.submitted? != "" and .deploy_confirmer.confirmed? == "") then 1 else 0 end'
 }
 
 node_ready() { # node -> 1 when Ready
@@ -85,7 +89,7 @@ for h in "${ORDER[@]}"; do
     continue
   fi
   echo "== $h: deploy confirmation pending — accepting"
-  ssh "$h" 'comin confirmation accept'
+  ssh "$(ssh_host "$h")" 'comin confirmation accept'
   wait_for "$h deploy done" 900 deploy_status "$h"
   if [ "$(is_suspended "$h")" = "true" ]; then
     echo "ABORT: $h rolled back (comin suspended). Investigate before continuing."
