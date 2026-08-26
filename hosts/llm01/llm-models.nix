@@ -196,7 +196,7 @@
   #     "chat-template-kwargs" = "{\"reasoning_effort\": \"low\"}";
   #   };
   # };
-"Ling-3.0-flash" = {
+  "Ling-3.0-flash" = {
     modelId = "AtomicChat/Ling-3.0-flash-GGUF";
     filename = "AD-IQ4_XXS.gguf";
     extraProperties = {
@@ -217,5 +217,4 @@
       "cache-prompt" = "false";
     };
   };
-  };
-}
+};
