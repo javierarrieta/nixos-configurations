@@ -5,7 +5,7 @@
   ...
 }:
 {
-  imports = [ ./dbus-broker-timeout ];
+  imports = [ ./dbus-broker-timeout.nix ];
 
   options = {
     base = {
