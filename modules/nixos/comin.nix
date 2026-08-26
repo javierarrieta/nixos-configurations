@@ -16,6 +16,8 @@ let
   '';
 in
 {
+  imports = [ ./hermes-ssh.nix ];
+
   options = {
     cominGitOps = {
       enable = lib.mkEnableOption "Comin GitOps deployment";
@@ -71,6 +73,9 @@ in
   };
 
   config = lib.mkIf config.cominGitOps.enable {
+    # Every comin host can serve as a rollout target for scripts/comin-approve.sh
+    hermesSsh.enable = true;
+
     services.comin = {
       enable = true;
       remotes = [

@@ -13,6 +13,14 @@ is_k8s_node() { # host -> 0 if the host is a k8s node
   printf '%s\n' "${K8S_NODES[@]}" | grep -qx "$1"
 }
 
+notify() { # message — desktop notification where available (macOS), no-op elsewhere
+  local msg="$1"
+  if command -v osascript >/dev/null 2>&1; then
+    osascript -e "display notification \"$msg\" with title \"comin approve\""
+  fi
+  echo "NOTIFY: $msg"
+}
+
 deploy_status() { # host -> deployer.deployment.status
   ssh "$1" 'comin status --json' 2>/dev/null | jq -r '.deployer.deployment.status? // "none"'
 }
@@ -46,7 +54,7 @@ for c in "${CANARY_RING[@]}"; do
   echo "== waiting for canary $c to auto-deploy"
   wait_for "$c deploy done" 1200 deploy_status "$c"
   if [ "$(is_suspended "$c")" = "true" ]; then
-    osascript -e "display notification \"$c rolled back (comin suspended) — rollout aborted\" with title \"comin approve\""
+    notify "$c rolled back (comin suspended) — rollout aborted"
     echo "ABORT: $c rolled back (comin suspended). Fix main before retrying."
     exit 1
   fi

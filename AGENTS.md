@@ -672,6 +672,22 @@ Run it again after the merge: it verifies canaries again, then auto-accepts
 the fleet in order with a `kubectl get node` wait between hosts. Aborts if
 a canary (or any host) is suspended — the health gate rolled it back.
 
+Runner requirements (portable since 2026-08-26, macOS optional):
+ssh access to all 12 hosts, `jq`, `kubectl` with node read access.
+Desktop notifications only fire when `osascript` exists.
+
+#### Hermes rollout account (`modules/nixos/hermes-ssh.nix`)
+
+Every comin host (`cominGitOps.enable`) gets a `hermes` user for the
+hermes agent to run `scripts/comin-approve.sh`. Key-only login (locked
+password), authorized key wrapped with an SSH forced command
+(`/etc/hermes-allowlist`, `no-pty,no-port-forwarding,...`) that allows
+**exactly** `comin status --json` and `comin confirmation accept`;
+everything else is logged to `/var/log/hermes-ssh.log` and rejected.
+Note: comin's grpc socket (`/var/lib/comin/grpc.sock`) is chmod 0777 by
+the daemon itself, so host-side access control = SSH auth + this forced
+command; keep the agent's private key restricted on the runner side.
+
 Health gate (`postDeploymentCommand`, all 12 hosts): per-host `checks`.
 k3s hosts (node05 + fleet) check the default route, the k3s service, and
 that `/run/current-system` matches the switched generation's `out_path`.
