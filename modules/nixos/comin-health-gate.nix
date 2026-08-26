@@ -14,11 +14,11 @@ let
   ) config.sops.secrets."${config.networking.hostName}/network_env".path;
 
   routeCheck = lib.optionalString (hasCheck "route") ''
-    if ! ${pkgs.iproute2}/bin/ip route show default | ${pkgs.gnugrep}/bin/grep -q default; then
-      log "no default route — healing"
+    if ! ${pkgs.iproute2}/bin/ip route show default | ${pkgs.gnugrep}/bin/grep -q "default via \$DEFAULT_GATEWAY dev ${config.staticNetwork.interface}"; then
+      log "no correct default route — healing"
       if [ -n "${envFile}" ] && [ -f "${envFile}" ]; then
         . "${envFile}"
-        ${pkgs.iproute2}/bin/ip route replace default via "$DEFAULT_GATEWAY" dev "${config.staticNetwork.interface}"
+        ${pkgs.iproute2}/bin/ip route replace default via "\$DEFAULT_GATEWAY" dev ${config.staticNetwork.interface}
       else
         log "network_env not found at ${envFile} — cannot heal route"
       fi
