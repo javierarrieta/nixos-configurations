@@ -95,6 +95,10 @@ let
 
     ${pkgs.coreutils}/bin/mkdir -p /var/log
 
+    FLAG_DIR=/var/lib/comin-health-gate
+    RETRY_FLAG="$FLAG_DIR/failed-retry-pending"
+    ${pkgs.coreutils}/bin/mkdir -p "$FLAG_DIR"
+
     rollback_and_suspend() { # reason
       local reason="$1"
       local current prev
@@ -117,11 +121,26 @@ let
 
     case "$COMIN_STATUS" in
       failed)
-        log "deployment FAILED: $COMIN_ERROR_MSG — suspending comin"
-        ${config.services.comin.package}/bin/comin suspend
+        # Never roll back on a failed switch (half-activated system is unsafe
+        # to re-switch), but do not just suspend either: heal what we can,
+        # then retry once so transient dbus-broker reload timeouts self-recover.
+        log "deployment FAILED: $COMIN_ERROR_MSG — running pre-suspend healing"
+        ${routeCheck}
+        ${k3sCheck}
+        if [ -f "$RETRY_FLAG" ]; then
+          ${pkgs.coreutils}/bin/rm -f "$RETRY_FLAG"
+          log "already retried after this failure — suspending comin"
+          ${config.services.comin.package}/bin/comin suspend
+          exit 0
+        fi
+        ${pkgs.coreutils}/bin/touch "$RETRY_FLAG"
+        log "retrying same generation once (comin deployment submit-latest)"
+        ${config.services.comin.package}/bin/comin deployment submit-latest >> "$LOG" 2>&1
         exit 0
         ;;
       done)
+        # Success resets the bounded-retry counter for future failures.
+        ${pkgs.coreutils}/bin/rm -f "$RETRY_FLAG"
         ;;
       *)
         exit 0
