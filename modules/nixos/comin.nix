@@ -47,14 +47,16 @@ in
               "k3s"
               "current-system"
               "llama-cpp"
+              "iscsi"
             ]
           );
           default = [
             "route"
             "k3s"
             "current-system"
+            "iscsi"
           ];
-          description = "Health checks to run in the post-deployment gate. k3s hosts check route+k3s+current-system; llm01 checks current-system+llama-cpp.";
+          description = "Health checks to run in the post-deployment gate. k3s hosts check route+k3s+current-system (+iscsi where openiscsi.enable); llm01 checks current-system+llama-cpp.";
         };
       };
       branch = lib.mkOption {

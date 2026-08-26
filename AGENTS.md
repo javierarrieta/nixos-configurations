@@ -629,7 +629,12 @@ known caveats:
 
 4. **open-iscsi 2.1.11 → 2.1.12 regression** (cluster-wide during the migration):
    stale `/etc/iscsi/nodes/*` records carry a `node.session.conn_reopen_log_freq`
-   param that breaks `iscsiadm`, killing Longhorn engine frontends. Fix per host:
+   param that breaks `iscsiadm`, killing Longhorn engine frontends. **Since
+   2026-08-26 this self-heals** (see `modules/nixos/openiscsi.nix`): `iscsid`
+   preStart wipes `/etc/iscsi/nodes` + `/etc/iscsi/send_targets` only when
+   `iscsiadm -m node` actually fails, and a tmpfiles rule ensures
+   `/run/lock/iscsi` exists (2.1.12 expects it, upstream unit never creates
+   it). The manual fix below is only needed on hosts running old code:
    `sudo iscsid stop`, `rm -rf /etc/iscsi/nodes /etc/iscsi/send_targets`,
    `sudo mkdir -p /etc/iscsi/nodes /etc/iscsi/send_targets`, `sudo iscsid start`,
    then verify `iscsiadm -m node` is clean.
@@ -681,6 +686,27 @@ suspends comin. Note: after a rollback `deployer.deployment.status` stays
 Metric: `comin_pending_confirmation` is written to
 `/var/lib/node-exporter/textfiles/comin.prom` every 60s and scraped by the
 cluster Prometheus via the DS node_exporter textfile mount.
+
+#### Partial-Switch + GC Dangling Binaries (incident 2026-08-26, k8s-node05)
+
+A switch that dies mid-activation leaves the system in a split state: home-manager
+files are already updated (fish config sourced atuin hooks), but `/run/current-system`
+never advances. The health gate then rolls back to the old generation, and the next
+nix-sweep GC deletes the discarded generation's closure — so the *new* config now
+references binaries that no longer exist (`which atuin` → not found on every prompt,
+`ls` alias to eza broken). Recovery: fix the switch blocker (here: stale iscsi node
+db + missing `/run/lock/iscsi`), manual deploy, verify `readlink /run/current-system`.
+
+Hardening added 2026-08-26:
+
+- `modules/nixos/openiscsi.nix`: iscsid `preStart` self-heals an unreadable node db
+  (wipes `/etc/iscsi/nodes` + `send_targets` only when `iscsiadm -m node` fails) and
+  creates `/run/lock/iscsi`; tmpfiles rule covers early boots. Removes the abort
+  trigger at its source.
+- `modules/nixos/comin-health-gate.nix`: new `iscsi` check (default-on for k3s hosts,
+  no-op without `openiscsi.enable`) — heals once, rolls back if still broken.
+- Lesson: any failed switch must be followed by a redeploy **before** nix-sweep's GC
+  runs, or expect dangling binaries in per-user/HM profiles.
 
 #### TODO features (not yet implemented)
 - [ ] Alert rule `comin_pending_confirmation > 0` — blocked on enabling Alertmanager.

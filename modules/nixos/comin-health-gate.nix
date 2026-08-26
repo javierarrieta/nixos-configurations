@@ -46,6 +46,26 @@ let
     done
   '';
 
+  # A switch that dies mid-activation (e.g. iscsid.socket refusing to start on
+  # a stale node db, seen 2026-08-26 on k8s-node05) leaves home-manager files
+  # updated while /run/current-system stays old; a later GC then deletes the
+  # rolled-back generation's binaries. Catch the iSCSI variant here: heal once,
+  # roll back if still broken. Only active on hosts with openiscsi.enable.
+  iscsiCheck = lib.optionalString (hasCheck "iscsi" && config.openiscsi.enable) ''
+    if ! ${pkgs.openiscsi}/bin/iscsiadm -m node >/dev/null 2>&1; then
+      log "iscsiadm -m node failing — healing stale node db"
+      ${pkgs.systemd}/bin/systemctl stop iscsid.socket iscsid.service
+      ${pkgs.coreutils}/bin/rm -rf /etc/iscsi/nodes /etc/iscsi/send_targets
+      ${pkgs.coreutils}/bin/mkdir -p /etc/iscsi/nodes /etc/iscsi/send_targets
+      ${pkgs.systemd}/bin/systemctl start iscsid.service iscsid.socket
+      sleep 5
+    fi
+    if ! ${pkgs.openiscsi}/bin/iscsiadm -m node >/dev/null 2>&1; then
+      rollback_and_suspend "iscsi unhealthy after heal"
+      exit 0
+    fi
+  '';
+
   # /run/current-system can legitimately lag behind the last comin-switched
   # generation right after a boot (boot entry vs last switch); that mismatch
   # caused false rollbacks on 2026-08-18/21. Give the machine 10 min of uptime
@@ -113,6 +133,7 @@ let
     ${routeCheck}
     ${k3sCheck}
     ${llamaCppCheck}
+    ${iscsiCheck}
     ${currentSystemCheck}
 
     log "health gate OK"

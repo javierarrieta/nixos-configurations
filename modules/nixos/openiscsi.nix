@@ -30,6 +30,29 @@
     systemd.services.iscsid = {
       after = [ "iscsid.socket" ];
       wants = [ "iscsid.socket" ];
+      preStart = lib.mkAfter ''
+        # 2.1.12 expects /run/lock/iscsi to exist but upstream's unit never
+        # creates it; a missing dir makes every iscsiadm call fail with
+        # "Could not open/create lock file".
+        mkdir -p /run/lock/iscsi
+
+        # Stale node records from a previous open-iscsi version break
+        # `iscsiadm -m node` outright (seen cluster-wide during the 26.05
+        # migration). Self-heal at daemon start: only wipe when the db actually
+        # fails to parse — active sessions survive and Longhorn rediscovers
+        # targets afterwards.
+        if ! ${pkgs.openiscsi}/bin/iscsiadm -m node >/dev/null 2>&1; then
+          echo "iscsid-pre-start: node db unreadable — wiping stale records"
+          rm -rf /etc/iscsi/nodes /etc/iscsi/send_targets
+          mkdir -p /etc/iscsi/nodes /etc/iscsi/send_targets
+        fi
+      '';
     };
+
+    systemd.tmpfiles.rules = [
+      # belt-and-suspenders for the preStart above (covers early boots where
+      # iscsid runs before any script had a chance)
+      "d /run/lock/iscsi 0700 root root -"
+    ];
   };
 }
