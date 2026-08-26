@@ -670,6 +670,25 @@ known caveats:
    `sudo mkdir -p /etc/iscsi/nodes /etc/iscsi/send_targets`, `sudo iscsid start`,
    then verify `iscsiadm -m node` is clean.
 
+### Route Watchdog Pattern (2026-08-26)
+
+When running a route watchdog during builds/switches, use the host's configured interface from vars.nix:
+
+```bash
+# On the target host, get the interface:
+INTERFACE=$(nix eval --raw .#nixosConfigurations.$(hostname).config.staticNetwork.interface)
+
+# Run watchdog with correct interface:
+sudo systemd-run --unit=routewatch --collect bash -c "
+  while true; do
+    /run/current-system/sw/bin/ip route replace default via 192.168.0.1 dev \$INTERFACE
+    sleep 2
+  done
+"
+```
+
+**Note**: Do NOT hardcode `enp3s0` or `eth0` - interfaces vary by host (node02: enp3s0, node03: enp3s0, node04: enp2s0, Pis: eth0).
+
 ### Branch-Based Rollout (2026-08)
 
 Two rings, two branches:
