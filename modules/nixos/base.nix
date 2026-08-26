@@ -5,6 +5,8 @@
   ...
 }:
 {
+  imports = [ ./dbus-broker-timeout ];
+
   options = {
     base = {
       enable = lib.mkEnableOption "Base system configuration";
