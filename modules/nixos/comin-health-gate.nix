@@ -13,17 +13,45 @@ let
     config.sops.secrets ? "${config.networking.hostName}/network_env"
   ) config.sops.secrets."${config.networking.hostName}/network_env".path;
 
-  routeCheck = lib.optionalString (hasCheck "route") ''
-    if ! ${pkgs.iproute2}/bin/ip route show default | ${pkgs.gnugrep}/bin/grep -q "default via \$DEFAULT_GATEWAY dev ${config.staticNetwork.interface}"; then
+  # Same placeholder detection as static-network.nix: vars.nix either carries
+  # "$..." placeholders resolved at runtime from the SOPS network_env secret,
+  # or real values baked in at eval time (k8s-pi*, which have no network_env).
+  isPlaceholder = s: lib.hasPrefix "$" s;
+  # Shell reference for the expected gateway. MUST be a single $ (no \$
+  # escaping): inside an indented Nix string the backslash survives eval, so
+  # "\$DEFAULT_GATEWAY" reaches grep as match-text containing a literal '$'
+  # instead of expanding at runtime.
+  defaultGatewayRef =
+    if isPlaceholder config.staticNetwork.defaultGateway then
+      "$DEFAULT_GATEWAY"
+    else
+      config.staticNetwork.defaultGateway;
+
+  routeCheckBody = ''
+    if ! ${pkgs.iproute2}/bin/ip route show default | ${pkgs.gnugrep}/bin/grep -q "default via ${defaultGatewayRef} dev ${config.staticNetwork.interface}"; then
       log "no correct default route — healing"
-      if [ -n "${envFile}" ] && [ -f "${envFile}" ]; then
-        . "${envFile}"
-        ${pkgs.iproute2}/bin/ip route replace default via "\$DEFAULT_GATEWAY" dev ${config.staticNetwork.interface}
-      else
-        log "network_env not found at ${envFile} — cannot heal route"
-      fi
+      ${pkgs.iproute2}/bin/ip route replace default via "${defaultGatewayRef}" dev ${config.staticNetwork.interface}
     fi
   '';
+
+  # Placeholder hosts: $DEFAULT_GATEWAY only exists after sourcing network_env
+  # and the script runs under `set -u`, so source BEFORE the test — which also
+  # lets the heal branch rely on the sourced vars. Literal-gateway hosts need
+  # no sourcing; if a placeholder host lost its env file, skip the check with a
+  # log instead of expanding unset vars.
+  routeCheck = lib.optionalString (hasCheck "route") (
+    if envFile != "" then
+      lib.replaceStrings [ "\n" ] [ "\n  " ] ''
+        if [ -f "${envFile}" ]; then
+          . "${envFile}"
+          ${routeCheckBody}
+        else
+          log "network_env not found at ${envFile} — cannot check/heal route"
+        fi
+      ''
+    else
+      routeCheckBody
+  );
 
   k3sCheck = lib.optionalString (hasCheck "k3s") ''
     if ! ${pkgs.systemd}/bin/systemctl is-active --quiet k3s; then
