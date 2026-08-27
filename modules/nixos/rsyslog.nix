@@ -39,5 +39,28 @@
         *.* @@${config.rsyslog.server}:${toString config.rsyslog.port}
       '';
     };
+
+    # NixOS rsyslogd's defaultConfig writes /var/log/messages, /var/log/warn,
+    # /var/log/dhcpd and /var/log/mail but nothing rotates them; k3s logging
+    # volume makes /var/log/messages the biggest offender. The spool dir holds
+    # rsyslog internal state (imjournal state, queues) and must NOT be rotated.
+    services.logrotate.settings = {
+      "rsyslog-local-logs" = {
+        files = [
+          "/var/log/messages"
+          "/var/log/warn"
+          "/var/log/dhcpd"
+          "/var/log/mail"
+        ];
+        frequency = "daily";
+        rotate = 7;
+        compress = true;
+        delaycompress = true;
+        notifempty = true;
+        sharedscripts = true;
+        create = "0640 root adm";
+        postrotate = "/run/current-system/sw/bin/systemctl kill -s HUP syslog.service";
+      };
+    };
   };
 }

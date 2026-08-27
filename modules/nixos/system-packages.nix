@@ -41,6 +41,7 @@
         sops
         neovim
         btop
+        logrotate
         rsyslog
         tpm2-tss
         iptables

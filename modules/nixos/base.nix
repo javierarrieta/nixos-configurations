@@ -30,5 +30,11 @@
       "nix-command"
       "flakes"
     ];
+
+    # Cap the journal so logs cannot fill the disk (llm01 already used 500M)
+    services.journald.extraConfig = ''
+      SystemMaxUse=500M
+      SystemKeepFree=1G
+    '';
   };
 }

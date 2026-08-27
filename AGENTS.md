@@ -399,7 +399,7 @@ tooling that has no value on a worker node:
 3. **Fresh worker switches drop the default route** mid-activation despite the
    `network-runtime` ordering fix. Keep the gateway watchdog running through every
    build + switch:
-   `sudo systemd-run --unit=routewatch --collect bash -c 'while true; do /run/current-system/sw/bin/ip route replace default via 192.168.0.1 dev eth0; sleep 10; done'`
+   `sudo systemd-run --unit=routewatch --collect bash -c 'while true; do /run/current-system/sw/bin/ip route replace default via 192.168.0.1 dev eth0; /run/current-system/sw/bin/sleep 10; done'`
    (stop after settle with `systemctl stop routewatch`).
 4. Launch rebuilds as
    `sudo NIX_CONFIG="experimental-features = nix-command flakes" nixos-rebuild switch --flake /var/lib/comin/repository#k8s-piXX`
@@ -638,7 +638,7 @@ known caveats:
    interface ordering), Pis and freshly-switched workers do not. Until fixed
    properly, run the watchdog around any build/switch:
    ```bash
-   sudo systemd-run --unit=routewatch --collect bash -c 'while true; do /run/current-system/sw/bin/ip route replace default via 192.168.0.1 dev <iface>; sleep 10; done'
+    sudo systemd-run --unit=routewatch --collect bash -c 'while true; do /run/current-system/sw/bin/ip route replace default via 192.168.0.1 dev <iface>; /run/current-system/sw/bin/sleep 10; done'
    # stop after the switch settles:
    sudo systemctl stop routewatch
    ```
@@ -682,12 +682,36 @@ INTERFACE=$(nix eval --raw .#nixosConfigurations.$(hostname).config.staticNetwor
 sudo systemd-run --unit=routewatch --collect bash -c "
   while true; do
     /run/current-system/sw/bin/ip route replace default via 192.168.0.1 dev \$INTERFACE
-    sleep 2
+    /run/current-system/sw/bin/sleep 2
   done
 "
 ```
 
 **Note**: Do NOT hardcode `enp3s0` or `eth0` - interfaces vary by host (node02: enp3s0, node03: enp3s0, node04: enp2s0, Pis: eth0).
+
+#### Runaway watchdog when `sleep` is missing from PATH (incident 2026-08-27, k8s-node03)
+
+A routewatch-style `while true; ...; sleep N; done` loop started from a *user*
+session (not root) uses `/etc/profiles/per-user/<user>/bin/bash` whose HM
+profile PATH has no `sleep` (coreutils not in the HM profile). `sleep` fails
+instantly, the loop becomes a ~200 spawns/sec tight loop, and every stderr
+line goes journald → imjournal → rsyslog → `/var/log/messages`, filling the
+disk. Symptoms: `bash[NNN]: ... sleep: command not found` flood in
+`/var/log/messages`, rapidly increasing PIDs, tripled duplicate lines (3
+instances).
+
+Rules:
+- Always use absolute paths for BOTH commands inside watchdog loops:
+  `/run/current-system/sw/bin/ip ...` AND `/run/current-system/sw/bin/sleep N`.
+- Run watchdogs via `sudo systemd-run` only; never leave one behind after a
+  build settles (`systemctl stop routewatch`).
+- Cleanup on an affected host:
+  ```bash
+  sudo systemctl stop routewatch 2>/dev/null
+  sudo pkill -f 'while true; do /run/current-system'   # or kill the bash PPID
+  sudo journalctl --vacuum-size=500M
+  sudo truncate -s 0 /var/log/messages
+  ```
 
 ### Branch-Based Rollout (2026-08)
 
