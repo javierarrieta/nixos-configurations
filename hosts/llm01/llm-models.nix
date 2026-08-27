@@ -216,10 +216,10 @@
       "ubatch-size" = "1024";
       "load-mode" = "mlock";
       # Baked-in NextN/MTP layer acts as draft model (bartowski quants include it).
-      # Note: Vulkan had a reported MTP hang (ggml_vk_wait_for_fence) upstream;
-      # if it stalls, drop these two lines or add --no-spec-draft-backend-sampling.
-      "spec-type" = "draft-mtp";
-      "spec-draft-n-max" = "4";
+      # DISABLED: draft-mtp is a net slowdown on Vulkan for this arch upstream
+      # (bench: 41 t/s plain vs ~8 t/s with spec); revisit when kernels mature.
+      # "spec-type" = "draft-mtp";
+      # "spec-draft-n-max" = "4";
       "cache-prompt" = "false";
     };
   };
