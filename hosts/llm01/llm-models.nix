@@ -217,4 +217,4 @@
       "cache-prompt" = "false";
     };
   };
-};
+}
