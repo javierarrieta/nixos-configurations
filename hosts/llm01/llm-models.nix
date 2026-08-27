@@ -204,8 +204,9 @@
       "flash-attn" = "on";
       "ctx-size" = "131072";
       "parallel" = "1";
+      # Hybrid/recurrent arch rejects different K vs V cache quants
       "cache-type-k" = "q8_0";
-      "cache-type-v" = "q5_0";
+      "cache-type-v" = "q8_0";
       "temperature" = "0.6";
       "top-p" = "0.95";
       "top-k" = "20";
