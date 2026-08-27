@@ -218,7 +218,7 @@
       # Baked-in NextN/MTP layer acts as draft model (bartowski quants include it).
       # Experiment on llama.cpp b10649: n-max 1 is the only depth that wins upstream.
       "spec-type" = "draft-mtp";
-      "spec-draft-n-max" = "1";
+      "spec-draft-n-max" = "2";
       "cache-prompt" = "false";
     };
   };
