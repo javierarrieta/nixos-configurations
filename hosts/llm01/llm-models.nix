@@ -198,7 +198,7 @@
   # };
 "Ling-3.0-flash" = {
     modelId = "AtomicChat/Ling-3.0-flash-GGUF";
-    filename = "Ling-3.0-flash-AD-IQ4_XXS-00001-of-00002.gguf";
+    filename = "AD-IQ4_XXS/Ling-3.0-flash-AD-IQ4_XXS-00001-of-00002.gguf";
     extraProperties = {
       "alias" = "Ling-3.0,quality,slow";
       "flash-attn" = "on";
