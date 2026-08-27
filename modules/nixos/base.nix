@@ -25,5 +25,10 @@
 
     boot.supportedFilesystems = [ "nfs" ];
     services.rpcbind.enable = true;
+
+    nix.settings.experimental-features = [
+      "nix-command"
+      "flakes"
+    ];
   };
 }

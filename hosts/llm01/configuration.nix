@@ -223,10 +223,6 @@ in
 
   # Nix settings
   nix.settings = {
-    experimental-features = [
-      "nix-command"
-      "flakes"
-    ];
     download-buffer-size = 536870912;
   };
   nixpkgs.config.allowUnfree = true;

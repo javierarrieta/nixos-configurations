@@ -46,6 +46,8 @@
         iptables
         lsof
         binutils
+        jq
+        yq
       ]) config.systemPackages.excludePackages
       ++ config.systemPackages.extraPackages;
   };
