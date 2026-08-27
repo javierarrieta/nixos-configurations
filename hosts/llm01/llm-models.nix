@@ -216,10 +216,9 @@
       "ubatch-size" = "1024";
       "load-mode" = "mlock";
       # Baked-in NextN/MTP layer acts as draft model (bartowski quants include it).
-      # DISABLED: draft-mtp is a net slowdown on Vulkan for this arch upstream
-      # (bench: 41 t/s plain vs ~8 t/s with spec); revisit when kernels mature.
-      # "spec-type" = "draft-mtp";
-      # "spec-draft-n-max" = "4";
+      # Experiment on llama.cpp b10649: n-max 1 is the only depth that wins upstream.
+      "spec-type" = "draft-mtp";
+      "spec-draft-n-max" = "1";
       "cache-prompt" = "false";
     };
   };
