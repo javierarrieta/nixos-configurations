@@ -770,12 +770,14 @@ that `/run/current-system` matches the switched generation's `out_path`.
 on `:8001`, with a warmup retry for model reloads). Auto-heal (restore route
 from the SOPS `network_env` / restart k3s) and on persistent failure roll back
 the comin profile (`/nix/var/nix/profiles/system-profiles/comin`, NOT
-`nixos-rebuild --rollback`) and suspend comin. On `COMIN_STATUS=failed` it
-heals (route from SOPS `network_env`, k3s reset/start), then retries the
-generation once (`comin deployment submit-latest`, bounded by the flag file
-`/var/lib/comin-health-gate/failed-retry-pending`); it suspends comin only
-if the retry fails again. Note: after a rollback `deployer.deployment.status` stays
-`"done"` — the approve script detects rollback via `is_suspended`, not status.
+`nixos-rebuild --rollback`) and suspend comin — on k3s hosts only (llm01 checks
+only current-system+llama-cpp, so its failed-branch heal is a no-op). On
+`COMIN_STATUS=failed` it heals (route from SOPS `network_env`, k3s reset/start),
+then retries the generation once (`comin deployment submit-latest`, bounded by
+the flag file `/var/lib/comin-health-gate/failed-retry-pending`); it suspends
+comin only if the retry fails again. Note: after a rollback
+`deployer.deployment.status` stays `"done"` — the approve script detects
+rollback via `is_suspended`, not status.
 
 Metric: `comin_pending_confirmation` is written to
 `/var/lib/node-exporter/textfiles/comin.prom` every 60s and scraped by the

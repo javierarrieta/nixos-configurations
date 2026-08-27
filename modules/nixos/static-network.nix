@@ -118,14 +118,8 @@ in
       text = ''
         if [ -f "${envFile}" ]; then
           . "${envFile}"
-          ${lib.optionalString
-            (isPlaceholder config.staticNetwork.defaultGateway)
-            "${pkgs.iproute2}/bin/ip route replace default via \"$DEFAULT_GATEWAY\" dev ${iface}"
-          }
-          ${lib.optionalString
-            (lib.any isPlaceholder config.staticNetwork.nameservers)
-            "rm -f /etc/resolv.conf\nprintf \"nameserver %s\\nnameserver %s\\n\" \"$DNS1\" \"$DNS2\" > /etc/resolv.conf"
-          }
+          ${lib.optionalString (isPlaceholder config.staticNetwork.defaultGateway) "${pkgs.iproute2}/bin/ip route replace default via \"$DEFAULT_GATEWAY\" dev ${iface}"}
+          ${lib.optionalString (lib.any isPlaceholder config.staticNetwork.nameservers) "rm -f /etc/resolv.conf\nprintf \"nameserver %s\\nnameserver %s\\n\" \"$DNS1\" \"$DNS2\" > /etc/resolv.conf"}
         fi
       '';
     };
