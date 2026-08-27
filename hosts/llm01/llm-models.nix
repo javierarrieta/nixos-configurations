@@ -196,7 +196,7 @@
   #     "chat-template-kwargs" = "{\"reasoning_effort\": \"low\"}";
   #   };
   # };
-"Ling-3.0-flash" = {
+  "Ling-3.0-flash" = {
     modelId = "bartowski/Ling-3.0-flash-GGUF";
     filename = "Ling-3.0-flash-IQ4_XS/Ling-3.0-flash-IQ4_XS-00001-of-00002.gguf";
     extraProperties = {
@@ -214,6 +214,11 @@
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "load-mode" = "mlock";
+      # Baked-in NextN/MTP layer acts as draft model (bartowski quants include it).
+      # Note: Vulkan had a reported MTP hang (ggml_vk_wait_for_fence) upstream;
+      # if it stalls, drop these two lines or add --no-spec-draft-backend-sampling.
+      "spec-type" = "draft-mtp";
+      "spec-draft-n-max" = "4";
       "cache-prompt" = "false";
     };
   };
