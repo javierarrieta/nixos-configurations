@@ -200,7 +200,7 @@
     modelId = "AtomicChat/Ling-3.0-flash-GGUF";
     filename = "AD-IQ4_XXS.gguf";
     extraProperties = {
-      "alias" = "Ling-3.0-flash,fast,small";
+      "alias" = "Ling-3.0,quality,slow";
       "flash-attn" = "on";
       "ctx-size" = "131072";
       "parallel" = "1";
