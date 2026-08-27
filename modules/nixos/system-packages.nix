@@ -44,6 +44,8 @@
         rsyslog
         tpm2-tss
         iptables
+        lsof
+        binutils
       ]) config.systemPackages.excludePackages
       ++ config.systemPackages.extraPackages;
   };

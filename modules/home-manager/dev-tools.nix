@@ -38,6 +38,8 @@ in
       kubernetes-helm
       scala-cli
       pstree
+      lsof
+      binutils
       nodejs_24
       gh
       bun
