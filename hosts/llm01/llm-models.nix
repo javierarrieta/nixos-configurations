@@ -152,7 +152,6 @@
       "ctx-size" = "102400";
       "parallel" = "2";
       "cont-batching" = "true";
-      "ctx-shift" = "true";
       "cache-type-k" = "q5_1";
       "cache-type-v" = "q5_1";
       "temperature" = "0.6";
@@ -209,7 +208,6 @@
       "ctx-size" = "102400";
       "parallel" = "2";
       "cont-batching" = "true";
-      "ctx-shift" = "true";
       # Hybrid/recurrent arch rejects different K vs V cache quants
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q8_0";

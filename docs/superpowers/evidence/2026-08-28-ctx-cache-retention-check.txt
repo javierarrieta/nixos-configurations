@@ -15,3 +15,15 @@ prompt caches warm across requests.
 
 If the pinned llama.cpp is later upgraded, re-check this flag and add
 `serverArgs = [ "--ctx-cache-retention" ];` if present.
+
+# ctx-shift preset key check (Task 6 follow-up, 2026-08-28)
+
+Deploying `ctx-shift = true` per-model on b10649 crash-looped the server:
+
+```
+llama_server: failed to initialize router models: option 'ctx-shift' not recognized in preset 'Ling-3.0-flash'
+```
+
+Strict preset validation rejects unknown keys — fatal exit. `ctx-shift`
+removed from both large models. `cont-batching = true` kept (recognized).
+Same re-check applies on any llama.cpp upgrade.
