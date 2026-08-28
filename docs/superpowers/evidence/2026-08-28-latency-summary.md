@@ -59,3 +59,41 @@ persist.
 
 Decision owner: if Ornith recovers, keep threads 8/8. The threads-1
 recommendation is recorded here as measured-worse for this backend.
+
+## Round 2 — threads 8/8 restored (final config)
+
+Config: threads 8/8, 100k ctx, parallel 2, cont-batching, env vars, aliases.
+
+### Ling-3.0-flash
+
+| Metric      | Baseline | Round 1 (t1) | Round 2 (t8) | Delta vs base | Verdict |
+|-------------|---------:|-------------:|-------------:|---------------|---------|
+| TTFT p50    | 1229     | 961          | 929          | -24.4%        | better  |
+| TTFT p95    | 1392     | 1140         | 1097         | -21.2%        | better  |
+| Total p50   | 3332     | 3858         | 3220         | -3.4%         | better  |
+| Total p95   | 3817     | 4396         | 3835         | +0.5%         | equal   |
+| Eff.tps p50 | 67.6     | 66.3         | 68.9         | +2.0%         | equal   |
+
+### Ornith-1.5-35B
+
+| Metric      | Baseline | Round 1 (t1) | Round 2 (t8) | Delta vs base | Verdict |
+|-------------|---------:|-------------:|-------------:|---------------|---------|
+| TTFT p50    | 376      | 493          | 413          | +9.8%         | worse   |
+| TTFT p95    | 444      | 572          | 486          | +9.5%         | worse   |
+| Total p50   | 3096     | 4420         | 3309         | +6.9%         | worse   |
+| Total p95   | 3223     | 4896         | 6674         | +107%         | worse (tail) |
+| Eff.tps p50 | 98.6     | 68.8         | 92.4         | -6.3%         | ~equal  |
+
+## Conclusion
+
+- **Ling (the agent default)**: strict improvement — TTFT -24%, total -3%,
+  throughput flat. Primary win of the whole exercise.
+- **Ornith**: ~6-10% single-stream cost — the price of `parallel 2` slot
+  reservation at 100k ctx. That cost buys 2 concurrent sessions without
+  queueing. Total p95 tail (6674ms) suggests occasional slot contention;
+  if it bothers, `parallel 1` on Ornith is a one-line revert.
+- threads 1/1 (external recommendation) measured strictly worse on this
+  Vulkan/MoE backend — reverted to 8/8 and encoded as module options.
+
+Deploy state: feature branch `feat/llm-agent-latency`, comin suspended on
+llm01. Merge to `main` resumes canary auto-deploy.
