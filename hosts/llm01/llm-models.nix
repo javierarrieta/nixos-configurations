@@ -3,7 +3,7 @@
     modelId = "unsloth/Qwen3.5-2B-GGUF";
     filename = "Qwen3.5-2B-Q4_K_M.gguf";
     extraProperties = {
-      "alias" = "agent-fast";
+      "alias" = "Qwen-3.5-2B";
       "flash-attn" = "on";
       "ctx-size" = "8192";
       "reasoning-budget" = "-1";
@@ -33,7 +33,7 @@
     modelId = "mradermacher/Mellum-4b-base-GGUF";
     filename = "Mellum-4b-base.Q4_K_M.gguf";
     extraProperties = {
-      "alias" = "mellum,agent-fast";
+      "alias" = "mellum";
       "flash-attn" = "on";
       "ctx-size" = "8192";
       "n-predict" = "128";

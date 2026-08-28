@@ -27,3 +27,10 @@ llama_server: failed to initialize router models: option 'ctx-shift' not recogni
 Strict preset validation rejects unknown keys — fatal exit. `ctx-shift`
 removed from both large models. `cont-batching = true` kept (recognized).
 Same re-check applies on any llama.cpp upgrade.
+
+# Duplicate alias check (Task 6 follow-up 2, 2026-08-28)
+
+llama.cpp router requires alias values to be unique across presets. Giving
+`agent-fast` to Qwen3.5-2B, Mellum-4B AND Qwen3.5-4B broke router init.
+Fix: `agent-fast` -> Qwen3.5-4B only; Qwen3.5-2B alias = `Qwen-3.5-2B`,
+Mellum alias = `mellum`.

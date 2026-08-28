@@ -179,7 +179,11 @@ serving stack.
 
 | Tier | Alias | Models | Use case |
 |------|-------|--------|----------|
-| Fast/Small | `agent-fast` | Qwen3.5-2B, Qwen3.5-4B, Mellum-4B | tool calls, file reads, quick commands, short prompts |
+| Fast/Small | `agent-fast` | Qwen3.5-4B | tool calls, file reads, quick commands, short prompts |
+
+Alias values must be unique across all presets — one alias maps to exactly
+one model. The small models keep their own name aliases (`Qwen-3.5-2B`,
+`Qwen-3.5-4B`, `mellum`); `agent-fast` points at Qwen3.5-4B.
 | Fast/Large | `agent` | Ling-3.0-flash (127B, IQ4_XS, draft-mtp) | default agent brain — complex reasoning at speed |
 | Accurate/Large | `agent-quality` | Ornith-1.5-35B (Q5_K_M), candidate: Qwen3.8-27B | quality-critical: architecture, deep debugging |
 

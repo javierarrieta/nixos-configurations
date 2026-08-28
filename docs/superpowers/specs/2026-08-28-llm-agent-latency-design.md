@@ -138,7 +138,12 @@ INI preset). Tier taxonomy and aliases:
 
 | Tier | Alias | Models | Use case |
 |------|-------|--------|----------|
-| Fast/Small | `agent-fast` | Qwen3.5-2B, Qwen3.5-4B, Mellum-4B | tool calls, file reads, quick commands, short prompts |
+| Fast/Small | `agent-fast` | Qwen3.5-4B | tool calls, file reads, quick commands, short prompts |
+
+**Constraint:** llama.cpp requires alias values to be unique across all
+presets — one alias maps to exactly one model. Each small model keeps its own
+name alias (`Qwen-3.5-2B`, `Qwen-3.5-4B`, `mellum`); the tier alias
+`agent-fast` points at Qwen3.5-4B (strongest of the three, 140k ctx).
 | Fast/Large | `agent` | Ling-3.0-flash (127B, IQ4_XS, draft-mtp) | default agent brain — complex reasoning at speed |
 | Accurate/Large | `agent-quality` | Ornith-1.5-35B (Q5_K_M), candidate: Qwen3.8-27B | quality-critical: architecture, deep debugging |
 
