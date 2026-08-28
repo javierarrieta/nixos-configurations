@@ -166,3 +166,57 @@ sudo systemd-cryptenroll /dev/mapper/disk0-llm
 ```
 
 **Note**: TPM2 auto-unlock requires the same hardware and firmware configuration as when the key was enrolled. Changing hardware or firmware updates may require re-enrollment.
+
+## Agent Routing Tiers
+
+A single llama.cpp server serves several models; clients pick one by setting the
+`model` parameter to an alias. The aliases live in
+`hosts/llm01/llm-models.nix` as INI `alias` lists. Routing is client-side — the
+server just maps the alias to a model — so adding a tier never changes the
+serving stack.
+
+### Tiers
+
+| Tier | Alias | Models | Use case |
+|------|-------|--------|----------|
+| Fast/Small | `agent-fast` | Qwen3.5-2B, Qwen3.5-4B, Mellum-4B | tool calls, file reads, quick commands, short prompts |
+| Fast/Large | `agent` | Ling-3.0-flash (127B, IQ4_XS, draft-mtp) | default agent brain — complex reasoning at speed |
+| Accurate/Large | `agent-quality` | Ornith-1.5-35B (Q5_K_M), candidate: Qwen3.8-27B | quality-critical: architecture, deep debugging |
+
+Existing aliases (`default`, `opencode`, `hermes`, `multimodal`, …) are left
+untouched, so anything pointed at a model name keeps working.
+
+### Context policy
+
+`modules/nixos/llama-cpp-agent.nix` writes `/etc/llm-agent/context-policy.json`.
+This is the contract between the server and any agent frontend (opencode, hermes):
+
+```json
+{
+  "maxHistoryTurns": 20,
+  "summarizeAfterTurns": 10,
+  "systemPromptCache": true,
+  "batchToolCalls": true
+}
+```
+
+- **`maxHistoryTurns` (20)** — sliding window: never re-inject more than this
+  many raw turns into the context; older turns are summarized to a single block.
+- **`summarizeAfterTurns` (10)** — after this many raw turns the client compacts
+  the history, keeping per-turn prompt size (and cost) down.
+- **`systemPromptCache` (true)** — the agent role definition is sent
+  byte-for-byte every turn so llama.cpp's prompt cache can reuse it.
+- **`batchToolCalls` (true)** — when a model emits multiple independent tool
+  calls, the client runs them and returns them in one round-trip.
+
+### Example config
+
+The host wires the serving stack through the module options only:
+
+```nix
+  services.llamaCppAgent = {
+    enable = true;
+    package = llamaPkgs.vulkan;
+    models = import ./llm-models.nix;
+  };
+```
