@@ -179,6 +179,9 @@
     enable = true;
     package = llamaPkgs.vulkan;
     models = import ./llm-models.nix;
+    # benchmark 2026-08-28: threads 1 regressed Ornith (MoE A3B) throughput 30%
+    threads = 8;
+    threadsBatch = 8;
   };
 
   # Nix settings

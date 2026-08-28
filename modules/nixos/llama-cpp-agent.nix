@@ -85,14 +85,23 @@ in
       description = "Extra environment vars for llama-cpp-server";
     };
 
+    threads = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 1;
+      description = "llama-server --threads (generation threads). Vulkan does the math on the APU; keep low to avoid stalls.";
+    };
+
+    threadsBatch = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 1;
+      description = "llama-server --threads-batch (prompt ingestion threads).";
+    };
+
     serverArgs = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [
         "--offline"
         "-ngl 99"
-        # Vulkan does the math on the APU; extra CPU threads only add stalls
-        "--threads 1"
-        "--threads-batch 1"
         "--log-verbosity 2"
         "--load-mode mlock"
         "--flash-attn on"
@@ -146,16 +155,15 @@ in
   config = lib.mkIf cfg.enable {
     networking.firewall.allowedTCPPorts = [ cfg.listen.port ];
 
-    systemd.tmpfiles.rules =
-      [
-        "d ${cfg.stateDir} 0755 ${cfg.user} ${cfg.group} -"
-        "d ${cfg.stateDir}/models 0755 ${cfg.user} ${cfg.group} -"
-        "d ${cfg.stateDir}/models/llama-cpp 0755 ${cfg.user} ${cfg.group} -"
-        "Z ${cfg.stateDir} - ${cfg.user} ${cfg.group} -"
-      ]
-      ++ lib.optionals cfg.metrics.enable [
-        "d ${cfg.metrics.textfileDir} 0755 root root -"
-      ];
+    systemd.tmpfiles.rules = [
+      "d ${cfg.stateDir} 0755 ${cfg.user} ${cfg.group} -"
+      "d ${cfg.stateDir}/models 0755 ${cfg.user} ${cfg.group} -"
+      "d ${cfg.stateDir}/models/llama-cpp 0755 ${cfg.user} ${cfg.group} -"
+      "Z ${cfg.stateDir} - ${cfg.user} ${cfg.group} -"
+    ]
+    ++ lib.optionals cfg.metrics.enable [
+      "d ${cfg.metrics.textfileDir} 0755 root root -"
+    ];
 
     # Download llama.cpp models from HuggingFace
     systemd.services.llama-cpp-download-models = {
@@ -185,8 +193,7 @@ in
                 filename = m.filename;
                 mmproj = m.mmproj;
                 modelDraft = m.modelDraft;
-                modelDraftModelId =
-                  if m.modelDraftModelId != null then m.modelDraftModelId else modelId;
+                modelDraftModelId = if m.modelDraftModelId != null then m.modelDraftModelId else modelId;
                 matchSplit = builtins.match "(.*)-[0-9]+-of-[0-9]+\\.gguf" filename;
                 downloadArgs =
                   if matchSplit != null then
@@ -235,7 +242,9 @@ in
                 [${entry-name}]
                 model = ${cfg.stateDir}/models/llama-cpp/${m.filename}
                 ${lib.optionalString (m.mmproj != null) "mmproj = ${cfg.stateDir}/models/llama-cpp/${m.mmproj}"}
-                ${lib.optionalString (m.modelDraft != null) "model-draft = ${cfg.stateDir}/models/llama-cpp/${m.modelDraft}"}
+                ${lib.optionalString (
+                  m.modelDraft != null
+                ) "model-draft = ${cfg.stateDir}/models/llama-cpp/${m.modelDraft}"}
                 ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value: "${key} = ${value}") extraProperties)}
               ''
             ) cfg.models
@@ -271,6 +280,8 @@ in
             "--port ${toString cfg.listen.port}"
             "--host ${cfg.listen.host}"
             "--models-preset ${cfg.stateDir}/llama-cpp.ini"
+            "--threads ${toString cfg.threads}"
+            "--threads-batch ${toString cfg.threadsBatch}"
           ]
           ++ cfg.serverArgs
         );
