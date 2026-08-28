@@ -1,0 +1,18 @@
+{
+  "model": "Ling-3.0-flash",
+  "rounds": 10,
+  "turns_per_round": 5,
+  "ttft_p50_ms": 1228.7754935023258,
+  "ttft_p95_ms": 1391.8591199981165,
+  "ttft_mean_ms": 1230.526574919786,
+  "total_p50_ms": 3331.9704300010926,
+  "total_p95_ms": 3817.4754479987314,
+  "total_mean_ms": 3409.271251819737,
+  "effective_tps_p50": 67.55514920571443,
+  "effective_tps_p95": 102.68094502682786,
+  "effective_tps_mean": 71.18522467135156,
+  "token_latency_p50_ms": 0.03453899626038037,
+  "token_latency_p95_ms": 44.39418300171383,
+  "caveat": "effective_tps counts characters, not tokens; valid for A/B comparison, not absolute.",
+  "source": "http://host.containers.internal:8001 (llama.cpp, host gateway)"
+}

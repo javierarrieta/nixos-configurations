@@ -343,6 +343,7 @@ async def run_benchmark(
                         f"TTFT: {result.ttft_ms:.0f}ms | Total: {result.total_ms:.0f}ms | "
                         f"Tokens: {result.tokens} | Eff.tps: {result.effective_tps:.1f}",
                         flush=True,
+                        file=sys.stderr,
                     )
 
     elif provider == "llamacpp" or (provider == "auto" and model.startswith("llama.cpp")):
@@ -361,6 +362,7 @@ async def run_benchmark(
                         f"TTFT: {result.ttft_ms:.0f}ms | Total: {result.total_ms:.0f}ms | "
                         f"Tokens: {result.tokens} | Eff.tps: {result.effective_tps:.1f}",
                         flush=True,
+                        file=sys.stderr,
                     )
 
     elif provider == "openai" or (provider == "auto" and model.startswith("openai://")):
@@ -380,6 +382,7 @@ async def run_benchmark(
                         f"TTFT: {result.ttft_ms:.0f}ms | Total: {result.total_ms:.0f}ms | "
                         f"Tokens: {result.tokens} | Eff.tps: {result.effective_tps:.1f}",
                         flush=True,
+                        file=sys.stderr,
                     )
 
     else:
