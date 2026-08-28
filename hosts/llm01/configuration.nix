@@ -8,10 +8,6 @@
   home-manager,
   ...
 }:
-let
-  models = import ./llm-models.nix;
-  llamaPackage = llamaPkgs.vulkan;
-in
 {
   imports = [
     # Hardware
@@ -30,6 +26,7 @@ in
     ../../modules/nixos/comin-health-gate.nix
     ../../modules/nixos/coder-host.nix
     ../../modules/nixos/openiscsi.nix
+    ../../modules/nixos/llama-cpp-agent.nix
 
     # Users
     ../../common/users.nix
@@ -177,49 +174,12 @@ in
     '';
   };
 
-  # llama.cpp server service
-  systemd.services.llama-cpp-server = {
-    description = "llama-cpp server";
-    wantedBy = [ "multi-user.target" ];
-    after = [
-      "network.target"
-      "llama-cpp-config.service"
-    ];
-    requires = [ "llama-cpp-config.service" ];
-    restartTriggers = [ (builtins.toJSON models) ];
-    environment = {
-      XDG_CACHE_HOME = "/var/cache/llama.cpp";
-      # HSA_* vars were ROCm-only; this service runs the Vulkan backend so they
-      # don't apply. coopmat FA shader path is buggy/slow on gfx1151 (Strix Halo)
-      # at deep context; fall back to scalar FA which is still much faster than FA-off.
-      GGML_VK_DISABLE_COOPMAT = "1";
-    };
-    serviceConfig = {
-      Type = "simple";
-      User = "ollama";
-      Group = "ollama";
-      # Allows the GPU to lock system RAM for direct access
-      LimitMEMLOCK = "infinity";
-      WorkingDirectory = "/opt/llm/models";
-      CacheDirectory = "llama.cpp";
-      ExecStart = "${llamaPackage}/bin/llama-server --port 8001 --host 0.0.0.0 --models-preset /opt/llm/llama-cpp.ini --offline -ngl 99 --threads 8 --log-verbosity 2 --load-mode mlock --flash-attn on --ctx-checkpoints 0 --fit on --cont-batching --cache-prompt --cache-reuse 256 --metrics";
-      Restart = "on-failure";
-      RestartSec = "5s";
-    };
+  # llama.cpp serving stack (options in modules/nixos/llama-cpp-agent.nix)
+  services.llamaCppAgent = {
+    enable = true;
+    package = llamaPkgs.vulkan;
+    models = import ./llm-models.nix;
   };
-
-  # Watch llama-cpp config file for changes
-  systemd.paths.llama-cpp-config-watch = {
-    description = "Watch llama-cpp config file for changes";
-    wantedBy = [ "multi-user.target" ];
-    pathConfig = {
-      PathModified = "/opt/llm/llama-cpp.ini";
-      Unit = "llama-cpp-server.service";
-    };
-  };
-
-  # Firewall
-  networking.firewall.allowedTCPPorts = [ 8001 ];
 
   # Nix settings
   nix.settings = {
@@ -227,104 +187,6 @@ in
   };
   nixpkgs.config.allowUnfree = true;
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "open-webui" ];
-
-  # Tempfiles
-  systemd.tmpfiles.rules = [
-    "d /opt/llm 0755 ollama ollama -"
-    "d /opt/llm/models 0755 ollama ollama -"
-    "d /opt/llm/models/llama-cpp 0755 ollama ollama -"
-    "Z /opt/llm - ollama ollama -"
-  ];
-
-  # Download llama.cpp models from HuggingFace
-  systemd.services.llama-cpp-download-models = {
-    description = "Download llama-cpp models from HuggingFace";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "network.target" ];
-    restartTriggers = [ (builtins.toJSON models) ];
-    serviceConfig = {
-      Type = "oneshot";
-      User = "ollama";
-      Group = "ollama";
-      WorkingDirectory = "/opt/llm/models/llama-cpp";
-      ReadWritePaths = [ "/opt/llm/models/llama-cpp" ];
-      Environment = [
-        "HOME=/opt/llm/models"
-        "XDG_CACHE_HOME=/opt/llm/models/.cache"
-      ];
-      PrivateTmp = false;
-      NoNewPrivileges = false;
-      ExecStart = pkgs.writeShellScript "download-models" ''
-        ${lib.concatStrings (
-          lib.mapAttrsToList (
-            entry-name: config:
-            let
-              modelId = config.modelId;
-              mmprojModelId = config.mmprojModelId or modelId;
-              filename = config.filename;
-              mmproj = config.mmproj or null;
-              modelDraft = config.modelDraft or null;
-              modelDraftModelId = config.modelDraftModelId or modelId;
-              matchSplit = builtins.match "(.*)-[0-9]+-of-[0-9]+\\.gguf" filename;
-              downloadArgs =
-                if matchSplit != null then
-                  "--include ${builtins.head matchSplit}-*-of-*.gguf"
-                else
-                  "\"${filename}\"";
-            in
-            ''
-              echo "Downloading ${entry-name} from ${modelId}..."
-              ${pkgs.python3Packages.huggingface-hub}/bin/hf download "${modelId}" ${downloadArgs} --local-dir /opt/llm/models/llama-cpp --repo-type model
-              ${lib.optionalString (mmproj != null) ''
-                echo "Downloading mmproj for ${entry-name}..."
-                ${pkgs.python3Packages.huggingface-hub}/bin/hf download "${mmprojModelId}" "${mmproj}" --local-dir /opt/llm/models/llama-cpp --repo-type model
-              ''}
-              ${lib.optionalString (modelDraft != null) ''
-                echo "Downloading model-draft for ${entry-name}..."
-                ${pkgs.python3Packages.huggingface-hub}/bin/hf download "${modelDraftModelId}" "${modelDraft}" --local-dir /opt/llm/models/llama-cpp --repo-type model
-              ''}
-            ''
-          ) models
-        )}
-      '';
-    };
-  };
-
-  # Generate llama.cpp config file
-  systemd.services.llama-cpp-config = {
-    description = "Generate llama-cpp config file";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "llama-cpp-download-models.service" ];
-    requires = [ "llama-cpp-download-models.service" ];
-    restartTriggers = [ (builtins.toJSON models) ];
-    serviceConfig = {
-      Type = "oneshot";
-      User = "ollama";
-      Group = "ollama";
-      ExecStart = pkgs.writeShellScript "generate-config" ''
-        cat > /opt/llm/llama-cpp.ini <<EOF
-        ${lib.concatStrings (
-          lib.mapAttrsToList (
-            entry-name: config:
-            let
-              filename = config.filename;
-              mmproj = config.mmproj or null;
-              modelDraft = config.modelDraft or null;
-              extraProperties = config.extraProperties or { };
-            in
-            ''
-              [${entry-name}]
-              model = /opt/llm/models/llama-cpp/${filename}
-              ${lib.optionalString (mmproj != null) "mmproj = /opt/llm/models/llama-cpp/${mmproj}"}
-              ${lib.optionalString (modelDraft != null) "model-draft = /opt/llm/models/llama-cpp/${modelDraft}"}
-              ${lib.concatStringsSep "\n" (lib.mapAttrsToList (key: value: "${key} = ${value}") extraProperties)}
-            ''
-          ) models
-        )}
-        EOF
-      '';
-    };
-  };
 
   system.stateVersion = "25.11";
 }
