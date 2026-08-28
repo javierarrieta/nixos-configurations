@@ -1,0 +1,17 @@
+# ctx-cache-retention flag check (Task 4 / Layer 1)
+
+- Command: `llama-server --help 2>&1 | grep -i "cache-retention"`
+- Build: `nix/store/zssffabb3sab3qi7kcrv1v3bpj5bm2r6-llama-cpp-vulkan-0.0.0/bin/llama-server`
+- Result: **NOT FOUND** — no `--ctx-cache-retention` flag on the pinned build.
+- Broader grep (`cache|retention|keep|slot`) also returned nothing: the pinned
+  llama.cpp does not expose any per-slot cache-retention control.
+
+## Decision
+
+Skipped `--ctx-cache-retention`. The spec permits skipping when the flag is
+absent. No `serverArgs` override added. Retention between turns still happens
+via `--cache-reuse 256` (already enabled) and `--cache-prompt`, which keep
+prompt caches warm across requests.
+
+If the pinned llama.cpp is later upgraded, re-check this flag and add
+`serverArgs = [ "--ctx-cache-retention" ];` if present.
