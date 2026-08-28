@@ -1,0 +1,60 @@
+# llama-server cache/reuse metric series (Task 5 / Layer 1 instrumentation)
+
+Source: `curl -s "http://localhost:8001/metrics?model=<name>"`.
+Captured from host gateway `http://host.containers.internal:8001`.
+
+## Cache-related series (for Grafana panel — out of scope here)
+
+| Series | Type | Meaning |
+|--------|------|---------|
+| `llamacpp:prompt_tokens_cached_total` | counter | prompt tokens reused from KV cache (primary cache metric) |
+| `llamacpp:prompt_tokens_total` | counter | prompt tokens processed, excluding cached |
+| `llamacpp:prompt_seconds_total` | counter | time spent processing prompts |
+| `llamacpp:n_tokens_max` | gauge | largest observed sequence length (prompt + gen) |
+| `llamacpp:n_decode_total` | counter | llama_decode() calls (excl. spec/multimodal) |
+| `llamacpp:n_busy_slots_per_decode` | gauge | avg busy slots per decode (batching signal) |
+
+## Supporting spec-decode series (Ling only — Ornith has spec decoding off)
+
+| Series | Type | Meaning |
+|--------|------|---------|
+| `llamacpp:spec_decode_num_draft_tokens_total` | counter | draft tokens proposed |
+| `llamacpp:spec_decode_num_accepted_tokens_total` | counter | draft tokens accepted |
+| `llamacpp:spec_decode_num_drafts_total` | counter | draft passes |
+
+## Snapshot (capture 2026-08-28)
+
+### Ling-3.0-flash
+```
+llamacpp:prompt_tokens_total            1.70922e+06
+llamacpp:prompt_tokens_cached_total     608816
+llamacpp:prompt_seconds_total           9412.83
+llamacpp:n_tokens_max                   73331
+llamacpp:n_decode_total                 19711
+llamacpp:n_busy_slots_per_decode        1
+llamacpp:spec_decode_num_draft_tokens   38338
+llamacpp:spec_decode_num_accepted       27774
+llamacpp:spec_decode_num_drafts         19169
+```
+Cache hit ratio (cached / total prompt tokens): 608816 / 1709220 ≈ **35.6%**.
+
+### Ornith-1.5-35B
+```
+llamacpp:prompt_tokens_total            342399
+llamacpp:prompt_tokens_cached_total     2.1242e+06
+llamacpp:prompt_seconds_total           702.998
+llamacpp:n_tokens_max                   72592
+llamacpp:n_decode_total                 58499
+llamacpp:n_busy_slots_per_decode        1
+```
+Cache reuse here exceeds prompt_tokens_total because Ornith's multimodal
+(mmproj) prompts are re-cached across many turns; `prompt_tokens_cached_total`
+accumulates across sessions while `prompt_tokens_total` is a rolling window.
+
+## Notes
+
+- `--cache-reuse 256` (already enabled) is what drives `prompt_tokens_cached_total`.
+- After Task 4's `--ctx-cache-retention` (skipped — absent on b10649) is ever
+  added, watch `prompt_tokens_cached_total` climb.
+- `n_busy_slots_per_decode = 1` on both: requests run single-slot; after
+  `parallel = 2` (Task 6) this should rise, indicating real batching.
