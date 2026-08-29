@@ -136,11 +136,12 @@ in
         "setupSecrets.service"
       ];
       wants = [ "network.target" ];
+      wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         Type = "simple";
         Restart = "always";
         RestartSec = "10s";
-        ExecStart = "${pkgs.bash}/bin/bash -c 'while true; do ${pkgs.iproute2}/bin/ip route replace default via \"$DEFAULT_GATEWAY\" dev ${iface} 2>/dev/null; sleep 10; done'";
+        ExecStart = "${pkgs.bash}/bin/bash -c 'while true; do ${pkgs.iproute2}/bin/ip route replace default via \"$DEFAULT_GATEWAY\" dev ${iface} 2>/dev/null; ${pkgs.coreutils}/bin/sleep 10; done'";
         EnvironmentFile = config.sops.secrets."${config.networking.hostName}/network_env".path;
       };
     };

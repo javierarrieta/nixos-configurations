@@ -70,7 +70,7 @@ let
         rollback_and_suspend "llama-cpp-server unhealthy"
         exit 0
       fi
-      sleep 5; i=$((i + 5))
+      ${pkgs.coreutils}/bin/sleep 5; i=$((i + 5))
     done
   '';
 
@@ -86,7 +86,7 @@ let
       ${pkgs.coreutils}/bin/rm -rf /etc/iscsi/nodes /etc/iscsi/send_targets
       ${pkgs.coreutils}/bin/mkdir -p /etc/iscsi/nodes /etc/iscsi/send_targets
       ${pkgs.systemd}/bin/systemctl start iscsid.service iscsid.socket
-      sleep 5
+      ${pkgs.coreutils}/bin/sleep 5
     fi
     if ! ${pkgs.openiscsi}/bin/iscsiadm -m node >/dev/null 2>&1; then
       rollback_and_suspend "iscsi unhealthy after heal"
