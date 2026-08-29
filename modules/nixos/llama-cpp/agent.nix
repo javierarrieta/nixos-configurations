@@ -76,8 +76,6 @@ in
       default = { };
       description = "Host-specific GPU/driver env (e.g. Strix Halo vars)";
     };
-      description = "Extra environment vars for llama-cpp-server";
-    };
 
     threads = lib.mkOption {
       type = lib.types.ints.positive;
