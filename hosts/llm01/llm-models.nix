@@ -174,7 +174,7 @@
   #   filename = "Qwen3.8-27B-Q6_K.gguf";
   #   mmproj = "mmproj-F16.gguf";
   #   extraProperties = {
-  #     "alias" = "Qwen-3.8-27B,qwen-current,quality,slow";
+  #     "alias" = "Qwen-3.8-27B,qwen-current,quality,slow,agent-quality-large";
   #     "ctx-size" = "131072";
   #     # With parallel=2, each slot gets 65536 (131072/2 = 65536 after padding).
   #     # --parallel 16 would split into 8K/slot, causing tools to reject model.
