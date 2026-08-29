@@ -174,18 +174,12 @@
     '';
   };
 
-  # llama.cpp serving stack (options in modules/nixos/llama-cpp-agent.nix)
+  # llama.cpp serving stack (options in modules/nixos/llama-cpp/agent.nix)
   services.llamaCppAgent = {
     enable = true;
     package = llamaPkgs.vulkan;
     models = import ./llm-models.nix;
-    # benchmark 2026-08-28: threads 1 regressed Ornith (MoE A3B) throughput 30%
-    # Large-context agent benchmark: 60k+ floor, cache enforced
-    serverArgs = [
-      "--cache-prompt"
-      "-c" "65536"
-      "-np" "1"
-    ];
+    serverArgs = [ ];
     threads = 8;
     threadsBatch = 8;
     environment = {

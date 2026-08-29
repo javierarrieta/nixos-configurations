@@ -22,9 +22,9 @@
       "alias" = "Qwen-3.5-4B,fast,4B,agent-fast";
       "parallel" = "1";
       "flash-attn" = "on";
-      "ctx-size" = "140000";
+      "ctx-size" = "80000";
       "cache-type-k" = "q8_0";
-      "cache-type-v" = "q5_0";
+      "cache-type-v" = "q8_0";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
     };
@@ -149,7 +149,7 @@
     extraProperties = {
       "alias" = "default,ornith-current,multimodal,agent,hermes,opencode";
       "flash-attn" = "on";
-      "ctx-size" = "102400";
+      "ctx-size" = "160000";
       "parallel" = "2";
       "cont-batching" = "true";
       "cache-type-k" = "q8_0";
@@ -163,7 +163,7 @@
       # "spec-draft-n-max" = "4";
       # "spec-draft-n-min" = "1";
       "batch-size" = "4096";
-      "ubatch-size" = "1024";
+      "ubatch-size" = "4096";
       "load-mode" = "mlock";
       "image-min-tokens" = "1024";
       "cache-prompt" = "false"; # <-- Prevents cache fragmentation locks
@@ -205,8 +205,8 @@
     extraProperties = {
       "alias" = "Ling-3.0,quality,long-horizon,agent-quality";
       "flash-attn" = "on";
-      "ctx-size" = "102400";
-      "parallel" = "2";
+      "ctx-size" = "80000";
+      "parallel" = "1";
       "cont-batching" = "true";
       # Hybrid/recurrent arch rejects different K vs V cache quants
       "cache-type-k" = "q8_0";
@@ -217,7 +217,7 @@
       "min-p" = "0.0";
       "repeat-penalty" = "1.0";
       "batch-size" = "4096";
-      "ubatch-size" = "1024";
+      "ubatch-size" = "4096";
       "load-mode" = "mlock";
       # Baked-in NextN/MTP layer acts as draft model (bartowski quants include it).
       # Experiment on llama.cpp b10649: n-max 1 is the only depth that wins upstream.

@@ -192,7 +192,7 @@ untouched, so anything pointed at a model name keeps working.
 
 ### Context policy
 
-`modules/nixos/llama-cpp-agent.nix` writes `/etc/llm-agent/context-policy.json`.
+`modules/nixos/llama-cpp/agent.nix` writes `/etc/llm-agent/context-policy.json`.
 This is the contract between the server and any agent frontend (opencode, hermes):
 
 ```json

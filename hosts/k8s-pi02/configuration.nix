@@ -5,7 +5,6 @@
   unstable,
   unstablepkgs,
   home-manager,
-  llama-cpp,
   ...
 }:
 let
