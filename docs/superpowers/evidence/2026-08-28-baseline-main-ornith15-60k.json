@@ -1,0 +1,38 @@
+{
+  "model": "Ornith-1.5-35B",
+  "endpoint": "http://host.containers.internal:8001/v1/chat/completions",
+  "http_client": "urllib",
+  "stream": true,
+  "target_system_tokens": 8000,
+  "rounds": [
+    {
+      "round": 1,
+      "turn_1": {
+        "wall_total_ms": 11091.6,
+        "wall_ttft_ms": 9061.32,
+        "prompt_n": 7959,
+        "prompt_ms": 9014.02,
+        "prompt_per_second": 882.96,
+        "cache_n": 0,
+        "predicted_n": 128,
+        "predicted_ms": 2030.23,
+        "predicted_per_second": 62.55
+      },
+      "turn_2": {
+        "wall_total_ms": 11228.41,
+        "wall_ttft_ms": 9173.74,
+        "prompt_n": 8043,
+        "prompt_ms": 9161.71,
+        "prompt_per_second": 877.89,
+        "cache_n": 0,
+        "predicted_n": 128,
+        "predicted_ms": 2054.71,
+        "predicted_per_second": 61.81
+      },
+      "total_e2e_ms": 22320.01,
+      "cache_retained": false,
+      "prefill_speedup": 0.98,
+      "ttft_speedup": 0.99
+    }
+  ]
+}

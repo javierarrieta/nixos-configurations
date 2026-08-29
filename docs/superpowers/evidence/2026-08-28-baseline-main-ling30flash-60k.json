@@ -1,0 +1,38 @@
+{
+  "model": "Ling-3.0-flash",
+  "endpoint": "http://host.containers.internal:8001/v1/chat/completions",
+  "http_client": "urllib",
+  "stream": true,
+  "target_system_tokens": 8000,
+  "rounds": [
+    {
+      "round": 1,
+      "turn_1": {
+        "wall_total_ms": 22026.42,
+        "wall_ttft_ms": 19476.01,
+        "prompt_n": 8015,
+        "prompt_ms": 19063.55,
+        "prompt_per_second": 420.44,
+        "cache_n": 0,
+        "predicted_n": 128,
+        "predicted_ms": 2550.45,
+        "predicted_per_second": 49.8
+      },
+      "turn_2": {
+        "wall_total_ms": 22214.67,
+        "wall_ttft_ms": 19632.51,
+        "prompt_n": 8090,
+        "prompt_ms": 19614.19,
+        "prompt_per_second": 412.46,
+        "cache_n": 0,
+        "predicted_n": 128,
+        "predicted_ms": 2582.04,
+        "predicted_per_second": 49.19
+      },
+      "total_e2e_ms": 44241.09,
+      "cache_retained": false,
+      "prefill_speedup": 0.97,
+      "ttft_speedup": 0.99
+    }
+  ]
+}
