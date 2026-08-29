@@ -527,8 +527,8 @@ def main():
     parser.add_argument(
         "--target-tokens",
         type=int,
-        default=3000,
-        help="Approximate token count for system prompt tools (default: 3000)",
+        default=8000,
+        help="Approximate token count for system prompt tools (default: 8000 for 60k+ context)",
     )
     parser.add_argument(
         "--max-tokens",
