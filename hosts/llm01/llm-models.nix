@@ -184,6 +184,18 @@
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "load-mode" = "mlock";
+      "temperature" = "1.0";
+      "top-p" = "0.95";
+      "top-k" = "20";
+      "min-p" = "0.0";
+      "presence-penalty" = "0.0";
+      "repeat-penalty" = "1.0";
+      "spec-type" = "draft-mtp";
+      "spec-draft-n-max" = "6";
+      "spec-draft-p-min" = "0.80";
+      "image-min-tokens" = "1024";
+      "cache-prompt" = "true";
+      "chat-template-kwargs" = "{\"reasoning_effort\": \"low\"}";
     };
   };
   # Ling-3.0-flash disabled to free memory for Qwen3.8-27B benchmark
