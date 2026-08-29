@@ -313,6 +313,7 @@
         }
         // (mkExtraArgs "aarch64-linux");
         modules = [
+          { nixpkgs.hostPlatform.system = "aarch64-linux"; }
           ./hosts/k8s-pi01
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
@@ -328,6 +329,7 @@
         }
         // (mkExtraArgs "aarch64-linux");
         modules = [
+          { nixpkgs.hostPlatform.system = "aarch64-linux"; }
           ./hosts/k8s-pi01/minimal-image.nix
           comin.nixosModules.comin
         ];
@@ -340,6 +342,7 @@
         }
         // (mkExtraArgs "aarch64-linux");
         modules = [
+          { nixpkgs.hostPlatform.system = "aarch64-linux"; }
           ./hosts/k8s-pi02
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
@@ -355,6 +358,7 @@
         }
         // (mkExtraArgs "aarch64-linux");
         modules = [
+          { nixpkgs.hostPlatform.system = "aarch64-linux"; }
           ./hosts/k8s-pi02/minimal-image.nix
           comin.nixosModules.comin
         ];
@@ -367,6 +371,7 @@
         }
         // (mkExtraArgs "aarch64-linux");
         modules = [
+          { nixpkgs.hostPlatform.system = "aarch64-linux"; }
           ./hosts/k8s-pi03
           sops-nix.nixosModules.sops
           home-manager.nixosModules.home-manager
@@ -382,6 +387,7 @@
         }
         // (mkExtraArgs "aarch64-linux");
         modules = [
+          { nixpkgs.hostPlatform.system = "aarch64-linux"; }
           ./hosts/k8s-pi03/minimal-image.nix
           comin.nixosModules.comin
         ];
@@ -391,6 +397,7 @@
         (self.nixosConfigurations.k8s-pi01.extendModules {
 
           modules = [
+          { nixpkgs.hostPlatform.system = "aarch64-linux"; }
 
             { nixpkgs.buildPlatform.system = "x86_64-linux"; }
 
@@ -423,6 +430,7 @@
         (self.nixosConfigurations.k8s-pi01.extendModules {
 
           modules = [
+          { nixpkgs.hostPlatform.system = "aarch64-linux"; }
 
             "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
 
@@ -493,6 +501,7 @@
         (self.nixosConfigurations.k8s-pi02-minimal.extendModules {
 
           modules = [
+          { nixpkgs.hostPlatform.system = "aarch64-linux"; }
 
             {
               networking.hostName = "k8s-pi02";
@@ -541,6 +550,7 @@
         (self.nixosConfigurations.k8s-pi03.extendModules {
 
           modules = [
+          { nixpkgs.hostPlatform.system = "aarch64-linux"; }
 
             {
               networking.hostName = "k8s-pi03";
@@ -577,3 +587,4 @@
       formatter.aarch64-darwin = nixpkgs.legacyPackages.aarch64-darwin.nixfmt-tree;
     };
 }
+

@@ -1,6 +1,8 @@
 { config, lib, ... }:
 {
-  services.llama-cpp-metrics = {
-    enable = true;
+  config = {
+    services.llama-cpp-metrics = {
+      enable = true;
+    };
   };
 }
