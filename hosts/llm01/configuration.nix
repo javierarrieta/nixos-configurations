@@ -26,7 +26,7 @@
     ../../modules/nixos/comin-health-gate.nix
     ../../modules/nixos/coder-host.nix
     ../../modules/nixos/openiscsi.nix
-    ../../modules/nixos/llama-cpp-agent.nix
+    ../../modules/nixos/llama-cpp/agent.nix
 
     # Users
     ../../common/users.nix
