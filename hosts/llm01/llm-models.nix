@@ -152,8 +152,8 @@
       "ctx-size" = "102400";
       "parallel" = "2";
       "cont-batching" = "true";
-      "cache-type-k" = "q5_1";
-      "cache-type-v" = "q5_1";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
       "temperature" = "0.6";
       "top-p" = "0.95";
       "top-k" = "20";
