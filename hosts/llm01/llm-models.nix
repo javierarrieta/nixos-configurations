@@ -147,7 +147,7 @@
     mmprojModelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
     mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
     extraProperties = {
-      "alias" = "default,ornith-current,multimodal,agent-quality";
+      "alias" = "default,ornith-current,multimodal,agent,hermes,opencode";
       "flash-attn" = "on";
       "ctx-size" = "102400";
       "parallel" = "2";
@@ -203,7 +203,7 @@
     modelId = "bartowski/Ling-3.0-flash-GGUF";
     filename = "Ling-3.0-flash-IQ4_XS/Ling-3.0-flash-IQ4_XS-00001-of-00002.gguf";
     extraProperties = {
-      "alias" = "Ling-3.0,opencode,hermes,quality,slow,agent";
+      "alias" = "Ling-3.0,quality,long-horizon,agent-quality";
       "flash-attn" = "on";
       "ctx-size" = "102400";
       "parallel" = "2";
