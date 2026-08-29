@@ -303,6 +303,8 @@ in
     # cluster Prometheus picks up cache/reuse series (spec: Layer 1 instrumentation)
     systemd.services.llama-cpp-metrics = lib.mkIf cfg.metrics.enable {
       description = "Scrape llama.cpp Prometheus metrics into textfile collector dir";
+      after = [ "llama-cpp-server.service" ];
+      requires = [ "llama-cpp-server.service" ];
       serviceConfig = {
         Type = "oneshot";
         ExecStart = pkgs.writeShellScript "llama-cpp-metrics" ''
@@ -324,7 +326,7 @@ in
       description = "Periodically scrape llama.cpp metrics";
       wantedBy = [ "timers.target" ];
       timerConfig = {
-        OnBootSec = "60s";
+        OnBootSec = "300s";
         OnUnitActiveSec = "60s";
         AccuracySec = "5s";
       };
