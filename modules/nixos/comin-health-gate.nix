@@ -115,7 +115,7 @@ let
     fi
   '';
 
-  healthGate = pkgs.writeShellScript "comin-health-gate" healthGateText;
+  healthGate = pkgs.writeShellScriptBin "comin-health-gate" healthGateText;
   healthGateText = ''
     set -u
     LOG=/var/log/comin-health-gate.log
