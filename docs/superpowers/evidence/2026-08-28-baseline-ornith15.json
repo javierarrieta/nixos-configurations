@@ -1,0 +1,18 @@
+{
+  "model": "Ornith-1.5-35B",
+  "rounds": 10,
+  "turns_per_round": 5,
+  "ttft_p50_ms": 376.0198974996456,
+  "ttft_p95_ms": 444.3316019969643,
+  "ttft_mean_ms": 383.90402309945785,
+  "total_p50_ms": 3095.594224996603,
+  "total_p95_ms": 3222.986807995767,
+  "total_mean_ms": 2861.542454580049,
+  "effective_tps_p50": 98.64029101784278,
+  "effective_tps_p95": 108.15461384479069,
+  "effective_tps_mean": 96.30394432617932,
+  "token_latency_p50_ms": 15.124543999263551,
+  "token_latency_p95_ms": 15.589396993163973,
+  "caveat": "effective_tps counts characters, not tokens; valid for A/B comparison, not absolute.",
+  "source": "http://host.containers.internal:8001 (llama.cpp, host gateway)"
+}

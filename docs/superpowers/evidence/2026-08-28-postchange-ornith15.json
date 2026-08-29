@@ -1,0 +1,16 @@
+{
+  "model": "llama.cpp",
+  "rounds": 10,
+  "turns_per_round": 5,
+  "ttft_p50_ms": 493.1629255042935,
+  "ttft_p95_ms": 572.3111989937024,
+  "ttft_mean_ms": 506.9072950001282,
+  "total_p50_ms": 4419.764554000722,
+  "total_p95_ms": 4896.382770995842,
+  "total_mean_ms": 4139.11478997994,
+  "effective_tps_p50": 68.77646352947943,
+  "effective_tps_p95": 94.5507715482942,
+  "effective_tps_mean": 70.1453611047947,
+  "token_latency_p50_ms": 21.811066995724104,
+  "token_latency_p95_ms": 23.26612500473857
+}

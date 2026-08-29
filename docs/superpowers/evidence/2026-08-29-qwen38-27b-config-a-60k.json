@@ -1,0 +1,38 @@
+{
+  "model": "Qwen3.8-27B",
+  "endpoint": "http://host.containers.internal:8001/v1/chat/completions",
+  "http_client": "urllib",
+  "stream": true,
+  "target_system_tokens": 8000,
+  "rounds": [
+    {
+      "round": 1,
+      "turn_1": {
+        "wall_total_ms": 52404.01,
+        "wall_ttft_ms": 45401.98,
+        "prompt_n": 7985,
+        "prompt_ms": 45220.74,
+        "prompt_per_second": 176.58,
+        "cache_n": 0,
+        "predicted_n": 128,
+        "predicted_ms": 7001.67,
+        "predicted_per_second": 18.14
+      },
+      "turn_2": {
+        "wall_total_ms": 9824.09,
+        "wall_ttft_ms": 1549.58,
+        "prompt_n": 94,
+        "prompt_ms": 1537.02,
+        "prompt_per_second": 61.16,
+        "cache_n": 7981,
+        "predicted_n": 128,
+        "predicted_ms": 8274.12,
+        "predicted_per_second": 15.35
+      },
+      "total_e2e_ms": 62228.1,
+      "cache_retained": true,
+      "prefill_speedup": 29.42,
+      "ttft_speedup": 29.3
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+# ctx-cache-retention flag check (Task 4 / Layer 1)
+
+- Command: `llama-server --help 2>&1 | grep -i "cache-retention"`
+- Build: `nix/store/zssffabb3sab3qi7kcrv1v3bpj5bm2r6-llama-cpp-vulkan-0.0.0/bin/llama-server`
+- Result: **NOT FOUND** — no `--ctx-cache-retention` flag on the pinned build.
+- Broader grep (`cache|retention|keep|slot`) also returned nothing: the pinned
+  llama.cpp does not expose any per-slot cache-retention control.
+
+## Decision
+
+Skipped `--ctx-cache-retention`. The spec permits skipping when the flag is
+absent. No `serverArgs` override added. Retention between turns still happens
+via `--cache-reuse 256` (already enabled) and `--cache-prompt`, which keep
+prompt caches warm across requests.
+
+If the pinned llama.cpp is later upgraded, re-check this flag and add
+`serverArgs = [ "--ctx-cache-retention" ];` if present.
+
+# ctx-shift preset key check (Task 6 follow-up, 2026-08-28)
+
+Deploying `ctx-shift = true` per-model on b10649 crash-looped the server:
+
+```
+llama_server: failed to initialize router models: option 'ctx-shift' not recognized in preset 'Ling-3.0-flash'
+```
+
+Strict preset validation rejects unknown keys — fatal exit. `ctx-shift`
+removed from both large models. `cont-batching = true` kept (recognized).
+Same re-check applies on any llama.cpp upgrade.
+
+# Duplicate alias check (Task 6 follow-up 2, 2026-08-28)
+
+llama.cpp router requires alias values to be unique across presets. Giving
+`agent-fast` to Qwen3.5-2B, Mellum-4B AND Qwen3.5-4B broke router init.
+Fix: `agent-fast` -> Qwen3.5-4B only; Qwen3.5-2B alias = `Qwen-3.5-2B`,
+Mellum alias = `mellum`.

@@ -3,6 +3,7 @@
     modelId = "unsloth/Qwen3.5-2B-GGUF";
     filename = "Qwen3.5-2B-Q4_K_M.gguf";
     extraProperties = {
+      "alias" = "Qwen-3.5-2B";
       "flash-attn" = "on";
       "ctx-size" = "8192";
       "reasoning-budget" = "-1";
@@ -18,7 +19,7 @@
     modelId = "unsloth/Qwen3.5-4B-GGUF";
     filename = "Qwen3.5-4B-Q4_K_M.gguf";
     extraProperties = {
-      "alias" = "Qwen-3.5-4B,fast,4B";
+      "alias" = "Qwen-3.5-4B,fast,4B,agent-fast";
       "parallel" = "1";
       "flash-attn" = "on";
       "ctx-size" = "140000";
@@ -32,6 +33,7 @@
     modelId = "mradermacher/Mellum-4b-base-GGUF";
     filename = "Mellum-4b-base.Q4_K_M.gguf";
     extraProperties = {
+      "alias" = "mellum";
       "flash-attn" = "on";
       "ctx-size" = "8192";
       "n-predict" = "128";
@@ -145,12 +147,13 @@
     mmprojModelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
     mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
     extraProperties = {
-      "alias" = "default,ornith-current,multimodal";
+      "alias" = "default,ornith-current,multimodal,agent-quality";
       "flash-attn" = "on";
-      "ctx-size" = "131072";
-      "parallel" = "1";
-      "cache-type-k" = "q5_1";
-      "cache-type-v" = "q5_1";
+      "ctx-size" = "102400";
+      "parallel" = "2";
+      "cont-batching" = "true";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
       "temperature" = "0.6";
       "top-p" = "0.95";
       "top-k" = "20";
@@ -171,7 +174,7 @@
   #   filename = "Qwen3.8-27B-Q6_K.gguf";
   #   mmproj = "mmproj-F16.gguf";
   #   extraProperties = {
-  #     "alias" = "Qwen-3.8-27B,qwen-current,quality,slow";
+  #     "alias" = "Qwen-3.8-27B,qwen-current,quality,slow,agent-quality-large";
   #     "ctx-size" = "131072";
   #     # With parallel=2, each slot gets 65536 (131072/2 = 65536 after padding).
   #     # --parallel 16 would split into 8K/slot, causing tools to reject model.
@@ -200,10 +203,11 @@
     modelId = "bartowski/Ling-3.0-flash-GGUF";
     filename = "Ling-3.0-flash-IQ4_XS/Ling-3.0-flash-IQ4_XS-00001-of-00002.gguf";
     extraProperties = {
-      "alias" = "Ling-3.0,opencode,hermes,quality,slow";
+      "alias" = "Ling-3.0,opencode,hermes,quality,slow,agent";
       "flash-attn" = "on";
-      "ctx-size" = "131072";
-      "parallel" = "1";
+      "ctx-size" = "102400";
+      "parallel" = "2";
+      "cont-batching" = "true";
       # Hybrid/recurrent arch rejects different K vs V cache quants
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q8_0";
