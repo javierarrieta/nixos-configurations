@@ -179,7 +179,6 @@
     enable = true;
     package = llamaPkgs.vulkan;
     models = import ./llm-models.nix;
-    serverArgs = [ ];
     threads = 8;
     threadsBatch = 8;
     environment = {
