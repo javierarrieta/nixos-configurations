@@ -350,6 +350,17 @@ async def run_benchmark(
         model_name = model_name or model.replace("llama.cpp://", "").replace("llama.cpp", "")
         base_url = base_url or "http://localhost:8080"
         async with aiohttp.ClientSession() as session:
+            # Unmetered warm-up (not counted in results)
+            try:
+                async with session.post(
+                    f"{base_url}/v1/chat/completions",
+                    json={"model": model_name, "messages": [{"role":"user","content":"warmup"}], "max_tokens": 5, "stream": False},
+                    timeout=aiohttp.ClientTimeout(total=180)
+                ) as resp:
+                    await resp.read()
+                print("  Warm-up complete (unmetered).", flush=True, file=sys.stderr)
+            except Exception as e:
+                print(f"  Warm-up skipped: {e}", flush=True, file=sys.stderr)
             for round_num in range(rounds):
                 for turn in range(turns_per_round):
                     context_tokens = turn * 50
