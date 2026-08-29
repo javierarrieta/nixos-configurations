@@ -147,7 +147,7 @@
     mmprojModelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
     mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
     extraProperties = {
-      "alias" = "default,ornith-current,multimodal,agent-quality";
+      "alias" = "default,ornith-current,multimodal";
       "flash-attn" = "on";
       "ctx-size" = "102400";
       "parallel" = "2";
