@@ -188,6 +188,11 @@
     ];
     threads = 8;
     threadsBatch = 8;
+    environment = {
+      GGML_VK_DISABLE_COOPMAT = "1";
+      GGML_VK_VISIBLE_DEVICES = "0";
+      RADV_PERFTEST = "nogttspill";
+    };
   };
 
   # Nix settings

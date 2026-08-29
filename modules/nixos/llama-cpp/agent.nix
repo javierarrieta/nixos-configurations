@@ -73,15 +73,9 @@ in
 
     environment = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;
-      default = {
-        # coopmat FA shader path is buggy/slow on gfx1151 (Strix Halo) at deep
-        # context; scalar FA is still much faster than FA-off.
-        GGML_VK_DISABLE_COOPMAT = "1";
-        # Explicitly bind to the 8060S APU
-        GGML_VK_VISIBLE_DEVICES = "0";
-        # Keep the KV cache inside the GTT partition (no spill)
-        RADV_PERFTEST = "nogttspill";
-      };
+      default = { };
+      description = "Host-specific GPU/driver env (e.g. Strix Halo vars)";
+    };
       description = "Extra environment vars for llama-cpp-server";
     };
 
