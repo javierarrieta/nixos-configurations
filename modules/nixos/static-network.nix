@@ -123,5 +123,26 @@ in
         fi
       '';
     };
+
+    # The network-runtime-config oneshot only fires on fresh boots (it is
+    # WantedBy network.target which is already active during a switch).
+    # The activation script above runs on every activation but can still miss
+    # the route mid-switch. A persistent watchdog is the only reliable
+    # self-heal: it restores the route no matter when or why it is lost.
+    systemd.services.network-route-watch = lib.mkIf useRuntimeConfig {
+      description = "Self-heal default route if lost during nixos-rebuild switch";
+      after = [
+        "network.target"
+        "setupSecrets.service"
+      ];
+      wants = [ "network.target" ];
+      serviceConfig = {
+        Type = "simple";
+        Restart = "always";
+        RestartSec = "10s";
+        ExecStart = "${pkgs.bash}/bin/bash -c 'while true; do ${pkgs.iproute2}/bin/ip route replace default via \"$DEFAULT_GATEWAY\" dev ${iface} 2>/dev/null; sleep 10; done'";
+        EnvironmentFile = config.sops.secrets."${config.networking.hostName}/network_env".path;
+      };
+    };
   };
 }
