@@ -396,6 +396,18 @@ tooling that has no value on a worker node:
    `systemctl stop comin` → kill `nixos-rebuild` → kill the reparented `nix build`
    process → `pkill -9` any lingering `make -j4`/`cc1` (these run under the *nix
    daemon* sandbox and survive killing the client).
+   **Afterwards clean the abandoned build sandboxes** (incident 2026-08-29,
+   k8s-pi02): the surviving sandbox dirs under `/nix/var/nix/builds` are NOT
+   garbage — `nix-collect-garbage` never touches them, and a killed kernel build
+   can leave ~78G behind (pi02's root fs hit 96G/118G with only 9.6G in the
+   actual store). Cleanup once no `nixbld`/`make`/`cc1` processes remain:
+   ```bash
+   ps aux | grep -E 'nixbld|cc1|make' | grep -v grep
+   sudo find /nix/var/nix/builds -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+   df -h /
+   ```
+   Diagnostic shortcut: if `/nix` is huge but `/nix/store` is small, it's
+   `/nix/var/nix/builds`, not garbage: `sudo du -xsh /nix/var/nix/builds`.
 3. **Fresh worker switches drop the default route** mid-activation despite the
    `network-runtime` ordering fix. Keep the gateway watchdog running through every
    build + switch:
