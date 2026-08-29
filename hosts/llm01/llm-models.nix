@@ -169,61 +169,50 @@
       "cache-prompt" = "false"; # <-- Prevents cache fragmentation locks
     };
   };
-  # "Qwen3.8-27B" = {
-  #   modelId = "unsloth/Qwen3.8-27B-GGUF";
-  #   filename = "Qwen3.8-27B-Q6_K.gguf";
-  #   mmproj = "mmproj-F16.gguf";
-  #   extraProperties = {
-  #     "alias" = "Qwen-3.8-27B,qwen-current,quality,slow";
-  #     "ctx-size" = "131072";
-  #     # With parallel=2, each slot gets 65536 (131072/2 = 65536 after padding).
-  #     # --parallel 16 would split into 8K/slot, causing tools to reject model.
-  #     "parallel" = "1";
-  #     "flash-attn" = "on";
-  #     "cache-type-k" = "q8_0";
-  #     "cache-type-v" = "q5_0";
-  #     "temperature" = "1.0";
-  #     "top-p" = "0.95";
-  #     "top-k" = "20";
-  #     "min-p" = "0.0";
-  #     "presence-penalty" = "0.0";
-  #     "repeat-penalty" = "1.0";
-  #     "spec-type" = "draft-mtp";
-  #     "spec-draft-n-max" = "6";
-  #     "spec-draft-p-min" = "0.80";
-  #     "batch-size" = "4096";
-  #     "ubatch-size" = "1024";
-  #     "load-mode" = "mlock";
-  #     "image-min-tokens" = "1024";
-  #     "cache-prompt" = "false"; # <-- Prevents cache fragmentation locks
-  #     "chat-template-kwargs" = "{\"reasoning_effort\": \"low\"}";
-  #   };
-  # };
-  "Ling-3.0-flash" = {
-    modelId = "bartowski/Ling-3.0-flash-GGUF";
-    filename = "Ling-3.0-flash-IQ4_XS/Ling-3.0-flash-IQ4_XS-00001-of-00002.gguf";
+  "Qwen3.8-27B" = {
+    modelId = "unsloth/Qwen3.8-27B-GGUF";
+    filename = "Qwen3.8-27B-Q6_K.gguf";
+    mmproj = "mmproj-F16.gguf";
     extraProperties = {
-      "alias" = "Ling-3.0,opencode,hermes,quality,slow,agent";
-      "flash-attn" = "on";
+      "alias" = "Qwen-3.8-27B,qwen-current,quality,slow,agent-quality";
       "ctx-size" = "102400";
       "parallel" = "2";
       "cont-batching" = "true";
-      # Hybrid/recurrent arch rejects different K vs V cache quants
+      "flash-attn" = "on";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q8_0";
-      "temperature" = "0.6";
-      "top-p" = "0.95";
-      "top-k" = "20";
-      "min-p" = "0.0";
-      "repeat-penalty" = "1.0";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "load-mode" = "mlock";
-      # Baked-in NextN/MTP layer acts as draft model (bartowski quants include it).
-      # Experiment on llama.cpp b10649: n-max 1 is the only depth that wins upstream.
-      "spec-type" = "draft-mtp";
-      "spec-draft-n-max" = "2";
-      "cache-prompt" = "false";
     };
   };
+  # Ling-3.0-flash disabled to free memory for Qwen3.8-27B benchmark
+  # "Ling-3.0-flash" = {
+  #   modelId = "bartowski/Ling-3.0-flash-GGUF";
+  #   filename = "Ling-3.0-flash-IQ4_XS/Ling-3.0-flash-IQ4_XS-00001-of-00002.gguf";
+  #     extraProperties = {
+  #       "alias" = "Ling-3.0,opencode,hermes,quality,slow,agent";
+  #       "flash-attn" = "on";
+  #       "ctx-size" = "102400";
+  #       "parallel" = "2";
+  #       "cont-batching" = "true";
+  #       # Hybrid/recurrent arch rejects different K vs V cache quants
+  #       "cache-type-k" = "q8_0";
+  #       "cache-type-v" = "q8_0";
+  #       "temperature" = "0.6";
+  #       "top-p" = "0.95";
+  #       "top-k" = "20";
+  #       "min-p" = "0.0";
+  #       "repeat-penalty" = "1.0";
+  #       "batch-size" = "4096";
+  #       "ubatch-size" = "1024";
+  #       "load-mode" = "mlock";
+  #       # Baked-in NextN/MTP layer acts as draft model (bartowski quants include it).
+  #       # Experiment on llama.cpp b10649: n-max 1 is the only depth that wins upstream.
+  #       "spec-type" = "draft-mtp";
+  #       "spec-draft-n-max" = "2";
+  #       "cache-prompt" = "false";
+  #     };
+  #   };
+  # }
 }
