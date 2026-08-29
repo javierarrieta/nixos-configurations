@@ -188,6 +188,16 @@ let
 in
 {
   config = lib.mkIf config.cominGitOps.healthGate.enable {
-    services.comin.postDeploymentCommand = healthGate;
+    # The gate must live at a CONSTANT path: comin's deployer caches
+    # postDeploymentCommand (a store path) in its yaml at daemon startup and
+    # runs it after every deploy. If the daemon outlives its source
+    # generation (comin keeps only 3 deployment profiles), nix-sweep's GC
+    # deletes that generation's gate copy and the cached path goes dead —
+    # the gate then silently stops running (fork/exec ENOENT, seen
+    # 2026-08-29 on the fleet ring). The system-environment path is
+    # GC-protected by the system profile and always resolves to the
+    # current generation's gate, even when an old daemon deploys it.
+    environment.systemPackages = [ healthGate ];
+    services.comin.postDeploymentCommand = "/run/current-system/sw/bin/comin-health-gate";
   };
 }

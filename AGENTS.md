@@ -816,6 +816,42 @@ Hardening added 2026-08-26:
 - Lesson: any failed switch must be followed by a redeploy **before** nix-sweep's GC
   runs, or expect dangling binaries in per-user/HM profiles.
 
+#### Health-gate ENOENT after GC (incident 2026-08-29, fleet ring)
+
+**Symptom**: deploys report `done` and the switch completes, but comin logs
+`post deployment command [/nix/store/<hash>-comin-health-gate] failed fork/exec ... no
+such file or directory`. The health gate silently stops running — no route/k3s checks,
+no rollback protection. The referenced store path exists nowhere (not even as .drv).
+Hit on k8s-node02/03/04 + server03 on 2026-08-29; canaries (node05, llm01) were spared
+only because their daemons had restarted recently.
+
+**Root cause**: comin's deployer caches `postDeploymentCommand` as a literal store path
+in the daemon's `comin.yaml` **at daemon startup**. Each generation's yaml embeds its
+own copy of the gate; comin keeps only the last 3 deployment profiles, so once the
+daemon's source generation is evicted, nix-sweep's GC deletes that gate copy and the
+daemon keeps exec-ing the dead path until it happens to be restarted.
+
+**Fix** (commit 2026-08-29): `comin-health-gate.nix` installs the gate into the system
+environment and sets `services.comin.postDeploymentCommand = "/run/current-system/sw/bin/comin-health-gate"`
+— a constant path, GC-protected by the system profile, always resolving to the
+*current* generation's gate regardless of daemon age.
+
+**Detection**: `journalctl -u comin | grep "no such file or directory"` and check
+`/var/log/comin-health-gate.log` for recent `health gate OK` entries — a deploy without
+one means the gate did not run.
+
+#### comin-approve.sh "deploy done" is not proof of a switch (2026-08-29)
+
+The gatekeeper's convergence check reads comin's `deployment.status == done`, which
+also reports true for the *previous* deployment when the deployer stalls. After any
+rollout, verify per host that `/run/current-system` actually advanced to the new
+generation's `out_path` (from `comin status --json`, builder section) — or at minimum
+that a new unit introduced by the deploy is present. Also seen 2026-08-29 on
+k8s-node05: a built generation sat undeployed with `generation_to_deploy: null` and no
+suspension; neither `comin suspend`+`resume` nor waiting fixed it —
+`sudo systemctl restart comin` re-triggered the evaluation and the switch landed
+within ~1 min. Use that as the recovery for a stalled deployer.
+
 #### TODO features (not yet implemented)
 - [ ] Alert rule `comin_pending_confirmation > 0` — blocked on enabling Alertmanager.
 - [ ] Pi closure-copy: after package trims, build once on pi01 then
