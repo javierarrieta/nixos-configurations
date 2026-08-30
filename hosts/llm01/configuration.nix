@@ -181,6 +181,7 @@
     models = import ./llm-models.nix;
     threads = 8;
     threadsBatch = 8;
+    metrics.enable = false; # llama-server /metrics requires ?model=$modelId; service doesn't pass it
     environment = {
       GGML_VK_DISABLE_COOPMAT = "1";
       GGML_VK_VISIBLE_DEVICES = "0";
