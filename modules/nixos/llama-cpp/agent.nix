@@ -107,6 +107,12 @@ in
       description = "llama-server flags appended after the port/host/preset flags";
     };
 
+    extraServerArgs = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = "Additional llama-server flags appended after serverArgs";
+    };
+
     models = lib.mkOption {
       type = lib.types.attrsOf (lib.types.submodule modelType);
       default = { };
