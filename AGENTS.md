@@ -256,7 +256,7 @@ yq -y . new.json > file.yaml
 
 ### llama-cpp-metrics Requires `?model=` (2026-08-30)
 
-The `llama-cpp-metrics` service scrapes `http://127.0.0.1:<port>/metrics` but llama-server's Prometheus endpoint requires a `?model=$modelId` query parameter to return per-model metrics. Without it, the scrape returns incomplete data. Disabled on `llm01` (`services.llamaCppAgent.metrics.enable = false`). To fix properly, the service script needs to iterate loaded models and pass each model ID as a query param.
+The `llama-cpp-metrics` service scrapes `http://127.0.0.1:<port>/metrics` but llama-server's Prometheus endpoint requires a `?model=$modelId` query parameter to return per-model metrics. Without it, the scrape returns incomplete data. Fixed by querying `/v1/models` first, then scraping `/metrics?model=<id>` per loaded model and deduplicating HELP/TYPE headers. Disabled on `llm01` (`services.llamaCppAgent.metrics.enable = false`).
 
 ### Longhorn iSCSI Disk Medium Errors (2026-08-26)
 

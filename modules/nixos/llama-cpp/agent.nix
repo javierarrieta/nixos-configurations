@@ -307,15 +307,43 @@ in
         Type = "oneshot";
         ExecStart = pkgs.writeShellScript "llama-cpp-metrics" ''
           set -euo pipefail
+          port="${toString cfg.listen.port}"
+          url="http://127.0.0.1:$port"
+
+          # Fetch loaded model IDs from the OpenAI-compatible models endpoint
+          models_json=$(${pkgs.curl}/bin/curl -fsS --max-time 10 "$url/v1/models") \
+            || { echo "llama.cpp models fetch failed" >&2; exit 1; }
+
+          model_ids=$(echo "$models_json" | ${pkgs.jq}/bin/jq -r '.data[].id') \
+            || { echo "llama.cpp models parse failed" >&2; exit 1; }
+
+          if [ -z "$model_ids" ]; then
+            echo "no loaded models, skipping metrics scrape" >&2
+            exit 0
+          fi
+
+          out="${cfg.metrics.textfileDir}/llama-cpp.prom"
           tmp=$(${pkgs.coreutils}/bin/mktemp)
           trap '${pkgs.coreutils}/bin/rm -f "$tmp"' EXIT
-          if ${pkgs.curl}/bin/curl -fsS --max-time 10 \
-              "http://127.0.0.1:${toString cfg.listen.port}/metrics" -o "$tmp"; then
-            ${pkgs.coreutils}/bin/mv "$tmp" "${cfg.metrics.textfileDir}/llama-cpp.prom"
-          else
-            echo "llama.cpp metrics scrape failed" >&2
-            exit 1
-          fi
+
+          # Scrape per-model metrics; deduplicate HELP/TYPE headers with awk
+          first=true
+          for model_id in $model_ids; do
+            if ${pkgs.curl}/bin/curl -fsS --max-time 10 \
+                "$url/metrics?model=$model_id" -o "$tmp"; then
+              if $first; then
+                ${pkgs.coreutils}/bin/cat "$tmp" > "$out"
+                first=false
+              else
+                ${pkgs.coreutils}/bin/cat "$tmp" | ${pkgs.gawk}/bin/awk '
+                  /^# (HELP|TYPE) / { if (!seen[$0]++) print; next }
+                  { print }
+                ' >> "$out"
+              fi
+            else
+              echo "llama.cpp metrics scrape failed for model $model_id" >&2
+            fi
+          done
         '';
       };
     };
