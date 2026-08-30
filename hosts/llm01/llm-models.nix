@@ -142,7 +142,7 @@
   # };
   "Ornith-1.5-35B" = {
     modelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
-    filename = "Ornith-1.5-35B-Q5_K_M.gguf";
+    filename = "Ornith-1.5-35B-Q6_K.gguf";
     # modelDraft = "mtpdraft-Q8_0.gguf";
     mmprojModelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
     mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
@@ -163,7 +163,7 @@
       # "spec-draft-n-max" = "4";
       # "spec-draft-n-min" = "1";
       "batch-size" = "4096";
-      "ubatch-size" = "4096";
+      "ubatch-size" = "1024";
       "load-mode" = "mlock";
       "image-min-tokens" = "1024";
       "cache-prompt" = "false"; # <-- Prevents cache fragmentation locks
