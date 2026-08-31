@@ -27,6 +27,8 @@
       "cache-type-v" = "q8_0";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
+      "cache-prompt" = "true";
+      "cache-reuse" = "256";
     };
   };
   "Mellum-4B" = {
@@ -223,7 +225,8 @@
       # Experiment on llama.cpp b10649: n-max 1 is the only depth that wins upstream.
       "spec-type" = "draft-mtp";
       "spec-draft-n-max" = "2";
-      "cache-prompt" = "false"; # disabled by server — context type does not support cache_reuse
+      # cache-prompt/cache-reuse handled at server level; Ling's bailingmoe3
+      # architecture (KDA recurrent state) does not support cache_reuse
     };
   };
 }

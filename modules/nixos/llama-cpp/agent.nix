@@ -97,11 +97,9 @@ in
         "--log-verbosity 2"
         "--load-mode mlock"
         "--flash-attn on"
-        "--ctx-checkpoints 0"
+        "--ctx-checkpoints 1"
         "--fit on"
         "--cont-batching"
-        "--cache-prompt"
-        "--cache-reuse 256"
         "--metrics"
       ];
       description = "llama-server flags appended after the port/host/preset flags";
