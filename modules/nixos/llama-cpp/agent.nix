@@ -310,6 +310,20 @@ in
           port="${toString cfg.listen.port}"
           url="http://127.0.0.1:$port"
 
+          # Wait for the server to be ready (handles post-boot race)
+          ready=false
+          for i in $(seq 1 20); do
+            if ${pkgs.curl}/bin/curl -fsS --max-time 5 "$url/v1/models" >/dev/null 2>&1; then
+              ready=true
+              break
+            fi
+            sleep 3
+          done
+          if [ "$ready" != "true" ]; then
+            echo "llama.cpp server not ready after 60s, skipping metrics scrape" >&2
+            exit 0
+          fi
+
           # Fetch loaded model IDs from the OpenAI-compatible models endpoint
           models_json=$(${pkgs.curl}/bin/curl -fsS --max-time 10 "$url/v1/models") \
             || { echo "llama.cpp models fetch failed" >&2; exit 1; }

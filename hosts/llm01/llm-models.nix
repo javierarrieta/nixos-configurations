@@ -140,36 +140,35 @@
   #     "cache-prompt" = "false"; # <-- Prevents cache fragmentation locks
   #   };
   # };
-  "Ornith-1.5-35B" = {
-    modelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
-    filename = "Ornith-1.5-35B-Q6_K.gguf";
-    # modelDraft = "mtpdraft-Q8_0.gguf";
-    mmprojModelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
-    mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
-    extraProperties = {
-      "alias" = "default,ornith-current,multimodal,agent,hermes,opencode";
-      "flash-attn" = "on";
-      "ctx-size" = "160000";
-      "parallel" = "2";
-      "cont-batching" = "true";
-      "cache-type-k" = "q8_0";
-      "cache-type-v" = "q8_0";
-      "temperature" = "0.6";
-      "top-p" = "0.95";
-      "top-k" = "20";
-      "min-p" = "0.0";
-      "presence-penalty" = "0.0";
-      "repeat-penalty" = "1.0";
-      # "spec-draft-n-max" = "4";
-      # "spec-draft-n-min" = "1";
-      "batch-size" = "4096";
-      "ubatch-size" = "1024";
-      "load-mode" = "mlock";
-      "image-min-tokens" = "1024";
-      "cache-prompt" = "true";
-      "cache-reuse" = "1024";
-    };
-  };
+  # "Ornith-1.5-35B" = {
+  #   modelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
+  #   filename = "Ornith-1.5-35B-Q6_K.gguf";
+  #   # modelDraft = "mtpdraft-Q8_0.gguf";
+  #   mmprojModelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
+  #   mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
+  #   extraProperties = {
+  #     "alias" = "default,ornith-current,multimodal,agent,hermes,opencode";
+  #     "flash-attn" = "on";
+  #     "ctx-size" = "40000";
+  #     "parallel" = "1";
+  #     "cont-batching" = "true";
+  #     "cache-type-k" = "q8_0";
+  #     "cache-type-v" = "q8_0";
+  #     "temperature" = "0.6";
+  #     "top-p" = "0.95";
+  #     "top-k" = "20";
+  #     "min-p" = "0.0";
+  #     "presence-penalty" = "0.0";
+  #     "repeat-penalty" = "1.0";
+  #     # "spec-draft-n-max" = "4";
+  #     # "spec-draft-n-min" = "1";
+  #     "batch-size" = "4096";
+  #     "ubatch-size" = "1024";
+  #     "load-mode" = "mlock";
+  #     "image-min-tokens" = "1024";
+  #     "cache-prompt" = "false";
+  #   };
+  # };
   # "Qwen3.8-27B" = {
   #   modelId = "unsloth/Qwen3.8-27B-GGUF";
   #   filename = "Qwen3.8-27B-Q6_K.gguf";
@@ -224,8 +223,7 @@
       # Experiment on llama.cpp b10649: n-max 1 is the only depth that wins upstream.
       "spec-type" = "draft-mtp";
       "spec-draft-n-max" = "2";
-      "cache-prompt" = "true";
-      "cache-reuse" = "1024";
+      "cache-prompt" = "false"; # disabled by server — context type does not support cache_reuse
     };
   };
 }
