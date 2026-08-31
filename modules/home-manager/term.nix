@@ -10,7 +10,6 @@
   home.packages = with pkgs.nerd-fonts; [
     fira-code
     zed-mono
-    iosevka
     jetbrains-mono
   ];
 

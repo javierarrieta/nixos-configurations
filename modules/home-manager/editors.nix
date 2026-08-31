@@ -75,8 +75,6 @@ in
         scalameta.metals
         signageos.signageos-vscode-sops
         ocamllabs.ocaml-platform
-        haskell.haskell
-        justusadam.language-haskell
       ];
     };
   };
