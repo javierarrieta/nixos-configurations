@@ -175,7 +175,7 @@
     modelId = "unsloth/Qwen3.8-27B-GGUF";
     filename = "Qwen3.8-27B-UD-Q6_K.gguf";
     extraProperties = {
-      "alias" = "Qwen-3.8-27B,qwen-current,quality,slow,agent-quality-large";
+      "alias" = "Qwen-3.8-27B,qwen-current,slow,agent-quality-large";
       "ctx-size" = "80000";
       "parallel" = "1";
       "flash-attn" = "on";
