@@ -43,7 +43,7 @@
       "min-p" = "0.0";
       "repeat-penalty" = "1.0";
       "cache-prompt" = "true";
-      "cache-reuse" = "256";
+      "cache-reuse" = "1024";
     };
   };
   # "Qwen3.6-35B" = {
@@ -166,7 +166,8 @@
       "ubatch-size" = "1024";
       "load-mode" = "mlock";
       "image-min-tokens" = "1024";
-      "cache-prompt" = "false"; # <-- Prevents cache fragmentation locks
+      "cache-prompt" = "true";
+      "cache-reuse" = "1024";
     };
   };
   # "Qwen3.8-27B" = {
@@ -223,7 +224,8 @@
       # Experiment on llama.cpp b10649: n-max 1 is the only depth that wins upstream.
       "spec-type" = "draft-mtp";
       "spec-draft-n-max" = "2";
-      "cache-prompt" = "false";
+      "cache-prompt" = "true";
+      "cache-reuse" = "1024";
     };
   };
 }
