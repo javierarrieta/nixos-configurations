@@ -127,50 +127,771 @@ class BenchmarkResults:
 # Session content builders (opencode-style simulation)
 # ---------------------------------------------------------------------------
 
-TOOL_DOCS = [
-    ("bash", "Execute a shell command and return stdout/stderr."),
-    ("read", "Read a file from the workspace. Returns file contents with line numbers."),
-    ("grep", "Search file contents using regular expressions. Returns matching lines."),
-    ("glob", "Find files by name pattern. Returns matching file paths."),
-    ("edit", "Perform exact string replacements in a file."),
-    ("write", "Write content to a file, overwriting if it exists."),
+TOOL_SCHEMAS = [
+    {
+        "name": "bash",
+        "description": "Executes a given bash command and returns stdout/stderr. Use this when you need to run system commands, install packages, check service status, query system state, or perform any terminal operation. Be mindful of security: never run commands that expose secrets or make irreversible changes without explicit user confirmation.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "The bash command to execute. Use absolute paths when possible. Chains and semicolons are allowed. For long-running commands, consider using timeout parameter."
+                },
+                "timeout": {
+                    "type": "integer",
+                    "description": "Optional timeout in milliseconds. Default is 120000 (2 minutes). For builds or tests, set higher (e.g. 600000).",
+                    "default": 120000
+                },
+                "workdir": {
+                    "type": "string",
+                    "description": "Optional working directory to run the command in. Defaults to current workspace root."
+                }
+            },
+            "required": ["command"],
+            "additionalProperties": False
+        }
+    },
+    {
+        "name": "read",
+        "description": "Reads a file from the local filesystem and returns its contents with line numbers. Supports offset and limit for reading large files in sections. Use this to examine source code, configuration files, logs, or any text file. Can also read image files and PDFs.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "filePath": {
+                    "type": "string",
+                    "description": "Absolute path to the file to read."
+                },
+                "offset": {
+                    "type": "integer",
+                    "description": "Line number to start reading from (1-indexed). Use for large files to read specific sections."
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of lines to read. Defaults to 2000. Avoid tiny slices; prefer reading larger windows for context."
+                }
+            },
+            "required": ["filePath"],
+            "additionalProperties": False
+        }
+    },
+    {
+        "name": "grep",
+        "description": "Searches file contents using regular expressions. Returns matching file paths, line numbers, and the matching lines. Use include parameter to filter by file pattern (e.g. '*.nix', '*.ts'). Prefer this over bash grep for codebase searches.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Regex pattern to search for. Supports full regex syntax (e.g. 'log.*Error', 'function\\s+\\w+')."
+                },
+                "include": {
+                    "type": "string",
+                    "description": "Optional file pattern to filter results (e.g. '*.nix', '*.{ts,tsx}')."
+                },
+                "path": {
+                    "type": "string",
+                    "description": "Directory to search in. Defaults to workspace root."
+                }
+            },
+            "required": ["pattern"],
+            "additionalProperties": False
+        }
+    },
+    {
+        "name": "glob",
+        "description": "Finds files matching glob patterns. Returns matching file paths. Use for finding files by name, extension, or directory structure. Supports patterns like '**/*.nix', 'src/components/**/*.tsx'.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Glob pattern to match. Supports ** for recursive matching (e.g. 'modules/**/*.nix')."
+                },
+                "path": {
+                    "type": "string",
+                    "description": "Directory to search in. Defaults to workspace root."
+                }
+            },
+            "required": ["pattern"],
+            "additionalProperties": False
+        }
+    },
+    {
+        "name": "edit",
+        "description": "Performs exact string replacements in files. You MUST read a file before editing it. The oldString must match the file content exactly (including indentation). Use replaceAll to rename variables across a file. Preferred over write for modifying existing files.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "filePath": {
+                    "type": "string",
+                    "description": "Absolute path to the file to modify."
+                },
+                "oldString": {
+                    "type": "string",
+                    "description": "The exact text to replace. Must match the file content precisely, including indentation."
+                },
+                "newString": {
+                    "type": "string",
+                    "description": "The replacement text. Must be different from oldString."
+                },
+                "replaceAll": {
+                    "type": "boolean",
+                    "description": "Replace all occurrences of oldString (default false). Useful for renaming.",
+                    "default": False
+                }
+            },
+            "required": ["filePath", "oldString", "newString"],
+            "additionalProperties": False
+        }
+    },
+    {
+        "name": "write",
+        "description": "Writes content to a file, overwriting if it exists. If editing an existing file, you MUST read it first. Use for creating new files or completely replacing file contents. Prefer edit for modifying existing files.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "filePath": {
+                    "type": "string",
+                    "description": "Absolute path to the file to write."
+                },
+                "content": {
+                    "type": "string",
+                    "description": "The complete file content to write."
+                }
+            },
+            "required": ["filePath", "content"],
+            "additionalProperties": False
+        }
+    },
 ]
 
-WORKSPACE_LINES = [
-    "modules/nixos/base.nix",
-    "modules/nixos/k3s.nix",
-    "modules/nixos/ssh.nix",
-    "modules/nixos/static-network.nix",
-    "hosts/k8s-server01/configuration.nix",
-    "hosts/k8s-node01/configuration.nix",
-    "hosts/llm01/configuration.nix",
-    "flake.nix",
-    "secrets.yaml",
-    "vars.nix",
-]
+
+# Realistic NixOS module content to pad the system prompt to ~15k tokens
+NIXOS_MODULE_EXAMPLES = {
+    "base.nix": '''{ config, pkgs, lib, ... }:
+{
+  networking.hostName = "k8s-server01";
+  networking.useDHCP = false;
+  networking.interfaces.enp3s0.ipv4.addresses = [{
+    address = "192.168.0.10";
+    prefixLength = 24;
+  }];
+  networking.defaultGateway = "192.168.0.1";
+  networking.nameservers = [ "192.168.0.1" "192.168.0.41" ];
+
+  time.timeZone = "Europe/Madrid";
+  i18n.defaultLocale = "en_US.UTF-8";
+
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+  boot.kernelParams = [ "cgroup_no_restrict=1" "overlay.override_cgroup=1" ];
+
+  environment.systemPackages = with pkgs; [
+    vim curl wget git htop tmux jq yq-go
+    kubectl kubernetes-helm stern
+    prometheus-node-exporter
+  ];
+
+  services.openssh = {
+    enable = true;
+    settings = {
+      PermitRootLogin = "prohibit-password";
+      PasswordAuthentication = true;
+    };
+  };
+
+  services.openssh.knownHosts = {
+    "k8s-server02".publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...";
+    "k8s-server03".publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA...";
+  };
+
+  users.users.coder = {
+    isNormalUser = true;
+    extraGroups = [ "wheel" "networkmanager" ];
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG0s..."
+    ];
+  };
+}''',
+    "k3s.nix": '''{ config, pkgs, lib, hostVars, ... }:
+let
+  k3sCfg = hostVars.k3sOptions or {};
+in
+{
+  services.k3s = {
+    enable = true;
+    role = k3sCfg.role or "agent";
+    serverAddr = k3sCfg.serverAddr or "";
+    tokenFile = k3sCfg.tokenFile or null;
+    extraFlags = builtins.concatStringsSep " " (k3sCfg.extraFlags or [
+      "--disable traefik"
+      "--disable servicelb"
+      "--kubelet-arg pod-max-pids=500"
+    ]);
+    clusterInit = k3sCfg.clusterInit or false;
+    controlPlaneEndpoint = k3sCfg.controlPlaneEndpoint or "";
+  };
+
+  environment.systemPackages = with pkgs; [
+    kubectl kubernetes-helm stern
+  ];
+
+  networking.firewall.allowedTCPPorts = [
+    6443   # k3s API server
+    10250  # kubelet
+    2379   # etcd client
+    2380   # etcd peer
+  ];
+
+  boot.kernelParams = [
+    "overlay.override_cgroup=1"
+    "cgroup_no_restrict=1"
+  ];
+
+  systemd.services.k3s = {
+    after = [ "network-online.target" "setupSecrets.service" ];
+    wants = [ "network-online.target" ];
+  };
+}''',
+    "ssh.nix": '''{ config, pkgs, lib, hostVars, ... }:
+let
+  sshOverrides = hostVars.sshOverrides or {};
+in
+{
+  services.openssh = {
+    enable = true;
+    ports = [ 22 ];
+    settings = {
+      PermitRootLogin = "no";
+      PasswordAuthentication = true;
+      X11Forwarding = false;
+      PermitTunnel = false;
+      MaxAuthTries = 3;
+      ClientAliveInterval = 300;
+      ClientAliveCountMax = 2;
+    } // sshOverrides;
+  };
+}''',
+    "static-network.nix": '''{ config, pkgs, lib, hostVars, ... }:
+let
+  iface = hostVars.interface or "enp3s0";
+  networkEnv = config.sops.secrets."${config.networking.hostName}/network_env".path;
+in
+{
+  options.staticNetwork = {
+    interface = lib.mkOption {
+      type = lib.types.str;
+      default = iface;
+      description = "Network interface for static configuration";
+    };
+  };
+
+  config = {
+    networking.interfaces.${iface}.useDHCP = false;
+
+    systemd.services."network-addresses-${iface}" = {
+      description = "Apply static IP from SOPS secret";
+      wantedBy = [ "multi-user.target" ];
+      before = [ "network.target" ];
+      environment = {
+        INTERFACE = iface;
+      };
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        EnvironmentFile = networkEnv;
+        ExecStart = pkgs.writeShellScript "network-addresses-${iface}" ''
+          ip addr add $IP_ADDRESS/24 dev $INTERFACE || true
+          ip link set $INTERFACE up
+        '';
+      };
+    };
+
+    systemd.services."network-runtime-config" = {
+      description = "Apply gateway and DNS from SOPS secret";
+      wantedBy = [ "network.target" ];
+      after = [ "network-addresses-${iface}.service" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        EnvironmentFile = networkEnv;
+        ExecStart = pkgs.writeShellScript "network-runtime-config" ''
+          ip route replace default via $DEFAULT_GATEWAY dev $INTERFACE
+          resolvectl dns $INTERFACE $DNS1 $DNS2 2>/dev/null || true
+        '';
+      };
+    };
+  };
+}''',
+    "prometheus.nix": '''{ config, pkgs, lib, ... }:
+{
+  services.prometheus.exporters.node = {
+    enable = true;
+    port = 9100;
+    enabledCollectors = [
+      "cpu"
+      "diskstats"
+      "filesystem"
+      "hwmon"
+      "loadavg"
+      "meminfo"
+      "netdev"
+      "stat"
+      "time"
+      "uname"
+      "vmstat"
+    ];
+    openFirewall = true;
+  };
+}''',
+    "sops-base.nix": '''{ config, pkgs, lib, ... }:
+{
+  sops.age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+  sops.defaultSopsFile = ./secrets.yaml;
+}''',
+    "openiscsi.nix": '''{ config, pkgs, lib, ... }:
+{
+  services.openiscsi = {
+    enable = true;
+    name = "iqn.2005-10.org.open-iscsi:${config.networking.hostName}";
+  };
+
+  systemd.services.iscsid = {
+    preStart = lib.mkAfter ''
+      # Self-heal stale node DB (open-iscsi 2.1.12 regression)
+      if ! iscsiadm -m node &>/dev/null; then
+        echo "iscsiadm -m node failed, wiping stale node DB"
+        rm -rf /etc/iscsi/nodes /etc/iscsi/send_targets
+        mkdir -p /etc/iscsi/nodes /etc/iscsi/send_targets
+      fi
+    '';
+  };
+
+  systemd.tmpfiles.rules = [
+    "d /run/lock/iscsi 0755 root root -"
+  ];
+}''',
+}
+
+AGENT_INSTRUCTIONS = '''
+## Agent Behavior Rules
+
+You are an autonomous coding agent. Follow these rules strictly:
+
+### Response Format
+- Be concise. Maximum 4 lines of text unless detail is explicitly requested.
+- Use code blocks for commands, file paths, and code references.
+- Reference specific files with the pattern `file_path:line_number`.
+- Never use emojis unless explicitly requested by the user.
+
+### Tool Usage
+- ALWAYS prefer reading files over guessing contents.
+- Use glob/grep to find files before reading them.
+- When editing, read the file first to understand context.
+- For bash commands, explain what the command does if it modifies the system.
+- Use absolute paths for all file operations.
+- Never commit changes unless explicitly asked.
+
+### Code Style
+- Follow existing code conventions in the repository.
+- Use 2-space indentation for Nix files.
+- Use let...in for local variables.
+- Prefer inherit (pkgs) ... for brevity.
+- No comments unless asked.
+
+### Safety
+- Never expose or log secrets and keys.
+- Never commit secrets to the repository.
+- Always verify sops secrets are encrypted before committing.
+- Ask before running destructive commands (rm -rf, DROP TABLE, etc.).
+
+### Debugging
+- When encountering errors, search for error messages in logs first.
+- Check system status before proposing fixes.
+- Verify changes work before moving to the next task.
+- Run lint/typecheck commands after code changes.
+
+### File Operations
+- Edit existing files instead of writing new ones when possible.
+- Preserve existing code style and patterns.
+- Make minimal changes to fix issues.
+- Stage only intended files before committing.
+
+## Infrastructure Context
+
+This is a NixOS configuration repository managing a Kubernetes cluster with:
+- 3 control plane nodes (k8s-server01..03)
+- 4 worker nodes (k8s-node01..04)
+- 3 Raspberry Pi workers (k8s-pi01..03)
+- 1 LLM server (llm01) with NVIDIA GPU
+- 1 workstation (ryzen7)
+
+### Module Architecture
+
+NixOS Modules (modules/nixos/):
+- base.nix: Base NixOS configuration, system settings, packages
+- k3s.nix: Unified k3s module handling both server and agent roles
+- ssh.nix: SSH server with host key configuration and defaults
+- static-network.nix: Static network configuration via SOPS secrets
+- prometheus.nix: Prometheus node exporter on port 9100
+- rsyslog.nix: Rsyslog configuration for log forwarding
+- openiscsi.nix: iSCSI initiator for Longhorn storage
+- sops-base.nix: SOPS base configuration with age key paths
+- comin.nix: GitOps deployment with Comin
+- nix-sweep.nix: Nix garbage collection scheduling
+- minimal-image.nix: Minimal image for Raspberry Pi bootstrap
+- raspberry-pi.nix: Raspberry Pi specific hardware configuration
+
+Home Manager Modules (modules/home-manager/):
+- base.nix: Entry point importing all submodules
+- host-common.nix: User options and base settings
+- shell.nix: Shell configuration (fish, zsh, starship, fzf, zoxide, git, tmux)
+- dev-tools.nix: Development tools and editors
+- python.nix: Python configuration and virtual environments
+- k8s.nix: Kubernetes tools (kubectl, helm, stern, k9s)
+- llm.nix: LLM-related configuration and tools
+
+### Secrets Management
+
+Secrets are managed with SOPS and age encryption:
+- secrets.yaml contains all encrypted secrets
+- .sops.yaml defines host key recipients for each host
+- Each host has its own age key for decryption
+- Network configuration is stored as SOPS secrets
+- SSH host keys are provisioned via SOPS
+
+Commands:
+- Edit secrets: sops secrets.yaml
+- Decrypt for viewing: sops -d secrets.yaml
+- Verify encryption: cat secrets.yaml (must show ENC[...])
+- Update keys: sops updatekeys secrets.yaml
+
+### Deployment Workflow
+
+Comin handles GitOps deployment:
+- Polls repository every 15 minutes
+- Deploys on push to main branch
+- Health gate runs post-deployment checks
+- Auto-heal restores route and restarts k3s on failure
+- Manual deploy: nixos-rebuild switch --flake .#<hostname>
+
+### Kubernetes Architecture
+
+k3s cluster with embedded etcd:
+- Server nodes run control plane + etcd
+- Worker nodes run workloads
+- MetalLB provides LoadBalancer IPs
+- Longhorn provides persistent storage via iSCSI
+- Traefik ingress controller (disabled, using custom)
+
+### Network Configuration
+
+Static IPs via SOPS secrets:
+- Each host has a network_env secret
+- IP_ADDRESS, DEFAULT_GATEWAY, DNS1, DNS2
+- Applied at boot via systemd services
+- Gateway watchdog prevents route loss during rebuilds
+
+### Host-Specific Configuration
+
+Each host has a vars.nix with:
+- hostname: Machine name for networking
+- ipAddress: Static IP from SOPS
+- defaultGateway: Gateway address
+- nameservers: DNS server list
+- k3sOptions: k3s role and configuration
+- sshOverrides: SSH server setting overrides
+- rsyslogTarget: Log forwarding destination
+
+### Common Operations
+
+Apply configuration:
+  nixos-rebuild switch --flake .#<hostname>
+
+Test evaluation:
+  nix eval .#nixosConfigurations.<hostname>.config.system.build.toplevel --show-trace
+
+Build without activating:
+  nixos-rebuild build --flake .#<hostname>
+
+Format code:
+  nixfmt .
+
+List all hosts:
+  nix flake show | grep nixosConfigurations
+'''
+
+
+WORKSPACE_TREE = """
+# Workspace File Tree
+
+/home/coder/nixos-configurations/
+├── AGENTS.md
+├── flake.nix
+├── flake.lock
+├── .sops.yaml
+├── secrets.yaml
+├── common/
+│   └── users.nix
+├── hosts/
+│   ├── k8s-server01/
+│   │   ├── configuration.nix
+│   │   ├── default.nix
+│   │   ├── hardware-configuration.nix
+│   │   └── vars.nix
+│   ├── k8s-server02/
+│   │   ├── configuration.nix
+│   │   ├── default.nix
+│   │   ├── hardware-configuration.nix
+│   │   └── vars.nix
+│   ├── k8s-server03/
+│   │   ├── configuration.nix
+│   │   ├── default.nix
+│   │   ├── hardware-configuration.nix
+│   │   └── vars.nix
+│   ├── k8s-node01/
+│   │   ├── configuration.nix
+│   │   ├── default.nix
+│   │   ├── hardware-configuration.nix
+│   │   └── vars.nix
+│   ├── k8s-node02/
+│   │   ├── configuration.nix
+│   │   ├── default.nix
+│   │   ├── hardware-configuration.nix
+│   │   └── vars.nix
+│   ├── k8s-node03/
+│   │   ├── configuration.nix
+│   │   ├── default.nix
+│   │   ├── hardware-configuration.nix
+│   │   └── vars.nix
+│   ├── k8s-node04/
+│   │   ├── configuration.nix
+│   │   ├── default.nix
+│   │   ├── hardware-configuration.nix
+│   │   └── vars.nix
+│   ├── k8s-node05/
+│   │   ├── configuration.nix
+│   │   ├── default.nix
+│   │   ├── hardware-configuration.nix
+│   │   └── vars.nix
+│   ├── k8s-pi01/
+│   │   ├── configuration.nix
+│   │   ├── default.nix
+│   │   ├── hardware-configuration.nix
+│   │   └── vars.nix
+│   ├── k8s-pi02/
+│   │   ├── configuration.nix
+│   │   ├── default.nix
+│   │   ├── hardware-configuration.nix
+│   │   └── vars.nix
+│   ├── k8s-pi03/
+│   │   ├── configuration.nix
+│   │   ├── default.nix
+│   │   ├── hardware-configuration.nix
+│   │   └── vars.nix
+│   ├── llm01/
+│   │   ├── configuration.nix
+│   │   ├── default.nix
+│   │   ├── hardware-configuration.nix
+│   │   ├── llm-models.nix
+│   │   └── vars.nix
+│   └── ryzen7/
+│       ├── configuration.nix
+│       ├── default.nix
+│       ├── hardware-configuration.nix
+│       └── vars.nix
+├── modules/
+│   ├── nixos/
+│   │   ├── base.nix
+│   │   ├── k3s.nix
+│   │   ├── ssh.nix
+│   │   ├── static-network.nix
+│   │   ├── prometheus.nix
+│   │   ├── rsyslog.nix
+│   │   ├── openiscsi.nix
+│   │   ├── sops-base.nix
+│   │   ├── comin.nix
+│   │   ├── nix-sweep.nix
+│   │   ├── minimal-image.nix
+│   │   ├── raspberry-pi.nix
+│   │   └── llama-cpp/
+│   │       ├── agent.nix
+│   │       ├── metrics.nix
+│   │       └── default.nix
+│   └── home-manager/
+│       ├── base.nix
+│       ├── host-common.nix
+│       ├── shell.nix
+│       ├── dev-tools.nix
+│       ├── python.nix
+│       ├── k8s.nix
+│       └── llm.nix
+├── scripts/
+│   ├── agent-benchmark.py
+│   ├── benchmark-agentic-cache.py
+│   └── comin-approve.sh
+└── docs/
+    └── superpowers/
+        └── evidence/
+            ├── 2026-08-28-llama-cache-metrics.txt
+            ├── 2026-08-28-benchmark-results-*.json
+            └── 2026-08-29-config-a-ling30flash-60k.json
+""".strip()
+
+FLAKE_CONTENT = """
+# flake.nix (abbreviated)
+{
+  description = "NixOS configurations for home cluster";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    sops-nix.url = "github:Mic92/sops-nix";
+    home-manager.url = "github:nix-community/home-manager/release-25.05";
+    comin.url = "github:cedric-courtois/comin";
+    nixos-hardware.url = "github:NixOS/nixos-hardware";
+    llama-cpp.url = "github:ggerganov/llama.cpp/b10649";
+  };
+
+  outputs = { self, nixpkgs, sops-nix, home-manager, comin, nixos-hardware, llama-cpp, ... }@inputs:
+  {
+    nixosConfigurations = {
+      k8s-server01 = nixpkgs.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          ./hosts/k8s-server01
+          ./modules/nixos/base
+          ./modules/nixos/ssh
+          ./modules/nixos/k3s
+          ./modules/nixos/static-network
+          ./modules/nixos/prometheus
+          ./modules/nixos/sops-base
+          ./modules/nixos/comin
+          sops-nix.nixosModules.sops
+          home-manager.nixosModules.home-manager
+        ];
+      };
+      # ... similar for other hosts
+    };
+  };
+}
+""".strip()
+
+EXAMPLE_HOST_VARS = """
+# hosts/k8s-server01/vars.nix
+{ config, pkgs }:
+{
+  hostname = "k8s-server01";
+  ipAddress = "$IP_ADDRESS";
+  defaultGateway = "$DEFAULT_GATEWAY";
+  nameservers = [ "$DNS1" "$DNS2" ];
+
+  k3sOptions = {
+    enable = true;
+    role = "server";
+    serverAddr = "";
+    tokenFile = config.sops.secrets."k3s_token".path;
+    extraFlags = [
+      "--disable traefik"
+      "--disable servicelb"
+      "--kubelet-arg pod-max-pids=500"
+    ];
+  };
+
+  sshOverrides = {
+    services.openssh.settings.PermitRootLogin = "prohibit-password";
+  };
+
+  rsyslogTarget = "192.168.0.41:514";
+}
+
+# hosts/k8s-node01/vars.nix
+{ config, pkgs }:
+{
+  hostname = "k8s-node01";
+  ipAddress = "$IP_ADDRESS";
+  defaultGateway = "$DEFAULT_GATEWAY";
+  nameservers = [ "$DNS1" "$DNS2" ];
+
+  k3sOptions = {
+    enable = true;
+    role = "agent";
+    serverAddr = "https://192.168.0.10:6443";
+    tokenFile = config.sops.secrets."k3s_token".path;
+    extraFlags = [
+      "--kubelet-arg pod-max-pids=500"
+    ];
+  };
+}
+
+# hosts/llm01/vars.nix
+{ config, pkgs }:
+{
+  hostname = "llm01";
+  ipAddress = "$IP_ADDRESS";
+  defaultGateway = "$DEFAULT_GATEWAY";
+  nameservers = [ "$DNS1" "$DNS2" ];
+
+  k3sOptions = {
+    enable = true;
+    role = "agent";
+    serverAddr = "https://192.168.0.10:6443";
+    tokenFile = config.sops.secrets."k3s_token".path;
+  };
+}
+""".strip()
 
 
 def build_system_prompt() -> str:
-    """Large opencode-like system prompt: role, tools, workspace, instructions."""
-    tools = "\n".join(f"- {name}({desc})" for name, desc in TOOL_DOCS)
-    files = "\n".join(f"  - {f}" for f in WORKSPACE_LINES)
+    """Large opencode-like system prompt (~15k tokens): role, tools with
+    full JSON schemas, NixOS module examples, and agent instructions."""
+    import json as _json
+
+    tool_defs = []
+    for tool in TOOL_SCHEMAS:
+        schema_str = _json.dumps(tool["parameters"], indent=2)
+        tool_defs.append(
+            f"### {tool['name']}\n"
+            f"{tool['description']}\n"
+            f"\nParameters (JSON Schema):\n```json\n{schema_str}\n```"
+        )
+    tools_section = "\n\n".join(tool_defs)
+
+    module_files = "\n\n".join(
+        f"### {name}\n```nix\n{content}\n```"
+        for name, content in NIXOS_MODULE_EXAMPLES.items()
+    )
+
     return f"""You are opencode, an interactive CLI agent that helps with software engineering tasks.
 
 # Environment
-Working directory: /home/coder/nixos-configurations (git repo)
-Platform: linux. You are powered by a GLM model trained by Z.ai.
+Working directory: /home/coder/nixos-configurations
+Workspace root folder: /home/coder/nixos-configurations
+Is directory a git repo: yes
+Platform: linux
+Shell: bash
 
-# Tools
-{tools}
+# Available Tools
 
-# Workspace files
-{files}
+{tools_section}
 
-# Guidelines
-- Understand the codebase before making changes. Search extensively in parallel.
-- Follow existing conventions: formatting, naming, module patterns.
-- Only use tools to complete tasks. Never guess URLs. Follow security best practices.
-- Be concise. Answer directly. Avoid unnecessary preamble or explanation.
+# NixOS Module Reference
+
+{module_files}
+
+# Workspace File Structure
+
+{WORKSPACE_TREE}
+
+# Flake Configuration
+
+{FLAKE_CONTENT}
+
+# Host Variable Examples
+
+{EXAMPLE_HOST_VARS}
+
+{AGENT_INSTRUCTIONS}
 """
 
 
@@ -240,7 +961,7 @@ async def measure_turn_ollama(
         "model": model_name,
         "messages": messages,
         "stream": True,
-        "options": {"num_predict": 512, "temperature": 0.1},
+        "options": {"num_predict": 128, "temperature": 0.1},
     }
 
     start = time.monotonic()
@@ -291,72 +1012,8 @@ async def measure_turn_ollama(
 
 
 # ---------------------------------------------------------------------------
-# Provider measurement (streaming, per-turn)
+# Provider measurement (streaming, per-turn) — OpenAI-compatible
 # ---------------------------------------------------------------------------
-
-async def measure_turn_ollama(
-    model_name: str,
-    messages: List[dict],
-    session,
-    url: str,
-) -> TurnResult:
-    """Measure a single turn against an Ollama-compatible local model (/api/chat)."""
-    import aiohttp
-
-    payload = {
-        "model": model_name,
-        "messages": messages,
-        "stream": True,
-        "options": {"num_predict": 512, "temperature": 0.1},
-    }
-
-    start = time.monotonic()
-    first_token_time = None
-    token_count = 0
-    response_parts = []
-    prompt_tokens = 0
-    token_latencies = []
-    last_token_time = start
-
-    async with session.post(f"{url}/api/chat", json=payload) as resp:
-        async for line in resp.content:
-            if not line.strip():
-                continue
-            try:
-                data = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-
-            now = time.monotonic()
-            if first_token_time is None:
-                first_token_time = now
-
-            content = data.get("message", {}).get("content", "")
-            if content:
-                token_count += 1
-                response_parts.append(content)
-                token_latencies.append((now - last_token_time) * 1000)
-                last_token_time = now
-
-            if data.get("done", False):
-                prompt_tokens = data.get("prompt_eval_count", 0) or 0
-                break
-
-    total_ms = (time.monotonic() - start) * 1000
-    ttft_ms = (first_token_time - start) * 1000 if first_token_time else total_ms
-    effective_tps = (token_count / (total_ms / 1000)) if total_ms > 0 else 0
-
-    result = TurnResult(
-        turn=0,
-        ttft_ms=ttft_ms,
-        total_ms=total_ms,
-        tokens=token_count,
-        effective_tps=effective_tps,
-        context_tokens=prompt_tokens,
-        token_latencies_ms=token_latencies,
-    )
-    return result, "".join(response_parts) or "(no output)"
-
 
 async def measure_turn_openai_compat(
     model_name: str,
@@ -376,7 +1033,7 @@ async def measure_turn_openai_compat(
         "model": model_name,
         "messages": messages,
         "stream": True,
-        "max_tokens": 512,
+        "max_tokens": 128,
         "temperature": 0.1,
         "stream_options": {"include_usage": True},
     }
@@ -520,6 +1177,7 @@ async def run_benchmark(
         # we calibrate a real/est ratio each turn and scale tool-result size to
         # it. Shrinking-room budgeting bounds any single overshoot.
         system = build_system_prompt()
+        system_tokens = est_tokens(system)
         eff_target = max(1000, context_size - 2000)  # headroom under the model's n_ctx
         ratio = 1.3  # conservative floor (code/nix over-tokenize vs /4); EWMA-corrected
         mean_assist = 500.0
@@ -565,18 +1223,20 @@ async def run_benchmark(
 
                 # Agent loop: append assistant reply, then a tool result that grows
                 # context toward eff_target without overshooting n_ctx.
-                history.append({"role": "assistant", "content": response_text[:2000]})
-                assist_real = max(1, len(response_text[:2000]) // 4)
+                # Cap assistant response to 500 chars to match real agent behavior
+                # (opencode-style agents produce concise responses).
+                history.append({"role": "assistant", "content": response_text[:500]})
+                assist_real = max(1, len(response_text[:500]) // 4)
                 mean_assist = mean_assist * 0.8 + assist_real * 0.2
 
                 slots = turns_per_round - 1 - turn  # tool results still to add this round
                 if slots <= 0:
                     tool_text = ""
                 else:
-                    room = eff_target - real_prompt
-                    reserve = slots * mean_assist
-                    per_tool_real = max(200, (room - reserve) / slots)
-                    per_tool_est = max(100, int(per_tool_real / max(ratio, 0.5)))
+                    # Fixed-size tool results (~500 tokens each) to simulate
+                    # realistic grep/read output. Previous adaptive budgeting
+                    # was inaccurate due to mixed content tokenization ratios.
+                    per_tool_est = 500
                     tool_text = generate_tool_result(per_tool_est, seed=round_num * 100 + turn)
                 history.append({"role": "user", "content": f"[tool result]\n{tool_text}"})
 
