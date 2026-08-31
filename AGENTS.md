@@ -289,6 +289,12 @@ dmesg -T | grep -iE "medium error|unrecovered read|Buffer I/O"
 
 **Workaround**: The dbus-broker timeout fix (Task 3) provides headroom. If disk errors persist, consider migrating Longhorn volumes to healthy storage.
 
+### D-Bus Broker Reload Timeout (2026-08-31, k8s-pi02)
+
+**Observed**: `switch-to-configuration switch` exits with status 4. User session `dbus-broker.service` reload times out (`Reload operation timed out. Killing reload process.`). Comin deploy fails before health gate runs (`/var/log/comin-health-gate.log` empty). `iscsiadm -m node` clean; root cause is user dbus reload, not iSCSI.
+
+**Recovery**: `systemctl --user restart dbus-broker.service` then redeploy (`systemctl restart comin.service` or manual `nixos-rebuild switch`). Verify with `systemctl --user status dbus-broker.service` and `readlink /run/current-system`.
+
 ---
 
 ## Kubernetes (k3s) Configuration
