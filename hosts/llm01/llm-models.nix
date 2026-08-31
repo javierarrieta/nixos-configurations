@@ -246,7 +246,7 @@
       "presence-penalty" = "0.0";
       "repeat-penalty" = "1.0";
       "batch-size" = "4096";
-      "ubatch-size" = "4096";
+      "ubatch-size" = "1024";
       "load-mode" = "mlock";
       "cache-prompt" = "true";
       "cache-reuse" = "1024";
