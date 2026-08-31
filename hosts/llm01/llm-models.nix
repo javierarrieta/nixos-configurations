@@ -201,15 +201,13 @@
   #     "chat-template-kwargs" = "{\"reasoning_effort\": \"low\"}";
   #   };
   # };
-  # Ling-3.0-flash: bailingmoe3 hybrid/recurrent arch (KDA) — cache_reuse
-  # fundamentally incompatible (llama_memory_can_shift returns false).
-  # Context checkpoints are the alternative but TTFT scales linearly with
-  # context size in practice (each turn reprocesses full message list).
-  # "Ling-3.0-flash" = {
-  #   modelId = "bartowski/Ling-3.0-flash-GGUF";
-  #   filename = "Ling-3.0-flash-IQ4_XS/Ling-3.0-flash-IQ4_XS-00001-of-00002.gguf";
+  # Ornith-1.5-35B: standard transformer, cache_reuse works but TTFT
+  # slower than Ling on APU due to larger active parameter count.
+  # "Ornith-1.5-35B" = {
+  #   modelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
+  #   filename = "Ornith-1.5-35B-Q6_K.gguf";
   #   extraProperties = {
-  #     "alias" = "Ling-3.0,quality,long-horizon,agent-quality";
+  #     "alias" = "default,ornith-current,agent,hermes,opencode";
   #     "flash-attn" = "on";
   #     "ctx-size" = "80000";
   #     "parallel" = "1";
@@ -220,19 +218,20 @@
   #     "top-p" = "0.95";
   #     "top-k" = "20";
   #     "min-p" = "0.0";
+  #     "presence-penalty" = "0.0";
   #     "repeat-penalty" = "1.0";
   #     "batch-size" = "4096";
-  #     "ubatch-size" = "4096";
+  #     "ubatch-size" = "1024";
   #     "load-mode" = "mlock";
-  #     "spec-type" = "draft-mtp";
-  #     "spec-draft-n-max" = "2";
+  #     "cache-prompt" = "true";
+  #     "cache-reuse" = "1024";
   #   };
   # };
-  "Ornith-1.5-35B" = {
-    modelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
-    filename = "Ornith-1.5-35B-Q6_K.gguf";
+  "Ling-3.0-flash" = {
+    modelId = "bartowski/Ling-3.0-flash-GGUF";
+    filename = "Ling-3.0-flash-IQ4_XS/Ling-3.0-flash-IQ4_XS-00001-of-00002.gguf";
     extraProperties = {
-      "alias" = "default,ornith-current,agent,hermes,opencode";
+      "alias" = "Ling-3.0,quality,long-horizon,agent-quality";
       "flash-attn" = "on";
       "ctx-size" = "80000";
       "parallel" = "1";
@@ -243,13 +242,12 @@
       "top-p" = "0.95";
       "top-k" = "20";
       "min-p" = "0.0";
-      "presence-penalty" = "0.0";
       "repeat-penalty" = "1.0";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "load-mode" = "mlock";
-      "cache-prompt" = "true";
-      "cache-reuse" = "1024";
+      "spec-type" = "draft-mtp";
+      "spec-draft-n-max" = "2";
     };
   };
 }
