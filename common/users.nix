@@ -65,4 +65,25 @@
      "d /home/javier/.ssh/agent 0700 javier javier -"
    ];
 
+  system.activationScripts.postActivation = ''
+    # sops provisions /home/javier/.ssh as root; re-chown to javier on every switch so agent-forwarding socket can be created without reboot
+    mkdir -p /home/javier/.ssh /home/javier/.ssh/agent
+    chmod 0700 /home/javier/.ssh /home/javier/.ssh/agent
+    chown javier:javier /home/javier/.ssh /home/javier/.ssh/agent
+  '';
+
+  systemd.services.javier-ssh-agent-fix = {
+    description = "Ensure /home/javier/.ssh owned by javier after sops provisions secrets";
+    after = [ "sops-nix.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = ''
+        ${pkgs.coreutils}/bin/mkdir -p /home/javier/.ssh /home/javier/.ssh/agent
+        ${pkgs.coreutils}/bin/chmod 0700 /home/javier/.ssh /home/javier/.ssh/agent
+        ${pkgs.coreutils}/bin/chown javier:javier /home/javier/.ssh /home/javier/.ssh/agent
+      '';
+    };
+  };
+
 }
