@@ -332,7 +332,7 @@ in
 
           model_ids=$(echo "$models_json" | ${pkgs.jq}/bin/jq -r '
             .data[]
-            | select((.status // "") == "loaded" or (.virtually_loaded // false))
+            | select(((.status | if type == "object" then .value else . end) // "") == "loaded")
             | (.id // .model)
           ') || { echo "llama.cpp models parse failed" >&2; exit 1; }
 

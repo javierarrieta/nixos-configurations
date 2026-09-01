@@ -254,9 +254,28 @@ jq '.key = "value"' file.json > new.json
 yq -y . new.json > file.yaml
 ```
 
-### llama-cpp-metrics Requires `?model=` (2026-08-30)
+### llama-cpp Router Mode: Scraping `/metrics?model=` Autoloads Models (2026-09-01)
 
-The `llama-cpp-metrics` service scrapes `http://127.0.0.1:<port>/metrics` but llama-server's Prometheus endpoint requires a `?model=$modelId` query parameter to return per-model metrics. Without it, the scrape returns incomplete data. Fixed by querying `/v1/models` first, then scraping `/metrics?model=<id>` per loaded model and deduplicating HELP/TYPE headers. Disabled on `llm01` (`services.llamaCppAgent.metrics.enable = false`).
+llm01 runs a single `llama-server --models-preset` (router mode). In router mode
+**any endpoint that names a model autoloads it** (upstream default; `/metrics`
+even requires `?model=`). The cluster Prometheus scrapes `/metrics?model=<id>`
+for every preset model — once the preset's combined weights+KV exceeded the
+118GB GTT budget (commit `9040d47` dual-Ornith + `6dafe6b` 160k/parallel-2),
+each scrape of an evicted model force-loaded it, evicting another → permanent
+unload/load churn (~35GB reads per swap, `request cancelled while waiting for
+model` log flood, load average 7). With everything resident, the same scraping
+is invisible — which is why it looked like "started suddenly".
+
+Rules:
+- The preset must stay fully resident: sum of weights + KV (KV ≈ layers ×
+  2 × kv_heads × head_dim × total_ctx_tokens × ~1.06B for q8_0) must fit GTT
+  with headroom, or scrapes/requests thrash.
+- `/models` reports per-model status (`{"value":"loaded"}` object in current
+  llama.cpp); only scrape models whose status is `loaded`. The nixos
+  `llama-cpp-metrics` oneshot does this (agent.nix); the cluster Prometheus
+  target list must be curated by hand (k8s-casa repo).
+- Per-request escape hatch: `?autoload=false` on a routed GET returns an
+  error instead of loading — candidate for Prometheus scrape URLs.
 
 ### Longhorn iSCSI Disk Medium Errors (2026-08-26)
 
