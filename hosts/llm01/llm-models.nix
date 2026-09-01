@@ -50,32 +50,32 @@
   };
 
   # ── Qwen3.8-27B ─────────────────────────────────────────────────
-  # TEMPORARILY commented out (2026-09-01): GTT budget experiment.
-  # With Ornith-Text at 160k×2 the total exceeds 118GB GTT and the
-  # server thrashes (unload/load loop). Re-add with ctx ≤ 80k, parallel 1.
-  # "Qwen3.8-27B" = {
-  #   modelId = "unsloth/Qwen3.8-27B-GGUF";
-  #   filename = "Qwen3.8-27B-UD-Q4_K_M.gguf";
-  #   extraProperties = {
-  #     "alias" = "Qwen-3.8-27B,qwen-current,slow,agent-quality";
-  #     "ctx-size" = "80000";
-  #     "parallel" = "1";
-  #     "flash-attn" = "on";
-  #     "cache-type-k" = "q8_0";
-  #     "cache-type-v" = "q8_0";
-  #     "temperature" = "1.0";
-  #     "top-p" = "0.95";
-  #     "top-k" = "20";
-  #     "min-p" = "0.0";
-  #     "presence-penalty" = "0.0";
-  #     "repeat-penalty" = "1.0";
-  #     "batch-size" = "4096";
-  #     "ubatch-size" = "1024";
-  #     "load-mode" = "mlock";
-  #     "cache-prompt" = "true";
-  #     "cache-reuse" = "1024";
-  #   };
-  # };
+  # Dense 27B, slow (~60s TTFT) but high quality. No mmproj → cache_reuse works.
+  # 160k ctx is cheap on this hybrid-attention arch (measured 35.8GB GTT
+  # total with Ornith-Text 160k×2 + Qwen3.5-4B resident, 2026-09-01).
+  "Qwen3.8-27B" = {
+    modelId = "unsloth/Qwen3.8-27B-GGUF";
+    filename = "Qwen3.8-27B-UD-Q4_K_M.gguf";
+    extraProperties = {
+      "alias" = "Qwen-3.8-27B,qwen-current,slow,agent-quality";
+      "ctx-size" = "160000";
+      "parallel" = "2";
+      "flash-attn" = "on";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
+      "temperature" = "1.0";
+      "top-p" = "0.95";
+      "top-k" = "20";
+      "min-p" = "0.0";
+      "presence-penalty" = "0.0";
+      "repeat-penalty" = "1.0";
+      "batch-size" = "4096";
+      "ubatch-size" = "1024";
+      "load-mode" = "mlock";
+      "cache-prompt" = "true";
+      "cache-reuse" = "1024";
+    };
+  };
 
   # ── Ornith variants ──────────────────────────────────────────────
   # With multimodal projector (image input). cache_reuse disabled by
