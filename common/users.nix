@@ -60,16 +60,18 @@
 
   security.sudo.wheelNeedsPassword = false;
 
-   systemd.tmpfiles.rules = [
-     "d /home/javier/.ssh 0700 javier javier -"
-     "d /home/javier/.ssh/agent 0700 javier javier -"
-   ];
+  systemd.tmpfiles.rules = [
+    "d /home/javier/.ssh 0700 javier javier -"
+    "d /home/javier/.ssh/agent 0700 javier javier -"
+  ];
 
   system.activationScripts.postActivation = ''
     # sops provisions /home/javier/.ssh as root; re-chown to javier on every switch so agent-forwarding socket can be created without reboot
+    # NB: resolve the group dynamically — llm01's live group db has drifted
+    # (javier's primary group there is `users`, gid 100; group `javier` absent)
     mkdir -p /home/javier/.ssh /home/javier/.ssh/agent
     chmod 0700 /home/javier/.ssh /home/javier/.ssh/agent
-    chown javier:javier /home/javier/.ssh /home/javier/.ssh/agent
+    chown javier:"$(id -gn javier 2>/dev/null || echo users)" /home/javier/.ssh /home/javier/.ssh/agent
   '';
 
   systemd.services.javier-ssh-agent-fix = {
@@ -78,10 +80,10 @@
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "oneshot";
-      ExecStart = ''
-        ${pkgs.coreutils}/bin/mkdir -p /home/javier/.ssh /home/javier/.ssh/agent
-        ${pkgs.coreutils}/bin/chmod 0700 /home/javier/.ssh /home/javier/.ssh/agent
-        ${pkgs.coreutils}/bin/chown javier:javier /home/javier/.ssh /home/javier/.ssh/agent
+      ExecStart = pkgs.writeShellScript "javier-ssh-agent-fix" ''
+        mkdir -p /home/javier/.ssh /home/javier/.ssh/agent
+        chmod 0700 /home/javier/.ssh /home/javier/.ssh/agent
+        chown javier:"$(id -gn javier 2>/dev/null || echo users)" /home/javier/.ssh /home/javier/.ssh/agent
       '';
     };
   };
