@@ -56,8 +56,8 @@
     filename = "Qwen3.8-27B-UD-Q4_K_M.gguf";
     extraProperties = {
       "alias" = "Qwen-3.8-27B,qwen-current,slow,agent-quality";
-      "ctx-size" = "80000";
-      "parallel" = "1";
+      "ctx-size" = "160000";
+      "parallel" = "2";
       "flash-attn" = "on";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q8_0";
@@ -111,8 +111,8 @@
     extraProperties = {
       "alias" = "ornith-text,cache,quality,agent";
       "flash-attn" = "on";
-      "ctx-size" = "80000";
-      "parallel" = "1";
+      "ctx-size" = "160000";
+      "parallel" = "2";
       "cont-batching" = "true";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q8_0";
