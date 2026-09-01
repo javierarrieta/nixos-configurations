@@ -322,12 +322,19 @@ in
             exit 0
           fi
 
-          # Fetch loaded model IDs from the OpenAI-compatible models endpoint
-          models_json=$(${pkgs.curl}/bin/curl -fsS --max-time 10 "$url/v1/models") \
+          # Fetch only models whose instance is ALREADY loaded. In router
+          # mode any endpoint that names a model autoloads it (upstream
+          # default), so a scrape of unloaded presets would force-load the
+          # whole set every minute and thrash GTT. /models reports per-model
+          # status, unlike /v1/models.
+          models_json=$(${pkgs.curl}/bin/curl -fsS --max-time 10 "$url/models") \
             || { echo "llama.cpp models fetch failed" >&2; exit 1; }
 
-          model_ids=$(echo "$models_json" | ${pkgs.jq}/bin/jq -r '.data[].id') \
-            || { echo "llama.cpp models parse failed" >&2; exit 1; }
+          model_ids=$(echo "$models_json" | ${pkgs.jq}/bin/jq -r '
+            .data[]
+            | select((.status // "") == "loaded" or (.virtually_loaded // false))
+            | (.id // .model)
+          ') || { echo "llama.cpp models parse failed" >&2; exit 1; }
 
           if [ -z "$model_ids" ]; then
             echo "no loaded models, skipping metrics scrape" >&2

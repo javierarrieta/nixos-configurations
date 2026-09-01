@@ -80,38 +80,41 @@
   # ── Ornith variants ──────────────────────────────────────────────
   # With multimodal projector (image input). cache_reuse disabled by
   # server when mmproj is loaded.
-  "Ornith-1.5-35B" = {
-    modelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
-    filename = "Ornith-1.5-35B-Q6_K.gguf";
-    mmprojModelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
-    mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
-    extraProperties = {
-      "alias" = "default,ornith,multimodal,agent-multimodal";
-      "flash-attn" = "on";
-      "ctx-size" = "80000";
-      "parallel" = "1";
-      "cont-batching" = "true";
-      "cache-type-k" = "q8_0";
-      "cache-type-v" = "q8_0";
-      "temperature" = "0.6";
-      "top-p" = "0.95";
-      "top-k" = "20";
-      "min-p" = "0.0";
-      "presence-penalty" = "0.0";
-      "repeat-penalty" = "1.0";
-      "batch-size" = "4096";
-      "ubatch-size" = "1024";
-      "load-mode" = "mlock";
-      "image-min-tokens" = "1024";
-      "cache-prompt" = "false";
-    };
-  };
+  # TEMPORARILY commented out (2026-09-01): GTT residency experiment —
+  # with this + Ornith-Text resident the preset exceeds 118GB GTT and
+  # every /metrics?model= scrape of an evicted model force-loads it.
+  # "Ornith-1.5-35B" = {
+  #   modelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
+  #   filename = "Ornith-1.5-35B-Q6_K.gguf";
+  #   mmprojModelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
+  #   mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
+  #   extraProperties = {
+  #     "alias" = "multimodal,agent-multimodal";
+  #     "flash-attn" = "on";
+  #     "ctx-size" = "80000";
+  #     "parallel" = "1";
+  #     "cont-batching" = "true";
+  #     "cache-type-k" = "q8_0";
+  #     "cache-type-v" = "q8_0";
+  #     "temperature" = "0.6";
+  #     "top-p" = "0.95";
+  #     "top-k" = "20";
+  #     "min-p" = "0.0";
+  #     "presence-penalty" = "0.0";
+  #     "repeat-penalty" = "1.0";
+  #     "batch-size" = "4096";
+  #     "ubatch-size" = "1024";
+  #     "load-mode" = "mlock";
+  #     "image-min-tokens" = "1024";
+  #     "cache-prompt" = "false";
+  #   };
+  # };
   # Text-only (no mmproj) — cache_reuse enabled for prefix caching.
   "Ornith-1.5-35B-Text" = {
     modelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
     filename = "Ornith-1.5-35B-Q6_K.gguf";
     extraProperties = {
-      "alias" = "ornith-text,cache,quality,agent";
+      "alias" = "default,ornith,ornith-text,cache,quality,agent";
       "flash-attn" = "on";
       "ctx-size" = "160000";
       "parallel" = "2";
