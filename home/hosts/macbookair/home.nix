@@ -41,7 +41,6 @@ in
     pkgs."python${pythonVersion}Packages".wakeonlan
     pkgs.minio-client
     pkgs.wp-cli
-    pkgs.bun
 
     unstablePkgs.opencode
   ];
