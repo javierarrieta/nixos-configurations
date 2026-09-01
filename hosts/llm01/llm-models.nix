@@ -125,8 +125,10 @@
       "top-p" = "0.95";
       "top-k" = "20";
       "min-p" = "0.0";
-      "presence-penalty" = "0.0";
-      "repeat-penalty" = "1.0";
+      "presence-penalty" = "0.05";
+      # 1.0 disabled llama.cpp's default penalty and Ornith-1.5 loops on it
+      # (repetitive output, 2026-09).
+      "repeat-penalty" = "1.12";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "load-mode" = "mlock";
