@@ -69,7 +69,11 @@
         home-manager.lib.homeManagerConfiguration {
           pkgs = import nixpkgs {
             inherit system;
-            config.allowUnfree = false;
+            # bun is unfree (source-available license); pin it to 1.4.0 via the
+            # overlay below and allow only that package through, leaving other
+            # unfree packages gated.
+            config.allowUnfreePredicate = pkg: builtins.elem (nixpkgs.lib.getName pkg) [ "bun" ];
+            overlays = [ (import ./home/bun-overlay.nix { }).overlays.default ];
           };
           modules = [ ./home/hosts/${hostname}/home.nix ];
           extraSpecialArgs = (mkExtraArgs system) // {
@@ -397,7 +401,7 @@
         (self.nixosConfigurations.k8s-pi01.extendModules {
 
           modules = [
-          { nixpkgs.hostPlatform.system = "aarch64-linux"; }
+            { nixpkgs.hostPlatform.system = "aarch64-linux"; }
 
             { nixpkgs.buildPlatform.system = "x86_64-linux"; }
 
@@ -430,7 +434,7 @@
         (self.nixosConfigurations.k8s-pi01.extendModules {
 
           modules = [
-          { nixpkgs.hostPlatform.system = "aarch64-linux"; }
+            { nixpkgs.hostPlatform.system = "aarch64-linux"; }
 
             "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
 
@@ -501,7 +505,7 @@
         (self.nixosConfigurations.k8s-pi02-minimal.extendModules {
 
           modules = [
-          { nixpkgs.hostPlatform.system = "aarch64-linux"; }
+            { nixpkgs.hostPlatform.system = "aarch64-linux"; }
 
             {
               networking.hostName = "k8s-pi02";
@@ -550,7 +554,7 @@
         (self.nixosConfigurations.k8s-pi03.extendModules {
 
           modules = [
-          { nixpkgs.hostPlatform.system = "aarch64-linux"; }
+            { nixpkgs.hostPlatform.system = "aarch64-linux"; }
 
             {
               networking.hostName = "k8s-pi03";
@@ -587,4 +591,3 @@
       formatter.aarch64-darwin = nixpkgs.legacyPackages.aarch64-darwin.nixfmt-tree;
     };
 }
-
