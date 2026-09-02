@@ -124,14 +124,44 @@
   #   };
   # };
   # Text-only (no mmproj) — cache_reuse enabled for prefix caching.
-  "Ornith-1.5-35B-Text" = {
-    modelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
-    filename = "Ornith-1.5-35B-Q6_K.gguf";
+  # "Ornith-1.5-35B-Text" = {
+  #   modelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
+  #   filename = "Ornith-1.5-35B-Q6_K.gguf";
+  #   extraProperties = {
+  #     "alias" = "default,ornith,ornith-text,cache,quality,agent";
+  #     "flash-attn" = "on";
+  #     "ctx-size" = "160000";
+  #     "parallel" = "2";
+  #     "cont-batching" = "true";
+  #     "cache-type-k" = "q8_0";
+  #     "cache-type-v" = "q8_0";
+  #     "temperature" = "0.6";
+  #     "top-p" = "0.95";
+  #     "top-k" = "20";
+  #     "min-p" = "0.0";
+  #     "presence-penalty" = "0.05";
+  #     # 1.0 disabled llama.cpp's default penalty and Ornith-1.5 loops on it
+  #     # (repetitive output, 2026-09).
+  #     "repeat-penalty" = "1.12";
+  #     "batch-size" = "4096";
+  #     "ubatch-size" = "1024";
+  #     "load-mode" = "mlock";
+  #     "cache-prompt" = "true";
+  #     "cache-reuse" = "1024";
+  #   };
+  # };
+
+  # ── Ling-3.0-flash ────────────────────────────────────────────────
+  # bailingmoe3/KDA recurrent — cache_reuse incompatible,
+  # context checkpoints don't help (TTFT scales linearly).
+  "Ling-3.0-flash" = {
+    modelId = "bartowski/Ling-3.0-flash-GGUF";
+    filename = "Ling-3.0-flash-IQ4_XS/Ling-3.0-flash-IQ4_XS-00001-of-00002.gguf";
     extraProperties = {
-      "alias" = "default,ornith,ornith-text,cache,quality,agent";
+      "alias" = "Ling-3.0,long-horizon";
       "flash-attn" = "on";
-      "ctx-size" = "160000";
-      "parallel" = "2";
+      "ctx-size" = "80000";
+      "parallel" = "1";
       "cont-batching" = "true";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q8_0";
@@ -139,15 +169,12 @@
       "top-p" = "0.95";
       "top-k" = "20";
       "min-p" = "0.0";
-      "presence-penalty" = "0.05";
-      # 1.0 disabled llama.cpp's default penalty and Ornith-1.5 loops on it
-      # (repetitive output, 2026-09).
-      "repeat-penalty" = "1.12";
+      "repeat-penalty" = "1.0";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "load-mode" = "mlock";
-      "cache-prompt" = "true";
-      "cache-reuse" = "1024";
+      "spec-type" = "draft-mtp";
+      "spec-draft-n-max" = "2";
     };
   };
 }
