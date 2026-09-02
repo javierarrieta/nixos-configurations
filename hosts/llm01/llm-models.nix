@@ -77,6 +77,20 @@
     };
   };
 
+  "Qwen2.5-VL-7B" = {
+    modelId = "unsloth/Qwen2.5-VL-7B-Instruct-GGUF";
+    filename = "Qwen2.5-VL-7B-Instruct-UD-Q5_K_XL.gguf";
+    mmprojModelId = "unsloth/Qwen2.5-VL-7B-Instruct-GGUF";
+    mmproj = "mmproj-BF16.gguf";
+    extraProperties = {
+      "alias" = "vision,qwen-vl,vision-model";
+      "flash-attn" = "on";
+      "ctx-size" = "32768";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
+    };
+  };
+
   # ── Ornith variants ──────────────────────────────────────────────
   # With multimodal projector (image input). cache_reuse disabled by
   # server when mmproj is loaded.
