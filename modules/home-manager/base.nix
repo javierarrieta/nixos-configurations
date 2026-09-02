@@ -34,7 +34,7 @@ in
 
   programs.home-manager.enable = true;
 
-  home.activation.cleanupOldGenerations = lib.hm.dag.entryAfter ["linkGeneration"] ''
+  home.activation.cleanupOldGenerations = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     max_keep=2
     profile_dir="${hmProfileDir}"
     current_link="$profile_dir/home-manager"
