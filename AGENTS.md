@@ -97,6 +97,7 @@
 2. **Always verify** `secrets.yaml` is encrypted before committing
 3. **Do not change** `system.stateVersion` unless performing full release upgrade
 4. **Clean up** temporary files after operations (secrets.dec.yaml, *_host_key*)
+5. **Never commit or push without explicit human permission.** A direct user request (e.g., "commit and push") counts as permission; ask if ambiguous.
 
 ---
 
