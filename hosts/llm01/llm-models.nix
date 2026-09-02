@@ -49,33 +49,34 @@
     };
   };
 
-  # ── Qwen3.8-27B ─────────────────────────────────────────────────
+  # ── Qwen3.8-27B (commented out 2026-09-02 — GPU OOM / device lost) ──
   # Dense 27B, slow (~60s TTFT) but high quality. No mmproj → cache_reuse works.
   # 160k ctx is cheap on this hybrid-attention arch (measured 35.8GB GTT
   # total with Ornith-Text 160k×2 + Qwen3.5-4B resident, 2026-09-01).
-  "Qwen3.8-27B" = {
-    modelId = "unsloth/Qwen3.8-27B-GGUF";
-    filename = "Qwen3.8-27B-UD-Q4_K_M.gguf";
-    extraProperties = {
-      "alias" = "Qwen-3.8-27B,qwen-current,slow,agent-quality";
-      "ctx-size" = "160000";
-      "parallel" = "2";
-      "flash-attn" = "on";
-      "cache-type-k" = "q8_0";
-      "cache-type-v" = "q8_0";
-      "temperature" = "1.0";
-      "top-p" = "0.95";
-      "top-k" = "20";
-      "min-p" = "0.0";
-      "presence-penalty" = "0.0";
-      "repeat-penalty" = "1.0";
-      "batch-size" = "4096";
-      "ubatch-size" = "1024";
-      "load-mode" = "mlock";
-      "cache-prompt" = "true";
-      "cache-reuse" = "1024";
-    };
-  };
+  # "Qwen3.8-27B" = {
+  #   modelId = "unsloth/Qwen3.8-27B-GGUF";
+  #   filename = "Qwen3.8-27B-UD-Q4_K_M.gguf";
+  #   extraProperties = {
+  #     "alias" = "Qwen-3.8-27B,qwen-current,slow,agent-quality";
+  #     "ctx-size" = "160000";
+  #     "parallel" = "2";
+  #     "flash-attn" = "on";
+  #     "cache-type-k" = "q8_0";
+  #     "cache-type-v" = "q8_0";
+  #     "temperature" = "1.0";
+  #     "top-p" = "0.95";
+  #     "top-k" = "20";
+  #     "min-p" = "0.0";
+  #     "presence-penalty" = "0.0";
+  #     "repeat-penalty" = "1.0";
+  #     "batch-size" = "4096";
+  #     "ubatch-size" = "1024";
+  #     "load-mode" = "mlock";
+  #     "cache-prompt" = "true";
+  #     "cache-reuse" = "1024";
+  #   };
+  # };
+  # ── End commented Qwen3.8-27B ─────────────────────────────────────────
 
   "Qwen2.5-VL-7B" = {
     modelId = "unsloth/Qwen2.5-VL-7B-Instruct-GGUF";
