@@ -20,7 +20,7 @@ jobs:
         run: nix flake check --no-build
 
       - name: Format check (nixfmt)
-        run: nix fmt -- --check
+        run: nix fmt -- --ci
 
       - name: Build smoke test (k8s-node01)
         run: nix build .#nixosConfigurations.k8s-node01.config.system.build.toplevel
