@@ -94,7 +94,7 @@ in
       default = [
         "--offline"
         "-ngl 99"
-        "--log-verbosity 2"
+        "--log-verbosity 1"
         "--load-mode mlock"
         "--flash-attn on"
         "--ctx-checkpoints 1"

@@ -159,7 +159,7 @@
     modelId = "bartowski/Ling-3.0-flash-GGUF";
     filename = "Ling-3.0-flash-IQ4_XS/Ling-3.0-flash-IQ4_XS-00001-of-00002.gguf";
     extraProperties = {
-      "alias" = "Ling-3.0,long-horizon";
+      "alias" = "Ling-3.0,long-horizon,agent,default";
       "flash-attn" = "on";
       "ctx-size" = "80000";
       "parallel" = "1";
