@@ -22,5 +22,8 @@ jobs:
       - name: Format check (nixfmt)
         run: nix fmt -- --ci
 
-      - name: Build smoke test (k8s-node01)
-        run: nix build .#nixosConfigurations.k8s-node01.config.system.build.toplevel
+      - name: Build smoke test (k8s-node05)
+        run: nix build .#nixosConfigurations.k8s-node05.config.system.build.toplevel
+
+      - name: Build smoke test (llm01)
+        run: nix build .#nixosConfigurations.llm01.config.system.build.toplevel
