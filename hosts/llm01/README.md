@@ -185,7 +185,11 @@ Alias values must be unique across all presets — one alias maps to exactly
 one model. The small models keep their own name aliases (`Qwen-3.5-2B`,
 `Qwen-3.5-4B`, `mellum`); `agent-fast` points at Qwen3.5-4B.
 | Fast/Large | `agent` | Ling-3.0-flash (127B, IQ4_XS, draft-mtp) | default agent brain — complex reasoning at speed |
-| Accurate/Large | `agent-quality` | Ornith-1.5-35B (Q5_K_M), candidate: Qwen3.8-27B | quality-critical: architecture, deep debugging |
+| Accurate/Large | `agent-quality` | Ornith-1.5-35B (Q5_K_M) | quality-critical: architecture, deep debugging |
+
+> **Note (2026-09-02)**: `Qwen3.8-27B` is commented out in
+> `llm-models.nix` due to GPU OOM / Vulkan device lost on llm01. Re-enable
+> when the GPU memory situation allows.
 
 Existing aliases (`default`, `opencode`, `hermes`, `multimodal`, …) are left
 untouched, so anything pointed at a model name keeps working.
