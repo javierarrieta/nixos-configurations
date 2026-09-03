@@ -1,6 +1,6 @@
 # CI Verify Workflow Plan
 
-> Status: planned (workflow exists; plan unifies with actual workflow)
+> Status: implemented
 
 ## Problem
 The workflow `.github/workflows/verify.yml` and plan expectations diverged:
@@ -42,7 +42,7 @@ Single job `verify` on `ubuntu-latest`, triggered on `push`/`pull_request` to `m
 
 ## Dependencies / Order
 
-1. Ensure `.github/workflows/verify.yml` has correct steps (done)
+1. Ensure `.github/workflows/verify.yml` has correct steps
 2. Verify `nix flake check --no-build` works on the repo root
 3. Verify `nix fmt --check` works on the repo root
 4. Verify smoke test build on `k8s-node01` host config
