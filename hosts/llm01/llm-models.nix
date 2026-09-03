@@ -22,7 +22,7 @@
       "alias" = "Qwen-3.5-4B,fast,4B,agent-fast";
       "parallel" = "1";
       "flash-attn" = "on";
-      "ctx-size" = "80000";
+      "ctx-size" = "150000";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q8_0";
       "batch-size" = "4096";
@@ -86,7 +86,7 @@
     extraProperties = {
       "alias" = "vision,qwen-vl,vision-model";
       "flash-attn" = "on";
-      "ctx-size" = "32768";
+      "ctx-size" = "65536";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q8_0";
     };
@@ -161,7 +161,7 @@
     extraProperties = {
       "alias" = "Ling-3.0,long-horizon,agent,default";
       "flash-attn" = "on";
-      "ctx-size" = "80000";
+      "ctx-size" = "140000";
       "parallel" = "1";
       "cont-batching" = "true";
       "cache-type-k" = "q8_0";
