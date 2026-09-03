@@ -1,0 +1,29 @@
+name: Verify
+
+on:
+  push:
+    branches: [ main, stable ]
+  pull_request:
+    branches: [ main, stable ]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v14
+
+      - name: Flake check
+        run: nix flake check --no-build
+
+      - name: Format check (nixfmt)
+        run: nix fmt -- --ci
+
+      - name: Build smoke test (k8s-node05)
+        run: nix build .#nixosConfigurations.k8s-node05.config.system.build.toplevel
+
+      - name: Build smoke test (llm01)
+        run: nix build .#nixosConfigurations.llm01.config.system.build.toplevel
