@@ -182,9 +182,9 @@
     threads = 8;
     threadsBatch = 8;
     metrics.enable = true;
-    # 5-model preset; router default cap is 4 — without this, requests for
-    # the 5th model evict a loaded one and scrapes re-load it (thrash loop)
-    extraServerArgs = [ "--models-max 5" ];
+    # 6-model preset; router default cap is 4 — without this, requests for
+    # the 6th model evict a loaded one and scrapes re-load it (thrash loop)
+    extraServerArgs = [ "--models-max 6" ];
     environment = {
       GGML_VK_DISABLE_COOPMAT = "1";
       GGML_VK_VISIBLE_DEVICES = "0";

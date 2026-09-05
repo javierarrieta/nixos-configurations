@@ -31,6 +31,29 @@
       "cache-reuse" = "256";
     };
   };
+  "Qwen3.5-9B" = {
+    modelId = "unsloth/Qwen3.5-9B-GGUF";
+    filename = "Qwen3.5-9B-UD-Q4_K_XL.gguf";
+    extraProperties = {
+      "alias" = "Qwen-3.5-9B,hermes,agent-mid";
+      "parallel" = "1";
+      "flash-attn" = "on";
+      "ctx-size" = "64000";
+      "reasoning-budget" = "-1";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
+      "batch-size" = "4096";
+      "ubatch-size" = "1024";
+      "cache-prompt" = "true";
+      "cache-reuse" = "1024";
+      "temp" = "0.7";
+      "top-k" = "100";
+      "top-p" = "0.80";
+      "min-p" = "0.0";
+      "repeat-penalty" = "1.0";
+      "chat-template-kwargs" = "{\"enable_thinking\": false}";
+    };
+  };
   "Mellum-4B" = {
     modelId = "mradermacher/Mellum-4b-base-GGUF";
     filename = "Mellum-4b-base.Q4_K_M.gguf";
