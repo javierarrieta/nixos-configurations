@@ -35,10 +35,10 @@
     modelId = "unsloth/Qwen3.5-9B-GGUF";
     filename = "Qwen3.5-9B-UD-Q4_K_XL.gguf";
     extraProperties = {
-      "alias" = "Qwen-3.5-9B,hermes,agent-mid";
-      "parallel" = "1";
+      "alias" = "Qwen-3.5-9B,hermes,agent-instruct";
+      "parallel" = "2";
       "flash-attn" = "on";
-      "ctx-size" = "64000";
+      "ctx-size" = "180000";
       "reasoning-budget" = "-1";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q8_0";
