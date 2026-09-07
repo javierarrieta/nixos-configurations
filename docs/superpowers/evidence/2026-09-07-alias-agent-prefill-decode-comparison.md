@@ -17,22 +17,22 @@ valid. Re-baseline before tracking trends against older tables.
 
 ## Model parameters (from `hosts/llm01/llm-models.nix` @ `995a4cf`)
 
-| Model params (current preset) | agent (Tiel MTP Q6_K_XL) — also agent/default | agent-instruct | agent-fast |
-|---|---|---|---|
-| Preset | TielCoder-35B-A3B (MTP) | Qwen3.5-9B | Qwen3.5-4B |
-| Repo/file | peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF-MTP, MTP-UD-Q6_K_XL (30.5 GB) | unsloth/Qwen3.5-9B-GGUF, UD-Q4_K_XL | unsloth/Qwen3.5-4B-GGUF, Q4_K_M |
-| Arch | 35B MoE (A3B, ~3B active), Ornith-1.5 base, Sharp template, MTP `draft-mtp` | dense 9B | dense 4B |
-| ctx-size | 160000 (parallel=2 → 80k/slot) | 180000 (parallel=2 → 90k/slot) | 150000 |
-| parallel | 2 | 2 | 1 |
-| cache-type-k/v | q8_0/q8_0 | q8_0/q8_0 | q8_0/q8_0 |
-| cache-reuse | 1024 | 1024 | 256 |
-| cache-prompt | true | true | true |
-| flash-attn | on | on | on |
-| batch / ubatch | 4096 / 1024 | 4096 / 1024 | 4096 / 1024 |
-| load-mode | mlock | — | — |
-| speculative | MTP (`draft-mtp`) — `spec-type` set | — | — |
-| sampling | temp 0.6, top-p 0.95, top-k 20, min-p 0.0 | temp 0.7, top-p 0.80, top-k 100, reasoning-budget −1, enable_thinking=false | (defaults) |
-| Other aliases | tiel, default, agent-coder | hermes | fast, 4B |
+| Model params (current preset) | agent (Tiel MTP Q6_K_XL) — also agent/default | agent-instruct | agent-fast | agent (Ling-3.0-flash, ref/replaced) |
+|---|---|---|---|---|
+| Preset | TielCoder-35B-A3B (MTP) | Qwen3.5-9B | Qwen3.5-4B | Ling-3.0-flash (replaced) |
+| Repo/file | peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF-MTP, MTP-UD-Q6_K_XL (30.5 GB) | unsloth/Qwen3.5-9B-GGUF, UD-Q4_K_XL | unsloth/Qwen3.5-4B-GGUF, Q4_K_M | bartowski/Ling-3.0-flash-GGUF, IQ4_XS, 2 shards |
+| Arch | 35B MoE (A3B, ~3B active), Ornith-1.5 base, Sharp template, MTP `draft-mtp` | dense 9B | dense 4B | 124B MoE (5.1B active), KDA recurrent, bailingmoe3/KDA |
+| ctx-size | 160000 (parallel=2 → 80k/slot) | 180000 (parallel=2 → 90k/slot) | 150000 | 140000 |
+| parallel | 2 | 2 | 1 | 1 |
+| cache-type-k/v | q8_0/q8_0 | q8_0/q8_0 | q8_0/q8_0 | f16/f16 |
+| cache-reuse | 1024 | 1024 | 256 | — (KDA incompatible) |
+| cache-prompt | true | true | true | — |
+| flash-attn | on | on | on | on |
+| batch / ubatch | 4096 / 1024 | 4096 / 1024 | 4096 / 1024 | 4096 / 1024 |
+| load-mode | mlock | — | — | mlock |
+| speculative | MTP (`draft-mtp`) — `spec-type` set | — | — | ngram-mod (n-match 24, draft-n-max 4) |
+| sampling | temp 0.6, top-p 0.95, top-k 20, min-p 0.0 | temp 0.7, top-p 0.80, top-k 100, reasoning-budget −1, enable_thinking=false | (defaults) | temp 0.6, top-p 0.95, top-k 20, min-p 0.05 |
+| Other aliases | tiel, default, agent-coder | hermes | fast, 4B | default, long-horizon (old agent/default) |
 
 **Note**: `agent` alias was `Ling-3.0-flash` (KDA, no cache-reuse, ngram-mod) until 2026-09-07; replaced by Tiel MTP for agentic coding. See `hosts/llm01/llm-models.nix` comment block.
 
