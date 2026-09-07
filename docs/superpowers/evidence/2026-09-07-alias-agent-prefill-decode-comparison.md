@@ -61,16 +61,16 @@ Server: `llama-server --models-preset` (router mode), port 8001, `-ngl 99`,
 
 ## Results
 
-| metric (ms unless noted) | agent (Tiel MTP Q6_K_XL) | agent-fast (Qwen3.5-4B) | agent-instruct (Qwen3.5-9B) |
-|---|---|---|---|
-| TTFT p50 hit | **1968** | **1915** | 2704 |
-| TTFT p95 hit | 2386 | **2233** | 3059 |
-| TTFT p50 miss | 24007 | **17290** | 28370 |
-| TTFT p95 miss (~29k ctx) | 41742 | 30118 | 47142 |
-| cache benefit (miss/hit TTFT) | 12.2× | 9.0× | 10.5× |
-| token latency p50 / p95 (decode) | **0.02 / 53.5** (~50k t/s peak, MTP draft 72% accept) | **18.0 / 19.3** (~55 t/s) | 30.9 / 32.6 (~32 t/s) |
-| effective tps p50 hit | 2.8 | 15.1 | **19.2** |
-| effective tps p50 miss | 2.0 | 3.4 | 1.4 |
+| metric (ms unless noted) | agent (Tiel MTP Q6_K_XL) | agent-fast (Qwen3.5-4B) | agent-instruct (Qwen3.5-9B) | agent (Ling-3.0-flash, replaced) |
+|---|---|---|---|---|
+| TTFT p50 hit | **1968** | **1915** | 2704 | 5133 |
+| TTFT p95 hit | 2386 | **2233** | 3059 | 5896 |
+| TTFT p50 miss | 24007 | **17290** | 28370 | 58695 |
+| TTFT p95 miss (~29k ctx) | 41742 | 30118 | 47142 | 99292 |
+| cache benefit (miss/hit TTFT) | 12.2× | 9.0× | 10.5× | 11.4× |
+| token latency p50 / p95 (decode) | **0.02 / 53.5** (~50k t/s peak, MTP draft 72% accept) | **18.0 / 19.3** (~55 t/s) | 30.9 / 32.6 (~32 t/s) | 30.9 / 34.6 (~33 t/s) |
+| effective tps p50 hit | 2.8 | 15.1 | **19.2** | 6.3 |
+| effective tps p50 miss | 2.0 | 3.4 | 1.4 | 0.9 |
 
 ## Read
 
@@ -90,3 +90,6 @@ Server: `llama-server --models-preset` (router mode), port 8001, `-ngl 99`,
   hit mode (19.2) due to full 128-token turns.
 - Not comparable with older benchmark evidence (`2026-08-28*`, etc.). Tiel
   MTP results include new `draft_n` / `draft_n_accepted` decode metrics.
+- **Reference (replaced)**: `agent` (Ling-3.0-flash, KDA, no cache-reuse,
+  ngram-mod) — prefill bottleneck (~59 s miss @18k ctx), decode fine (~33 t/s),
+  but any prefix divergence catastrophic; removed 2026-09-07.
