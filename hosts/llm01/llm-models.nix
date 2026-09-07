@@ -187,18 +187,19 @@
       "ctx-size" = "140000";
       "parallel" = "1";
       "cont-batching" = "true";
-      "cache-type-k" = "q8_0";
-      "cache-type-v" = "q8_0";
+      "cache-type-k" = "f16";
+      "cache-type-v" = "f16";
       "temperature" = "0.6";
       "top-p" = "0.95";
       "top-k" = "20";
-      "min-p" = "0.0";
+      "min-p" = "0.05";
       "repeat-penalty" = "1.0";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "load-mode" = "mlock";
-      "spec-type" = "draft-mtp";
-      "spec-draft-n-max" = "2";
+      "spec-type" = "lookup";
+      "lookup-ngram-min" = "2";
+      "spec-draft-n-max" = "4";
     };
   };
 }
