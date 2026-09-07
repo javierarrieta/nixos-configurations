@@ -1072,10 +1072,22 @@ async def measure_turn_openai_compat(
                 first_token_time = now
 
             choices = data.get("choices") or [{}]
-            delta = choices[0].get("delta", {}).get("content", "")
-            if delta:
+            delta = choices[0].get("delta", {})
+            content = delta.get("content") or ""
+            # Tool-tuned models (agent presets) stream tool calls as
+            # delta.tool_calls with empty content — llama.cpp parses the call
+            # out of the text. Count those chunks as tokens too, otherwise
+            # effective tps / token latency are meaningless for agent models.
+            tool_calls = delta.get("tool_calls") or []
+            tc_text = ""
+            if tool_calls:
+                tc = tool_calls[0] or {}
+                fn = tc.get("function") or {}
+                tc_text = (fn.get("name") or "") + (fn.get("arguments") or "")
+            text = content or tc_text
+            if text:
                 token_count += 1
-                response_parts.append(delta)
+                response_parts.append(text)
                 token_latencies.append((now - last_token_time) * 1000)
                 last_token_time = now
 
@@ -1221,10 +1233,13 @@ async def run_benchmark(
                     file=sys.stderr,
                 )
 
-                # Agent loop: append assistant reply, then a tool result that grows
-                # context toward eff_target without overshooting n_ctx.
-                # Cap assistant response to 500 chars to match real agent behavior
-                # (opencode-style agents produce concise responses).
+                # Agent loop: keep the full exchange (task + assistant reply +
+                # tool result) in append-only history. The task must be re-added
+                # here: it was only part of the request, not of `history`, and
+                # dropping it made each new prompt diverge from the cached prefix
+                # right after the system prompt -> full re-prefill every turn,
+                # silently defeating --cache-mode hit.
+                history.append({"role": "user", "content": task})
                 history.append({"role": "assistant", "content": response_text[:500]})
                 assist_real = max(1, len(response_text[:500]) // 4)
                 mean_assist = mean_assist * 0.8 + assist_real * 0.2
