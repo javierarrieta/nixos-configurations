@@ -197,8 +197,8 @@
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "load-mode" = "mlock";
-      "spec-type" = "lookup";
-      "lookup-ngram-min" = "2";
+      "spec-type" = "ngram-mod";
+      "spec-ngram-mod-n-match" = "24";
       "spec-draft-n-max" = "4";
     };
   };
