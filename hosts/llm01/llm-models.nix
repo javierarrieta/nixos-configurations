@@ -175,31 +175,63 @@
   #   };
   # };
 
-  # ── Ling-3.0-flash ────────────────────────────────────────────────
+  # ── Ling-3.0-flash (commented out 2026-09-07 — coding poor, replaced by Tiel) ─
   # bailingmoe3/KDA recurrent — cache_reuse incompatible,
   # context checkpoints don't help (TTFT scales linearly).
-  "Ling-3.0-flash" = {
-    modelId = "bartowski/Ling-3.0-flash-GGUF";
-    filename = "Ling-3.0-flash-IQ4_XS/Ling-3.0-flash-IQ4_XS-00001-of-00002.gguf";
+  # "Ling-3.0-flash" = {
+  #   modelId = "bartowski/Ling-3.0-flash-GGUF";
+  #   filename = "Ling-3.0-flash-IQ4_XS/Ling-3.0-flash-IQ4_XS-00001-of-00002.gguf";
+  #   extraProperties = {
+  #     "alias" = "Ling-3.0,long-horizon,agent,default";
+  #     "flash-attn" = "on";
+  #     "ctx-size" = "140000";
+  #     "parallel" = "1";
+  #     "cont-batching" = "true";
+  #     "cache-type-k" = "f16";
+  #     "cache-type-v" = "f16";
+  #     "temperature" = "0.6";
+  #     "top-p" = "0.95";
+  #     "top-k" = "20";
+  #     "min-p" = "0.05";
+  #     "repeat-penalty" = "1.0";
+  #     "batch-size" = "4096";
+  #     "ubatch-size" = "1024";
+  #     "load-mode" = "mlock";
+  #     "spec-type" = "ngram-mod";
+  #     "spec-ngram-mod-n-match" = "24";
+  #     "spec-draft-n-max" = "4";
+  #   };
+  # };
+
+  # ── Tiel-Coder-35B-A3B-GGUF (2026-09-07) ─────────────────────────────
+  # peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF — 35B MoE (A3B), Ornith-1.5
+  # base, Sharp template, dynamically quantized. Replaces Ling-3.0-flash
+  # (agent/default) for agentic coding; uses q8_0 KV like 4B/9B.
+  # Docs recommend >=32 GB combined RAM+VRAM; start tier UD-Q4_K_XL (22.4 GB).
+  # Recommended settings: temp 0.6 / top-p 0.95 / top-k 20 for agent coding.
+  "TielCoder-35B-A3B" = {
+    modelId = "peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF-MTP";
+    filename = "Tiel-Coder-35B-A3B-MTP-UD-Q6_K_XL.gguf";
     extraProperties = {
-      "alias" = "Ling-3.0,long-horizon,agent,default";
+      "alias" = "tiel,agent,agent-coder,default";
       "flash-attn" = "on";
-      "ctx-size" = "140000";
-      "parallel" = "1";
+      "ctx-size" = "160000";
+      "parallel" = "2";
       "cont-batching" = "true";
-      "cache-type-k" = "f16";
-      "cache-type-v" = "f16";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
       "temperature" = "0.6";
       "top-p" = "0.95";
       "top-k" = "20";
-      "min-p" = "0.05";
+      "min-p" = "0.0";
+      "presence-penalty" = "0.0";
       "repeat-penalty" = "1.0";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "load-mode" = "mlock";
-      "spec-type" = "ngram-mod";
-      "spec-ngram-mod-n-match" = "24";
-      "spec-draft-n-max" = "4";
+      "cache-prompt" = "true";
+      "cache-reuse" = "1024";
+      "spec-type" = "draft-mtp";
     };
   };
 }
