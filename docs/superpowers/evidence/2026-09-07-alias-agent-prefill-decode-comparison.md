@@ -18,6 +18,7 @@ valid. Re-baseline before tracking trends against older tables.
 ## Model parameters (from `hosts/llm01/llm-models.nix` @ `995a4cf`)
 
 | Model params (current preset) | agent (Tiel MTP Q6_K_XL) — also agent/default | agent-instruct | agent-fast |
+|---|---|---|---|
 | Preset | TielCoder-35B-A3B (MTP) | Qwen3.5-9B | Qwen3.5-4B |
 | Repo/file | peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF-MTP, MTP-UD-Q6_K_XL (30.5 GB) | unsloth/Qwen3.5-9B-GGUF, UD-Q4_K_XL | unsloth/Qwen3.5-4B-GGUF, Q4_K_M |
 | Arch | 35B MoE (A3B, ~3B active), Ornith-1.5 base, Sharp template, MTP `draft-mtp` | dense 9B | dense 4B |
