@@ -4,6 +4,7 @@
     filename = "Qwen3.5-2B-Q4_K_M.gguf";
     extraProperties = {
       "alias" = "Qwen-3.5-2B";
+      "jinja" = "true";
       "flash-attn" = "on";
       "ctx-size" = "8192";
       "reasoning-budget" = "-1";
@@ -20,6 +21,7 @@
     filename = "Qwen3.5-4B-Q4_K_M.gguf";
     extraProperties = {
       "alias" = "Qwen-3.5-4B,fast,4B,agent-fast";
+      "jinja" = "true";
       "parallel" = "1";
       "flash-attn" = "on";
       "ctx-size" = "150000";
@@ -36,6 +38,7 @@
     filename = "Qwen3.5-9B-UD-Q4_K_XL.gguf";
     extraProperties = {
       "alias" = "Qwen-3.5-9B,hermes,agent-instruct";
+      "jinja" = "true";
       "parallel" = "2";
       "flash-attn" = "on";
       "ctx-size" = "180000";
@@ -107,6 +110,7 @@
     mmprojModelId = "unsloth/Qwen2.5-VL-7B-Instruct-GGUF";
     mmproj = "mmproj-BF16.gguf";
     extraProperties = {
+      "jinja" = "true";
       "alias" = "vision,qwen-vl,vision-model";
       "flash-attn" = "on";
       "ctx-size" = "65536";
@@ -214,6 +218,7 @@
     filename = "Tiel-Coder-35B-A3B-MTP-UD-Q6_K_XL.gguf";
     extraProperties = {
       "alias" = "tiel,agent,agent-coder,default";
+      "jinja" = "true";
       "flash-attn" = "on";
       "ctx-size" = "160000";
       "parallel" = "2";
