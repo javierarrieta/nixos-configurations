@@ -308,7 +308,7 @@ in
       init.defaultBranch = "${userOptions.gitDefaultBranch}";
       github.user = "${userOptions.githubUser}";
     }
-    // lib.optionalAttrs pkgs.hostPlatform.isDarwin {
+    // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
       credential.helper = "osxkeychain";
     };
   };

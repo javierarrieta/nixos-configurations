@@ -30,7 +30,7 @@ let
   # Each host builds natively for its own system (home-manager switch runs on
   # the host), so the host's own stdenv is always the right toolchain: linux
   # stdenv for the linux hosts, darwin stdenv on the Macs. The bun asset is
-  # selected by prev.system below.
+  # selected by prev.stdenv.hostPlatform.system below.
 
 in
 {
@@ -39,7 +39,8 @@ in
     let
       stdenv = final.stdenv;
       asset =
-        bunReleaseAssets.${prev.system} or (throw "bun ${bunVersion}: unsupported system ${prev.system}");
+        bunReleaseAssets.${prev.stdenv.hostPlatform.system}
+          or (throw "bun ${bunVersion}: unsupported system ${prev.stdenv.hostPlatform.system}");
       # Directory the zip unpacks to; holds the single bun binary.
       assetName = builtins.replaceStrings [ ".zip" ] [ "" ] asset;
     in
@@ -53,7 +54,7 @@ in
         # a fixed-output value that varies by environment and is unreliable.
         src = final.fetchurl {
           url = "https://github.com/oven-sh/bun/releases/download/bun-v${bunVersion}/${asset}";
-          sha256 = bunReleaseHashes.${prev.system};
+          sha256 = bunReleaseHashes.${prev.stdenv.hostPlatform.system};
         };
 
         nativeBuildInputs = [ final.unzip ];
