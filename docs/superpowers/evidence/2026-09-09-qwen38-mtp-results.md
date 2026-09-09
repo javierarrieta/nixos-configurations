@@ -68,25 +68,23 @@ mode — expensive by design, not an MTP issue.)
 MTP is unambiguously firing and the draft head accepts well (~2.0–2.5 output
 tokens per verification step depending on window/workload).
 
-## Diagnosis
+## Diagnosis (corrected by A/B control — see §5)
 
 1. **Rejected:** "MTP never fires / zero acceptance". Acceptance holds at
    53–74 % across every data window; ~2+ tokens out per verify step.
-2. **Confirmed:** steady decode = the memory-bandwidth floor in *every* measured
-   window (isolated smoke test, bench hit-mode at 7–10 k ctx, and the owner's
-   live-session report of ~13 t/s all coincide). If MTP's ~2× tokens/step were
-   converting to wall-clock time, decode would run near 25–30 t/s. It does not:
-   on this Vulkan iGPU, a verification pass carrying the extra draft positions
-   costs roughly as much as the tokens it buys back ⇒ **MTP net gain ≈ 0** for
-   a dense 27B model at this context range. The bottleneck is weight-read
-   bandwidth (Q6_K 27B), and MTP's compute-side verify overhead cancels its
-   token-side win.
-3. **Unverified by clean run:** high-context KV/GTT collapse. `n_tokens_max`
+2. **Rejected (was the working theory, falsified by control):** "verify
+   overhead cancels the gain, net ≈ 0". The spec-off A/B shows MTP ON winning
+   ~1.5× wall-clock at agent context sizes. Per-forward fixed costs dominate on
+   the iGPU; draft positions ride nearly free inside a bandwidth-bound pass, so
+   ~2–2.5 tok/step converts to real throughput.
+3. **Confirmed:** without speculation the true floor is ~9 t/s (uniform ~110 ms
+   per token), not the 13 t/s seen with MTP on. 13–14 t/s ≈ MTP-assisted rate
+   approaching the pure weight-streaming ceiling.
+4. **Unverified by clean run:** high-context KV/GTT collapse. `n_tokens_max`
    reached **51,043** today on an external session while decode stayed at the
-   same floor (~13 t/s per owner report) — weak evidence *against* a sub-~60 k
-   context-collapse regime, but a controlled high-ctx probe is blocked because
-   llm01 was under active concurrent load (firing one would both contaminate
-   numbers and starve the live user of a slot for ~5 min).
+   MTP-assisted floor — weak evidence *against* a sub-~60 k collapse regime,
+   but a controlled high-ctx probe is still open (box was busy; now free but
+   the A/B windows took priority).
 
 ## Data-quality notes
 
@@ -98,18 +96,52 @@ tokens per verification step depending on window/workload).
    ~51 k is partially attributable to it plus real external traffic.
 - Bench JSONs contain summary percentiles only (no per-turn rows).
 
+## 5. A/B control: MTP off (same day, same box)
+
+Deployed `b1061d5` (spec lines removed from preset), verified live `/models`
+args contained no `--spec-*`, re-ran smoke + hit 5×5 + miss 3×3 with identical
+flags. Contexts matched almost exactly (hit 8512/10536 vs 8500/10464; miss
+7575/8595 vs 7543/8522), so the comparison is clean.
+
+| metric | MTP on | MTP off | read |
+|---|---|---|---|
+| smoke effective t/s | ~13.6 (64 tok / 4.7 s) | ~7.4 wall / ~8.9 decode-only (49 tok / 6.6 s, TTFT 1.2 s) | **~1.5×** |
+| hit total/turn p50 | 13.7 s | 20.8 s | **~1.5×** |
+| hit effective tps p50 / mean | 4.18 / 3.80 | 2.56 / 2.24 | **~1.6×** |
+| hit token latency | p50 ~0 ms (draft bursts), p95 135.6 ms | p50/p95 ~110 ms flat | bursty vs uniform |
+| miss total/turn p50 | 51.9 s | 61.9 s | decode portion ~2× (output lengths differ — temp 1.0 sampling noise) |
+| miss TTFT p50 | 45.2 s | 47.9 s | prefill unaffected ✓ (as expected) |
+
+Latency profile note: MTP-on delivery is bursty (accepted drafts arrive
+together, then verify gaps — worse p95 tail, 136 vs 111 ms), but bulk
+throughput wins ~1.5×. Turn-level agent latency is dominated by bulk decode,
+so MTP on is the right call.
+
+**Verdict: keep MTP on.** Restored via `ba60d7a` (config byte-identical to
+pre-A/B state). ⚠️ Restore deploy had NOT landed 20 min after push at time of
+writing — comin on llm01 appears stalled (see open item 3).
+
 ## Open items / levers (owner decisions)
 
 1. [ ] Clean high-context probe (~50 k): snapshot spec counters before/after,
        measure TTFT + steady decode at long ctx on a quiet box — closes the GTT
        question definitively. ~5 min of GPU time.
-2. [IN PROGRESS] MTP A/B: `spec-type`/`spec-draft-n-max` removed from the
-   Qwen3.8-27B preset in `hosts/llm01/llm-models.nix` (staged locally as an
-   uncommitted diff, `nix eval` of llm01 toplevel passes). After owner pushes to
-   `main` and llm01 converges: re-run smoke + both bench modes, compare vs the
-   JSONs above, then restore MTP and push again. (Owner decision to hold the
-   line past that point goes here.)
-3. Bigger levers if more t/s is wanted on this hardware, in rough order of impact:
+2. [x] MTP A/B — done, ~1.5× win for MTP on. No further action except confirming
+       the restore deploy (item 3).
+3. [ ] **Restore deploy stuck**: `ba60d7a` pushed, but live `/models` args still
+       show no `--spec-type` after 20 min (the disable commit `b1061d5` landed
+       in ~7 min). Suspect comin deployer stall on llm01 (cf. AGENTS.md: issue
+       #159 suspend/desync, or post-force-push loop). On llm01, run:
+       ```bash
+       comin status --json | jq '{suspended: .is_suspended, deployer_suspended: .deployer.is_suspended, dep_status: .deployer.deployment.status, to_deploy: .generation_to_deploy}'
+       journalctl -u comin -n 30 --no-pager | tail -30
+       tail -20 /var/log/comin-health-gate.log
+       ```
+       If deployer suspended with manager unsuspended → the #159 recovery
+       (`comin suspend` then `comin resume`). If stalled with
+       `generation_to_deploy: null` and no suspension → `sudo systemctl restart
+       comin` re-triggers evaluation.
+4. Bigger levers if more t/s is wanted on this hardware, in rough order of impact:
        - **Q4_K instead of Q6_K** → ~2× decode (bandwidth halved) at a quality cost;
          MTP-quantized GGUFs may not exist for Qwen3.8 — check source repo first.
        - **KV q8_0 instead of f16** → long-context GTT pressure drops (~80 GB → ~53
