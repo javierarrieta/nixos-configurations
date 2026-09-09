@@ -88,8 +88,8 @@
       "ctx-size" = "160000";
       "parallel" = "2";
       "flash-attn" = "on";
-      "cache-type-k" = "f16";
-      "cache-type-v" = "f16";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
       "temperature" = "1.0";
       "top-p" = "0.95";
       "top-k" = "20";
