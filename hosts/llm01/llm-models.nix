@@ -13,7 +13,7 @@
       "top-p" = "0.80";
       "min-p" = "0.0";
       "repeat-penalty" = "1.0";
-      "chat-template-kwargs" = "{\"enable_thinking\": false}";
+      "reasoning" = "off";
     };
   };
   "Qwen3.5-4B" = {
@@ -54,7 +54,7 @@
       "top-p" = "0.80";
       "min-p" = "0.0";
       "repeat-penalty" = "1.0";
-      "chat-template-kwargs" = "{\"enable_thinking\": false}";
+      "reasoning" = "off";
     };
   };
   "Mellum-4B" = {
