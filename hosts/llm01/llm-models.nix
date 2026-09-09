@@ -13,7 +13,7 @@
       "top-p" = "0.80";
       "min-p" = "0.0";
       "repeat-penalty" = "1.0";
-      "reasoning" = "off"
+      "chat-template-kwargs" = "{\"enable_thinking\": false}";
     };
   };
   "Qwen3.5-4B" = {
@@ -54,7 +54,7 @@
       "top-p" = "0.80";
       "min-p" = "0.0";
       "repeat-penalty" = "1.0";
-      "reasoning" = "off"
+      "chat-template-kwargs" = "{\"enable_thinking\": false}";
     };
   };
   "Mellum-4B" = {
@@ -102,6 +102,9 @@
       "cache-prompt" = "true";
       "cache-reuse" = "1024";
       "spec-type" = "draft-mtp";
+      # n-max 3 tested 2026-09-09: pos2 acceptance only ~21%, output/step fell
+      # 2.5 -> 2.2. Keep at 2. (NOTE: keep this comment — byte-identical
+      # reverts evaluate to a seen store path and comin skips the deploy.)
       "spec-draft-n-max" = "2";
       "chat-template-kwargs" = "{\"reasoning_effort\":\"medium\"}";
     };
