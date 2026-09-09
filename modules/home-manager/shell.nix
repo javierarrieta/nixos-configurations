@@ -305,7 +305,7 @@ in
         sw = "switch";
       };
       pull.rebase = "false";
-      credential.helper = "osxkeychain";
+      credential.helper = lib.optionalString pkgs.hostPlatform.isDarwin "osxkeychain";
       init.defaultBranch = "${userOptions.gitDefaultBranch}";
       github.user = "${userOptions.githubUser}";
     };
