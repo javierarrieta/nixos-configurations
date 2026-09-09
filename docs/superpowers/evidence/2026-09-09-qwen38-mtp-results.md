@@ -121,11 +121,33 @@ so MTP on is the right call.
 pre-A/B state). ⚠️ Restore deploy had NOT landed 20 min after push at time of
 writing — comin on llm01 appears stalled (see open item 3).
 
+## 6. High-context probe (~41 k tokens, MTP on)
+
+Single prompt of 201,000 chars (≈41.4 k tokens; `n_tokens_max` 41587),
+`max_tokens` 256, idle box, spec counters snapshotted before/after.
+
+| metric | value |
+|---|---|
+| TTFT (full 41 k prefill) | 472.7 s ⇒ prefill ≈ **88 t/s** (vs ~166 t/s at 8 k ctx — ~2× slower, attention cost showing, still linear-ish) |
+| decode window | 173 predicted tokens in 9.6 s ⇒ **~18 t/s** (short window; consistent with the 13–14 range — **no collapse**) |
+| spec acceptance in-run | 69 verify steps, 137 draft tok, 102 accepted ⇒ **74.5 %**, ~2.5 tok/step (same as low-ctx windows) |
+| server health | clean completion, `requests_processing` 0 after |
+
+**No KV/GTT collapse at 41 k.** MTP acceptance and decode rate hold at long
+context; only prefill slows (expected, attention-bound).
+
+Caveat: an earlier oversized attempt (368 k chars ≈ 92 k tokens) failed before
+emitting any token and the server restarted afterwards (counters zeroed) —
+cause undiagnosed from here (llm01 journal needed). A single-prompt ceiling
+exists somewhere between ~41 k and ~92 k on current settings. Agent sessions
+(prefix-cached, rarely single-prefilling anywhere near that) are unaffected,
+but do not fire >~50 k single prompts at this preset without watching the box.
+
 ## Open items / levers (owner decisions)
 
-1. [ ] Clean high-context probe (~50 k): snapshot spec counters before/after,
-       measure TTFT + steady decode at long ctx on a quiet box — closes the GTT
-       question definitively. ~5 min of GPU time.
+1. [x] High-context probe — done (§6). Residual: single-prompt ceiling between
+       ~41 k and ~92 k unexplained; bisect only with owner consent (a repeat
+       may crash the server again) + llm01 journal from the failed attempt.
 2. [x] MTP A/B — done, ~1.5× win for MTP on. No further action except confirming
        the restore deploy (item 3).
 3. [x] **Restore deploy skip — root-caused and resolved.** `ba60d7a` restored
