@@ -84,6 +84,7 @@
     filename = "Qwen3.8-27B-MTP-Q6_K.gguf";
     extraProperties = {
       "alias" = "Qwen-3.8-27B,qwen-current,slow,agent-quality";
+      "jinja" = "true";
       "ctx-size" = "160000";
       "parallel" = "2";
       "flash-attn" = "on";
@@ -102,6 +103,7 @@
       "cache-reuse" = "1024";
       "spec-type" = "draft-mtp";
       "spec-draft-n-max" = "2";
+      "chat-template-kwargs" = "{\"reasoning_effort\":\"medium\"}";
     };
   };
   # ── End commented Qwen3.8-27B ─────────────────────────────────────────
