@@ -180,6 +180,23 @@ engaged (no fallback on quantized KV), and `rocm-smi` should show lower GTT
 under a long session. Re-run the full bench pair if a hard number is wanted;
 skipped — the A/B question is settled and smoke shows no regression.
 
+## 8. spec-draft-n-max 2 → 3 → back to 2 (commits `43fe2d3` … `3ee51de`)
+
+Three 256-token smokes under n-max 3: 12.6–13.1 t/s server-side (flat to down
+vs n-max 2). Per-position acceptance over 343 verify steps: pos0 65 %, pos1
+37 %, **pos2 21 %**. Overall 422/1025 = 41 % (vs 53–74 % at n-max 2);
+output/step fell 2.5 → 2.2 while each verify pass got longer. **Verdict:
+depth doesn't pay — reverted to 2.** Lesson: watch
+`spec_decode_num_accepted_tokens_per_pos_total`, not the aggregate rate.
+
+Process lessons from this session (also relevant to §5/item 3):
+- Byte-identical reverts evaluate to a seen store path and comin skips the
+  deploy — keep a comment on the reverted lines so the path is fresh.
+- Never `git add <file>` blindly when the owner edits concurrently: `e0301b6`
+  swept in two unrelated in-progress `reasoning = "off"` hunks; `3ee51de`
+  restored them (recoverable from `e0301b6` history if still wanted). Diff
+  before every add.
+
 ## Open items / levers (owner decisions)
 
 1. [x] High-context probe — done (§6). Residual: single-prompt ceiling between
