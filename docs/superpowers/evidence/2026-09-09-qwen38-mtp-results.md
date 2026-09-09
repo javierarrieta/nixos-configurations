@@ -155,6 +155,26 @@ Single warm smoke (server-side timings, non-streamed, 49 predicted tokens):
 wall-based smokes — if anything faster, but single-sample with temp-1.0
 variance; honest read is "no regression, MTP healthy under q8_0".
 
+Full bench pair re-run under q8_0 (files `...-q8kv-hit.json`,
+`...-q8kv-miss.json`), contexts matched to the f16 runs almost exactly:
+
+| metric | f16 KV | q8_0 KV | read |
+|---|---|---|---|
+| hit ctx mean/max | 8500 / 10464 | 8492 / 10429 | matched |
+| hit total/turn p50 | 13.7 s | 12.6 s | noise |
+| hit effective tps p50 / mean | 4.18 / 3.80 | 4.13 / 3.54 | noise |
+| hit toklat p95 | 135.6 ms | 142.3 ms | same bursty profile |
+| miss ctx mean/max | 7543 / 8522 | 7544 / 8509 | matched |
+| miss TTFT p50 | 45.2 s | 45.4 s | prefill identical ✓ |
+| miss total/turn p50 | 51.9 s | 52.1 s | identical |
+| miss effective tps | 0.98 | 0.99 | identical |
+
+**Verdict: q8_0 KV is performance-neutral at ≤10 k ctx** (as predicted — KV is
+~10 % of per-pass bandwidth there) **while freeing ~27 GB GTT**. Keep it;
+the win is capacity/headroom, not speed. Larger decode gains would only show
+at long ctx where KV dominates traffic — untested, and not worth a dedicated
+41 k re-run.
+
 Open verification (needs llm01): server log should still show flash-attn
 engaged (no fallback on quantized KV), and `rocm-smi` should show lower GTT
 under a long session. Re-run the full bench pair if a hard number is wanted;
