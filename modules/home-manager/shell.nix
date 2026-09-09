@@ -21,7 +21,6 @@ in
         fishPlugins.tide
         fishPlugins.fzf
         ncdu
-        iotop
         duf
         procs
       ]
