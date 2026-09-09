@@ -128,19 +128,18 @@ writing — comin on llm01 appears stalled (see open item 3).
        question definitively. ~5 min of GPU time.
 2. [x] MTP A/B — done, ~1.5× win for MTP on. No further action except confirming
        the restore deploy (item 3).
-3. [ ] **Restore deploy stuck**: `ba60d7a` pushed, but live `/models` args still
-       show no `--spec-type` after 20 min (the disable commit `b1061d5` landed
-       in ~7 min). Suspect comin deployer stall on llm01 (cf. AGENTS.md: issue
-       #159 suspend/desync, or post-force-push loop). On llm01, run:
-       ```bash
-       comin status --json | jq '{suspended: .is_suspended, deployer_suspended: .deployer.is_suspended, dep_status: .deployer.deployment.status, to_deploy: .generation_to_deploy}'
-       journalctl -u comin -n 30 --no-pager | tail -30
-       tail -20 /var/log/comin-health-gate.log
-       ```
-       If deployer suspended with manager unsuspended → the #159 recovery
-       (`comin suspend` then `comin resume`). If stalled with
-       `generation_to_deploy: null` and no suspension → `sudo systemctl restart
-       comin` re-triggers evaluation.
+3. [x] **Restore deploy skip — root-caused and resolved.** `ba60d7a` restored
+       `llm-models.nix` byte-identical to pre-A/B, so the toplevel evaluated to
+       the same out path comin had deployed before the experiment → comin
+       logged `skipping deployment ... has already been deployed` and never
+       re-ran activation (comin dedups on seen-before out paths, not on
+       current-system state). Fix: manual `nixos-rebuild switch --flake
+       /var/lib/comin/repository#llm01` on llm01, which switches away from the
+       spec-off generation and re-runs activation. Verified live: `--spec-type
+       draft-mtp` back in `/models` args, spec counters incrementing (18
+       verify steps, 28/36 accepted on first smoke). Lesson: byte-identical
+       reverts never deploy via comin — touch the config (even a comment) if a
+       revert must go through the GitOps path.
 4. Bigger levers if more t/s is wanted on this hardware, in rough order of impact:
        - **Q4_K instead of Q6_K** → ~2× decode (bandwidth halved) at a quality cost;
          MTP-quantized GGUFs may not exist for Qwen3.8 — check source repo first.
