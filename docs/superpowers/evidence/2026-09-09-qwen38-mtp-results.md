@@ -143,6 +143,23 @@ exists somewhere between ~41 k and ~92 k on current settings. Agent sessions
 (prefix-cached, rarely single-prefilling anywhere near that) are unaffected,
 but do not fire >~50 k single prompts at this preset without watching the box.
 
+## 7. KV cache f16 → q8_0 (commit `36c9832`, deployed same day)
+
+Motivation: at 8–10 k ctx f16 KV ≈ 2 GB/pass vs 19 GB weights (~10% of
+bandwidth traffic); q8_0 halves that. Bigger prize is GTT headroom: 160 k×2
+drops ~80 GB → ~53 GB, freeing ~27 GB of the 118 GB budget.
+
+Single warm smoke (server-side timings, non-streamed, 49 predicted tokens):
+**20.0 t/s decode, draft acceptance 32/36 = 89 %**, prefix cache hitting
+(`cache_n` 16 on repeat prompt). No regression vs the f16 ~13–14 t/s
+wall-based smokes — if anything faster, but single-sample with temp-1.0
+variance; honest read is "no regression, MTP healthy under q8_0".
+
+Open verification (needs llm01): server log should still show flash-attn
+engaged (no fallback on quantized KV), and `rocm-smi` should show lower GTT
+under a long session. Re-run the full bench pair if a hard number is wanted;
+skipped — the A/B question is settled and smoke shows no regression.
+
 ## Open items / levers (owner decisions)
 
 1. [x] High-context probe — done (§6). Residual: single-prompt ceiling between
