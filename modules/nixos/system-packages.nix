@@ -28,6 +28,7 @@
         wget
         screen
         htop
+        iotop
         git
         fish
         prometheus-node-exporter
@@ -49,6 +50,17 @@
         binutils
         jq
         yq
+        sysstat
+        fio
+        strace
+        tcpdump
+        mtr
+        dnsutils
+        nmap
+        iproute2
+        pciutils
+        usbutils
+        rsync
       ]) config.systemPackages.excludePackages
       ++ config.systemPackages.extraPackages;
   };
