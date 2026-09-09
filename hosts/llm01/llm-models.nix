@@ -101,8 +101,9 @@
       "load-mode" = "mlock";
       "cache-prompt" = "true";
       "cache-reuse" = "1024";
-      "spec-type" = "draft-mtp";
-      "spec-draft-n-max" = "2";
+      # MTP temporarily disabled 2026-09-09 for A/B decode-speed test (see
+      # docs/superpowers/evidence/2026-09-09-qwen38-mtp-results.md). Restore:
+      # "spec-type" = "draft-mtp"; "spec-draft-n-max" = "2";
       "chat-template-kwargs" = "{\"reasoning_effort\":\"medium\"}";
     };
   };
