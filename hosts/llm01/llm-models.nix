@@ -102,7 +102,7 @@
       "cache-prompt" = "true";
       "cache-reuse" = "1024";
       "spec-type" = "draft-mtp";
-      "spec-draft-n-max" = "2";
+      "spec-draft-n-max" = "3";
       "chat-template-kwargs" = "{\"reasoning_effort\":\"medium\"}";
     };
   };
