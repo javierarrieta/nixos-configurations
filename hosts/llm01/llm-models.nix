@@ -225,7 +225,7 @@
       "jinja" = "true";
       "flash-attn" = "on";
       "ctx-size" = "160000";
-      "parallel" = "1";
+      "parallel" = "2";
       "cont-batching" = "true";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q8_0";
