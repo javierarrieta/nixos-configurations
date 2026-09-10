@@ -85,8 +85,8 @@
     extraProperties = {
       "alias" = "Qwen-3.8-27B,qwen-current,slow,agent-quality";
       "jinja" = "true";
-      "ctx-size" = "160000";
-      "parallel" = "1";
+      "ctx-size" = "200000";
+      "parallel" = "2";
       "flash-attn" = "on";
       "cache-type-k" = "q8_0";
       "cache-type-v" = "q8_0";
@@ -224,7 +224,7 @@
       "alias" = "tiel,agent,agent-coder,default";
       "jinja" = "true";
       "flash-attn" = "on";
-      "ctx-size" = "160000";
+      "ctx-size" = "200000";
       "parallel" = "2";
       "cont-batching" = "true";
       "cache-type-k" = "q8_0";
