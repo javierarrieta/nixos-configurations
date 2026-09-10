@@ -214,36 +214,33 @@
   #   };
   # };
 
-  # ── Tiel-Coder-35B-A3B-GGUF (2026-09-07) ─────────────────────────────
+  # ── Tiel-Coder-35B-A3B-GGUF (commented out 2026-09-10 — GTT thrash test) ─
   # peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF — 35B MoE (A3B), Ornith-1.5
-  # base, Sharp template, dynamically quantized. Replaces Ling-3.0-flash
-  # (agent/default) for agentic coding; uses q8_0 KV like 4B/9B.
-  # Docs recommend >=32 GB combined RAM+VRAM; start tier UD-Q4_K_XL (22.4 GB).
-  # Recommended settings: temp 0.6 / top-p 0.95 / top-k 20 for agent coding.
-  "TielCoder-35B-A3B" = {
-    modelId = "peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF-MTP";
-    filename = "Tiel-Coder-35B-A3B-MTP-UD-Q6_K_XL.gguf";
-    extraProperties = {
-      "alias" = "tiel,agent,agent-coder,default";
-      "jinja" = "true";
-      "flash-attn" = "on";
-      "ctx-size" = "160000";
-      "parallel" = "1";
-      "cont-batching" = "true";
-      "cache-type-k" = "q4_0";
-      "cache-type-v" = "q4_0";
-      "temperature" = "0.6";
-      "top-p" = "0.95";
-      "top-k" = "20";
-      "min-p" = "0.0";
-      "presence-penalty" = "0.0";
-      "repeat-penalty" = "1.1";
-      "batch-size" = "4096";
-      "ubatch-size" = "1024";
-      "load-mode" = "mlock";
-      "cache-prompt" = "true";
-      "cache-reuse" = "1024";
-      "spec-type" = "draft-mtp";
-    };
-  };
+  # base. Replaces Ling-3.0-flash (agent/default) for agentic coding.
+  # "TielCoder-35B-A3B" = {
+  #   modelId = "peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF-MTP";
+  #   filename = "Tiel-Coder-35B-A3B-MTP-UD-Q6_K_XL.gguf";
+  #   extraProperties = {
+  #     "alias" = "tiel,agent,agent-coder,default";
+  #     "jinja" = "true";
+  #     "flash-attn" = "on";
+  #     "ctx-size" = "160000";
+  #     "parallel" = "1";
+  #     "cont-batching" = "true";
+  #     "cache-type-k" = "q4_0";
+  #     "cache-type-v" = "q4_0";
+  #     "temperature" = "0.6";
+  #     "top-p" = "0.95";
+  #     "top-k" = "20";
+  #     "min-p" = "0.0";
+  #     "presence-penalty" = "0.0";
+  #     "repeat-penalty" = "1.1";
+  #     "batch-size" = "4096";
+  #     "ubatch-size" = "1024";
+  #     "load-mode" = "mlock";
+  #     "cache-prompt" = "true";
+  #     "cache-reuse" = "1024";
+  #     "spec-type" = "draft-mtp";
+  #   };
+  # };
 }
