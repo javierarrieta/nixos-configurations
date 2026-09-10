@@ -280,6 +280,7 @@ in
             "--threads-batch ${toString cfg.threadsBatch}"
           ]
           ++ cfg.serverArgs
+          ++ cfg.extraServerArgs
         );
         Restart = "on-failure";
         RestartSec = "5s";
