@@ -2,20 +2,20 @@
   # "Qwen3.5-2B" = {
   #   modelId = "unsloth/Qwen3.5-2B-GGUF";
   #   filename = "Qwen3.5-2B-Q4_K_M.gguf";
-  #   extraProperties = {
+    extraProperties = {
   #     "alias" = "Qwen-3.5-2B";
-  #     "jinja" = "true";
-  #     "flash-attn" = "on";
+      "jinja" = "true";
+      "flash-attn" = "on";
   #     "ctx-size" = "8192";
   #     "reasoning-budget" = "-1";
   #     "temp" = "0.7";
   #     "top-k" = "100";
   #     "top-p" = "0.80";
-  #     "min-p" = "0.0";
+      "min-p" = "0.0";
   #     "repeat-penalty" = "1.0";
   #     "reasoning" = "off";
-  #   };
-  # };
+    };
+  };
   "Qwen3.5-4B" = {
     modelId = "unsloth/Qwen3.5-4B-GGUF";
     filename = "Qwen3.5-4B-Q4_K_M.gguf";
@@ -137,54 +137,54 @@
   #   filename = "Ornith-1.5-35B-Q6_K.gguf";
   #   mmprojModelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
   #   mmproj = "mmproj-Ornith-1.5-35B-BF16.gguf";
-  #   extraProperties = {
+    extraProperties = {
   #     "alias" = "multimodal,agent-multimodal";
-  #     "flash-attn" = "on";
+      "flash-attn" = "on";
   #     "ctx-size" = "80000";
-  #     "parallel" = "1";
-  #     "cont-batching" = "true";
-  #     "cache-type-k" = "q8_0";
-  #     "cache-type-v" = "q8_0";
-  #     "temperature" = "0.6";
-  #     "top-p" = "0.95";
-  #     "top-k" = "20";
-  #     "min-p" = "0.0";
-  #     "presence-penalty" = "0.0";
+      "parallel" = "1";
+      "cont-batching" = "true";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
+      "temperature" = "0.6";
+      "top-p" = "0.95";
+      "top-k" = "20";
+      "min-p" = "0.0";
+      "presence-penalty" = "0.0";
   #     "repeat-penalty" = "1.0";
-  #     "batch-size" = "4096";
-  #     "ubatch-size" = "1024";
-  #     "load-mode" = "mlock";
+      "batch-size" = "4096";
+      "ubatch-size" = "1024";
+      "load-mode" = "mlock";
   #     "image-min-tokens" = "1024";
   #     "cache-prompt" = "false";
-  #   };
-  # };
+    };
+  };
   # Text-only (no mmproj) — cache_reuse enabled for prefix caching.
   # "Ornith-1.5-35B-Text" = {
   #   modelId = "ornith-ai/Ornith-1.5-35B-A3B-GGUF";
   #   filename = "Ornith-1.5-35B-Q6_K.gguf";
-  #   extraProperties = {
+    extraProperties = {
   #     "alias" = "default,ornith,ornith-text,cache,quality,agent";
-  #     "flash-attn" = "on";
-  #     "ctx-size" = "160000";
+      "flash-attn" = "on";
+      "ctx-size" = "160000";
   #     "parallel" = "2";
-  #     "cont-batching" = "true";
-  #     "cache-type-k" = "q8_0";
-  #     "cache-type-v" = "q8_0";
-  #     "temperature" = "0.6";
-  #     "top-p" = "0.95";
-  #     "top-k" = "20";
-  #     "min-p" = "0.0";
+      "cont-batching" = "true";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
+      "temperature" = "0.6";
+      "top-p" = "0.95";
+      "top-k" = "20";
+      "min-p" = "0.0";
   #     "presence-penalty" = "0.05";
   #     # 1.0 disabled llama.cpp's default penalty and Ornith-1.5 loops on it
   #     # (repetitive output, 2026-09).
   #     "repeat-penalty" = "1.12";
-  #     "batch-size" = "4096";
-  #     "ubatch-size" = "1024";
-  #     "load-mode" = "mlock";
-  #     "cache-prompt" = "true";
-  #     "cache-reuse" = "1024";
-  #   };
-  # };
+      "batch-size" = "4096";
+      "ubatch-size" = "1024";
+      "load-mode" = "mlock";
+      "cache-prompt" = "true";
+      "cache-reuse" = "1024";
+    };
+  };
 
   # ── Ling-3.0-flash (commented out 2026-09-07 — coding poor, replaced by Tiel) ─
   # bailingmoe3/KDA recurrent — cache_reuse incompatible,
@@ -192,55 +192,55 @@
   # "Ling-3.0-flash" = {
   #   modelId = "bartowski/Ling-3.0-flash-GGUF";
   #   filename = "Ling-3.0-flash-IQ4_XS/Ling-3.0-flash-IQ4_XS-00001-of-00002.gguf";
-  #   extraProperties = {
+    extraProperties = {
   #     "alias" = "Ling-3.0,long-horizon,agent,default";
-  #     "flash-attn" = "on";
+      "flash-attn" = "on";
   #     "ctx-size" = "140000";
-  #     "parallel" = "1";
-  #     "cont-batching" = "true";
+      "parallel" = "1";
+      "cont-batching" = "true";
   #     "cache-type-k" = "f16";
   #     "cache-type-v" = "f16";
-  #     "temperature" = "0.6";
-  #     "top-p" = "0.95";
-  #     "top-k" = "20";
+      "temperature" = "0.6";
+      "top-p" = "0.95";
+      "top-k" = "20";
   #     "min-p" = "0.05";
   #     "repeat-penalty" = "1.0";
-  #     "batch-size" = "4096";
-  #     "ubatch-size" = "1024";
-  #     "load-mode" = "mlock";
+      "batch-size" = "4096";
+      "ubatch-size" = "1024";
+      "load-mode" = "mlock";
   #     "spec-type" = "ngram-mod";
   #     "spec-ngram-mod-n-match" = "24";
   #     "spec-draft-n-max" = "4";
-  #   };
-  # };
+    };
+  };
 
-  # ── Tiel-Coder-35B-A3B-GGUF (commented out 2026-09-10 — GTT thrash test) ─
-  # peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF — 35B MoE (A3B), Ornith-1.5
-  # base. Replaces Ling-3.0-flash (agent/default) for agentic coding.
-  # "TielCoder-35B-A3B" = {
-  #   modelId = "peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF-MTP";
-  #   filename = "Tiel-Coder-35B-A3B-MTP-UD-Q6_K_XL.gguf";
-  #   extraProperties = {
-  #     "alias" = "tiel,agent,agent-coder,default";
-  #     "jinja" = "true";
-  #     "flash-attn" = "on";
-  #     "ctx-size" = "160000";
-  #     "parallel" = "1";
-  #     "cont-batching" = "true";
-  #     "cache-type-k" = "q8_0";
-  #     "cache-type-v" = "q8_0";
-  #     "temperature" = "0.6";
-  #     "top-p" = "0.95";
-  #     "top-k" = "20";
-  #     "min-p" = "0.0";
-  #     "presence-penalty" = "0.0";
-  #     "repeat-penalty" = "1.1";
-  #     "batch-size" = "4096";
-  #     "ubatch-size" = "1024";
-  #     "load-mode" = "mlock";
-  #     "cache-prompt" = "true";
-  #     "cache-reuse" = "1024";
-  #     "spec-type" = "draft-mtp";
-  #   };
-  # };
+  # ── Tiel-Coder-35B-A3B-GGUF (reinstated 2026-09-10 — cap fixed) ─
+  peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF — 35B MoE (A3B), Ornith-1.5
+  base. Replaces Ling-3.0-flash (agent/default) for agentic coding.
+  "TielCoder-35B-A3B" = {
+    modelId = "peculiar-ragdoll/Tiel-Coder-35B-A3B-GGUF-MTP";
+    filename = "Tiel-Coder-35B-A3B-MTP-UD-Q6_K_XL.gguf";
+    extraProperties = {
+      "alias" = "tiel,agent,agent-coder,default";
+      "jinja" = "true";
+      "flash-attn" = "on";
+      "ctx-size" = "160000";
+      "parallel" = "1";
+      "cont-batching" = "true";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
+      "temperature" = "0.6";
+      "top-p" = "0.95";
+      "top-k" = "20";
+      "min-p" = "0.0";
+      "presence-penalty" = "0.0";
+      "repeat-penalty" = "1.1";
+      "batch-size" = "4096";
+      "ubatch-size" = "1024";
+      "load-mode" = "mlock";
+      "cache-prompt" = "true";
+      "cache-reuse" = "1024";
+      "spec-type" = "draft-mtp";
+    };
+  };
 }
