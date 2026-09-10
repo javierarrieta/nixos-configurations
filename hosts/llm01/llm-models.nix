@@ -1,21 +1,21 @@
 {
-  "Qwen3.5-2B" = {
-    modelId = "unsloth/Qwen3.5-2B-GGUF";
-    filename = "Qwen3.5-2B-Q4_K_M.gguf";
-    extraProperties = {
-      "alias" = "Qwen-3.5-2B";
-      "jinja" = "true";
-      "flash-attn" = "on";
-      "ctx-size" = "8192";
-      "reasoning-budget" = "-1";
-      "temp" = "0.7";
-      "top-k" = "100";
-      "top-p" = "0.80";
-      "min-p" = "0.0";
-      "repeat-penalty" = "1.0";
-      "reasoning" = "off";
-    };
-  };
+  # "Qwen3.5-2B" = {
+  #   modelId = "unsloth/Qwen3.5-2B-GGUF";
+  #   filename = "Qwen3.5-2B-Q4_K_M.gguf";
+  #   extraProperties = {
+  #     "alias" = "Qwen-3.5-2B";
+  #     "jinja" = "true";
+  #     "flash-attn" = "on";
+  #     "ctx-size" = "8192";
+  #     "reasoning-budget" = "-1";
+  #     "temp" = "0.7";
+  #     "top-k" = "100";
+  #     "top-p" = "0.80";
+  #     "min-p" = "0.0";
+  #     "repeat-penalty" = "1.0";
+  #     "reasoning" = "off";
+  #   };
+  # };
   "Qwen3.5-4B" = {
     modelId = "unsloth/Qwen3.5-4B-GGUF";
     filename = "Qwen3.5-4B-Q4_K_M.gguf";
