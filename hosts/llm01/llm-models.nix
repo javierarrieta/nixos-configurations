@@ -43,8 +43,8 @@
       "flash-attn" = "on";
       "ctx-size" = "180000";
       "reasoning-budget" = "-1";
-      "cache-type-k" = "q4_0";
-      "cache-type-v" = "q4_0";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
       "batch-size" = "4096";
       "ubatch-size" = "1024";
       "cache-prompt" = "true";
@@ -88,8 +88,8 @@
       "ctx-size" = "160000";
       "parallel" = "1";
       "flash-attn" = "on";
-      "cache-type-k" = "q4_0";
-      "cache-type-v" = "q4_0";
+      "cache-type-k" = "q8_0";
+      "cache-type-v" = "q8_0";
       "temperature" = "1.0";
       "top-p" = "0.95";
       "top-k" = "20";
@@ -227,8 +227,8 @@
   #     "ctx-size" = "160000";
   #     "parallel" = "1";
   #     "cont-batching" = "true";
-  #     "cache-type-k" = "q4_0";
-  #     "cache-type-v" = "q4_0";
+  #     "cache-type-k" = "q8_0";
+  #     "cache-type-v" = "q8_0";
   #     "temperature" = "0.6";
   #     "top-p" = "0.95";
   #     "top-k" = "20";
