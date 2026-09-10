@@ -224,7 +224,7 @@
       "alias" = "tiel,agent,agent-coder,default";
       "jinja" = "true";
       "flash-attn" = "on";
-      "ctx-size" = "200000";
+      "ctx-size" = "240000";
       "parallel" = "2";
       "cont-batching" = "true";
       "cache-type-k" = "q8_0";
