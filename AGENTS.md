@@ -1006,3 +1006,6 @@ sops -d secrets.yaml
 # List hosts
 nix flake show | grep nixosConfigurations
 ```
+
+## Safety Reminder (added after incident)
+Never commit or push without explicit user confirmation (e.g., direct 'commit and push'). Ask if ambiguous.
