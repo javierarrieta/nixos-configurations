@@ -6,6 +6,7 @@
   llamaPkgs,
   nix-sweep,
   home-manager,
+  halogen-flash,
   ...
 }:
 {
@@ -27,6 +28,7 @@
     ../../modules/nixos/coder-host.nix
     ../../modules/nixos/openiscsi.nix
     ../../modules/nixos/llama-cpp/agent.nix
+    halogen-flash.nixosModules.default
 
     # Users
     ../../common/users.nix
@@ -47,7 +49,7 @@
   cominGitOps.healthGate.enable = true;
   cominGitOps.healthGate.checks = [
     "current-system"
-    "llama-cpp"
+    "halogen-flash"
   ];
   coderHost.enable = true;
   # The built-in Coder provisioner runs in k3s and reaches llm01's Podman/helper
@@ -176,7 +178,7 @@
 
   # llama.cpp serving stack (options in modules/nixos/llama-cpp/agent.nix)
   services.llamaCppAgent = {
-    enable = true;
+    # enable = true;                 # leave off until the weights are wanted
     package = llamaPkgs.vulkan;
     models = import ./llm-models.nix;
     threads = 8;
@@ -190,6 +192,20 @@
       GGML_VK_VISIBLE_DEVICES = "0";
       RADV_PERFTEST = "nogttspill";
     };
+  };
+
+  # halogen-flash-server (Strix Halo, Qwen3.8-Flash-Next, ROCm).
+  # MUTUALLY EXCLUSIVE with llamaCppAgent: both live in the same ~112–120 GiB
+  # GTT pool on this iGPU, so enable only one at a time. To go back to
+  # llama.cpp: set halogenFlash.enable = false and llamaCppAgent.enable = true.
+  services.halogenFlash = {
+    enable = true;
+    user = "ollama";                   # rootless podman; container runs as ollama (uid 27002)
+    podmanHome = "/opt/llm/halogen";   # ollama's podman storage + unit $HOME (image layers live here)
+    mode = "all";
+    modelsDir = "/opt/llm/models/halogen"; # ~130 GiB of headroom needed
+    download.enable = true;
+    # environment.HALOGEN_VISION_TOWER = "1"; # enable vision sidecar on /v1
   };
 
   # Nix settings

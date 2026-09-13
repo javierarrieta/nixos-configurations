@@ -198,6 +198,26 @@
         "type": "github"
       }
     },
+    "halogen-flash": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1789312436,
+        "narHash": "sha256-vuFvB2NPIUbq0R3DNwuV7EOXLS68KAV3Yftfob741XE=",
+        "owner": "javierarrieta",
+        "repo": "halogen-flash-flake",
+        "rev": "6361d571c842d3059a25041ac5c8f65098c9e3f4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "javierarrieta",
+        "repo": "halogen-flash-flake",
+        "type": "github"
+      }
+    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -412,6 +432,7 @@
         "comfyui-nix": "comfyui-nix",
         "comin": "comin",
         "disko": "disko",
+        "halogen-flash": "halogen-flash",
         "home-manager": "home-manager",
         "llama-cpp": "llama-cpp",
         "nix-sweep": "nix-sweep",

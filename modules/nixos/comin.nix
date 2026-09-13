@@ -49,6 +49,7 @@ in
               "k3s"
               "current-system"
               "llama-cpp"
+              "halogen-flash"
               "iscsi"
             ]
           );

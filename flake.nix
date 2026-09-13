@@ -26,6 +26,14 @@
     llama-cpp = {
       url = "github:ggml-org/llama.cpp/b10649";
     };
+
+    # halogen-flash-server (Strix Halo inference) deployment module.
+    # Swap the local path for github:javierarrieta/halogen-flash-flake once
+    # pushed; the repo is independent and only feeds this flake via nixosModules.
+    halogen-flash = {
+      url = "github:javierarrieta/halogen-flash-flake";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -42,6 +50,7 @@
       nixos-wsl,
       codex-cli-nix,
       llama-cpp,
+      halogen-flash,
       ...
     }:
     let
@@ -108,6 +117,7 @@
             home-manager
             comfyui-nix
             nix-sweep
+            halogen-flash
             ;
         }
         // (mkExtraArgs "x86_64-linux");
