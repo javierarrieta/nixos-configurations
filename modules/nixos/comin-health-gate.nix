@@ -81,18 +81,20 @@ let
   # "activating" the whole time and this check will roll back after 30 min.
   # Pre-fetch the weights manually on the host (or temporarily drop this
   # check) before the first enabling deploy.
-  halogenFlashCheck = lib.optionalString (hasCheck "halogen-flash" && config.services.halogenFlash.enable) ''
-    i=0
-    until ${pkgs.systemd}/bin/systemctl is-active --quiet halogen-flash \
-        && ${pkgs.curl}/bin/curl -fsS --max-time 10 http://127.0.0.1:${toString config.services.halogenFlash.port}/health >/dev/null; do
-      if [ $i -ge 1800 ]; then
-        log "halogen-flash not healthy after warmup (active + :${toString config.services.halogenFlash.port} /health) — rolling back"
-        rollback_and_suspend "halogen-flash unhealthy"
-        exit 0
-      fi
-      ${pkgs.coreutils}/bin/sleep 10; i=$((i + 10))
-    done
-  '';
+  halogenFlashCheck =
+    lib.optionalString (hasCheck "halogen-flash" && config.services.halogenFlash.enable)
+      ''
+        i=0
+        until ${pkgs.systemd}/bin/systemctl is-active --quiet halogen-flash \
+            && ${pkgs.curl}/bin/curl -fsS --max-time 10 http://127.0.0.1:${toString config.services.halogenFlash.port}/health >/dev/null; do
+          if [ $i -ge 1800 ]; then
+            log "halogen-flash not healthy after warmup (active + :${toString config.services.halogenFlash.port} /health) — rolling back"
+            rollback_and_suspend "halogen-flash unhealthy"
+            exit 0
+          fi
+          ${pkgs.coreutils}/bin/sleep 10; i=$((i + 10))
+        done
+      '';
 
   # A switch that dies mid-activation (e.g. iscsid.socket refusing to start on
   # a stale node db, seen 2026-08-26 on k8s-node05) leaves home-manager files

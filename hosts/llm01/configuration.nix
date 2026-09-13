@@ -200,8 +200,8 @@
   # llama.cpp: set halogenFlash.enable = false and llamaCppAgent.enable = true.
   services.halogenFlash = {
     enable = true;
-    user = "ollama";                   # rootless podman; container runs as ollama (uid 27002)
-    podmanHome = "/opt/llm/halogen";   # ollama's podman storage + unit $HOME (image layers live here)
+    user = "ollama"; # rootless podman; container runs as ollama (uid 27002)
+    podmanHome = "/opt/llm/halogen"; # ollama's podman storage + unit $HOME (image layers live here)
     mode = "all";
     modelsDir = "/opt/llm/models/halogen"; # ~130 GiB of headroom needed
     download.enable = true;
