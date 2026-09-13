@@ -105,24 +105,27 @@
 
   # Kernel configuration
   boot.kernelPackages = pkgs.linuxPackages_latest;
+  # GPU memory params per upstream's measured configuration
+  # (halogen-flash-server README, "the host settings these numbers were
+  # measured on"): gttsize/pages_limit scale to installed RAM — llm01 has
+  # ~126 GiB usable, so the 128 GB row applies (124 GiB = 99.3% of RAM; the
+  # values are ceilings, not reservations). amd_iommu=off is upstream's one
+  # measured lever: 13-16% of prefill vs amd_iommu=pt, at the cost of DMA
+  # translation machine-wide and the NPU. vm_update_mode/noretry/
+  # sg_display are deliberately NOT set (upstream: "leave them off").
+  # cwsr_enable=0 is our own addition: ROCm#5724 GPU-hang workaround.
   boot.kernelParams = [
-    "amdgpu.sched_policy=2"
-    "amd_iommu=pt"
-    "amdgpu.gttsize=112640"
-    "ttm.pages_limit=28835840"
-    "ttm.page_pool_size=26214400"
-    # ROCm#5724: newer amdgpu MES 0x83 firmware hangs the GPU in known-good
-    # ROCm workloads on Strix Halo (flash_serve wedged twice mid-load with
-    # 'HW Exception: GPU Hang'). Disabling CWSR is the upstream workaround;
-    # the Vulkan/llama.cpp path is unaffected. Drop this when the firmware
-    # fix lands in linux-firmware.
+    "amdgpu.gttsize=126976"
+    "ttm.pages_limit=32505856"
+    "amd_iommu=off"
     "amdgpu.cwsr_enable=0"
   ];
+  # Modprobe copies of the same values (module-load time; kernel params
+  # above win when both apply) — kept in sync to avoid divergent GTT sizing
+  # depending on load order.
   boot.extraModprobeConfig = ''
-    # Allocate more memory to the GPU VRAM for llama.cpp
-    options amdgpu gttsize=120000
-    options ttm pages_limit=31457280
-    options ttm page_pool_size=27525120
+    options amdgpu gttsize=126976
+    options ttm pages_limit=32505856
   '';
 
   # Network
