@@ -111,6 +111,12 @@
     "amdgpu.gttsize=112640"
     "ttm.pages_limit=28835840"
     "ttm.page_pool_size=26214400"
+    # ROCm#5724: newer amdgpu MES 0x83 firmware hangs the GPU in known-good
+    # ROCm workloads on Strix Halo (flash_serve wedged twice mid-load with
+    # 'HW Exception: GPU Hang'). Disabling CWSR is the upstream workaround;
+    # the Vulkan/llama.cpp path is unaffected. Drop this when the firmware
+    # fix lands in linux-firmware.
+    "amdgpu.cwsr_enable=0"
   ];
   boot.extraModprobeConfig = ''
     # Allocate more memory to the GPU VRAM for llama.cpp
