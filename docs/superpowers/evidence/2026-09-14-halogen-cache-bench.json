@@ -1,0 +1,67 @@
+{
+  "model": "Qwen3.8-Flash-Next",
+  "endpoint": "http://host.containers.internal:8731/v1/chat/completions",
+  "http_client": "httpx",
+  "stream": true,
+  "target_system_tokens": 8000,
+  "rounds": [
+    {
+      "round": 1,
+      "turn_1": {
+        "wall_total_ms": 9844.5,
+        "wall_ttft_ms": 6675.83,
+        "prompt_n": 0,
+        "prompt_ms": 0.0,
+        "prompt_per_second": 0.0,
+        "cache_n": 0,
+        "predicted_n": 0,
+        "predicted_ms": 0.0,
+        "predicted_per_second": 0.0
+      },
+      "turn_2": {
+        "wall_total_ms": 3765.62,
+        "wall_ttft_ms": 1029.34,
+        "prompt_n": 0,
+        "prompt_ms": 0.0,
+        "prompt_per_second": 0.0,
+        "cache_n": 0,
+        "predicted_n": 0,
+        "predicted_ms": 0.0,
+        "predicted_per_second": 0.0
+      },
+      "total_e2e_ms": 13610.12,
+      "cache_retained": false,
+      "prefill_speedup": 0.0,
+      "ttft_speedup": 6.49
+    },
+    {
+      "round": 2,
+      "turn_1": {
+        "wall_total_ms": 3017.42,
+        "wall_ttft_ms": 83.2,
+        "prompt_n": 0,
+        "prompt_ms": 0.0,
+        "prompt_per_second": 0.0,
+        "cache_n": 0,
+        "predicted_n": 0,
+        "predicted_ms": 0.0,
+        "predicted_per_second": 0.0
+      },
+      "turn_2": {
+        "wall_total_ms": 2627.61,
+        "wall_ttft_ms": 83.05,
+        "prompt_n": 0,
+        "prompt_ms": 0.0,
+        "prompt_per_second": 0.0,
+        "cache_n": 0,
+        "predicted_n": 0,
+        "predicted_ms": 0.0,
+        "predicted_per_second": 0.0
+      },
+      "total_e2e_ms": 5645.03,
+      "cache_retained": false,
+      "prefill_speedup": 0.0,
+      "ttft_speedup": 1.0
+    }
+  ]
+}

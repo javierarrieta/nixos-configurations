@@ -1084,7 +1084,13 @@ async def measure_turn_openai_compat(
                 tc = tool_calls[0] or {}
                 fn = tc.get("function") or {}
                 tc_text = (fn.get("name") or "") + (fn.get("arguments") or "")
-            text = content or tc_text
+            # halogen-flash-server streams the model's thinking in
+            # delta.reasoning_content instead of content, and its token budget
+            # covers reasoning — with max_tokens=128 the content field can stay
+            # empty for the whole turn, so counting only content/tool_calls would
+            # report 0 output tokens and meaningless tps. Count any streamed text.
+            reasoning = delta.get("reasoning_content") or ""
+            text = content or tc_text or reasoning
             if text:
                 token_count += 1
                 response_parts.append(text)

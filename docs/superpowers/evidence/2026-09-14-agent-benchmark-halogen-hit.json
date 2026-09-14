@@ -1,0 +1,20 @@
+{
+  "model": "openai://Qwen3.8-Flash-Next",
+  "rounds": 5,
+  "turns_per_round": 5,
+  "cache_mode": "hit",
+  "context_size_target": 80000,
+  "context_tokens_mean": 8667.6,
+  "context_tokens_max": 10752,
+  "ttft_p50_ms": 1855.0916730018798,
+  "ttft_p95_ms": 1972.1931039966876,
+  "ttft_mean_ms": 1760.4664382798364,
+  "total_p50_ms": 4619.7977099946,
+  "total_p95_ms": 5300.8760580050875,
+  "total_mean_ms": 4645.258807200007,
+  "effective_tps_p50": 25.482600442622253,
+  "effective_tps_p95": 39.32602860884744,
+  "effective_tps_mean": 26.642809785748334,
+  "token_latency_p50_ms": 36.2845859999652,
+  "token_latency_p95_ms": 41.09227200387977
+}

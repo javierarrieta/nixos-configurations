@@ -10,6 +10,7 @@
 | Qwen3.8-27B | 27B dense | Q4_K_M | 80000 | q8_0/q8_0 | 1024 | no | 1024 | `c8a0313` |
 | Qwen3.8-27B | 27B dense | Q6_K | 80000 | q8_0/q8_0 | 1024 | no | 1024 | `a40dcf1` |
 | Qwen3.5-4B | 4B | Q4_K_M | 80000 | q8_0/q8_0 | 256 | no | 1024 | `c8a0313` |
+| Halogen-Flash (Qwen3.8-Flash-Next) | flash-attn Next arch (non-GGUF) | — | — | — (n/a) | — (n/a) | no | — | halogen-flash-server 0.6.3 |
 
 ## Cache Benchmark Results (2-turn, 8k target tokens)
 
@@ -32,6 +33,7 @@
 | 2026-09-01 | Ornith-1.5-35B (mmproj) | `c8a0313` | 14.0s | 18.9s | 3.1 | 19.7ms |
 | 2026-09-01 | Ornith-1.5-35B-Text | `c8a0313` | 14.7s | 18.4s | 4.3 | 19.7ms |
 | 2026-09-01 | Qwen3.8-27B Q4_K_M | `c8a0313` | 65.2s | 85.9s | 0.7 | 82.6ms |
+| 2026-09-14 | Halogen-Flash (Qwen3.8-Flash-Next) | — | 1.86s | 1.97s | 25.5 | 36.3ms |
 
 ## Key Findings
 
@@ -44,3 +46,5 @@
 4. **ubatch-size 1024 vs 4096**: 4096 caused 3-7% TTFT regression and 13% prefill regression on this APU. Reverted to 1024.
 
 5. **Agent benchmark TTFT scales linearly** because it varies task content each turn, invalidating prefix cache. Real agent use with stable system prompt prefix gets the full cache benefit.
+
+6. **Halogen-Flash (2026-09-14)** is not benchmarkable in the Cache table above: `halogen-flash-server` returns only `prompt_tokens`/`completion_tokens`/`total_tokens` — no llama.cpp `timings` (`prompt_ms`, `cache_n`), so prefill tok/s and cache-retention cannot be derived. Its prefix-cache benefit is visible only via TTFT (cold 6.7 s vs warm 83 ms on a repeat). Agent-mode results are in `2026-09-14-halogen-flash-benchmark.md`.
