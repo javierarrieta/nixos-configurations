@@ -91,6 +91,17 @@ in
       deployConfirmer.mode = config.cominGitOps.confirmerMode;
     };
 
+    # comin's exporter port is only reachable on the k3s hosts because k3s.nix /
+    # k8s-network.nix turn networking.firewall off. Hosts that are not part of k3s
+    # (llm01) keep the NixOS default firewall enabled, so without this the scrape
+    # SYN to 4243 is silently dropped and Prometheus reports
+    # "context deadline exceeded" while comin is perfectly healthy locally.
+    # Harmless on hosts where the firewall is already disabled.
+    services.comin.exporter = {
+      listen_address = ""; # all interfaces (comin default, stated for clarity)
+      openFirewall = true;
+    };
+
     systemd.tmpfiles.rules = [
       "d /var/lib/node-exporter/textfiles 0755 root root -"
     ];
