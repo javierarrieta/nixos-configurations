@@ -219,13 +219,10 @@
     mode = "all";
     modelsDir = "/opt/llm/models/halogen"; # ~130 GiB of headroom needed
     download.enable = true;
-    # Pin the weights to a specific commit. Left empty they float on the HF
-    # default branch, so an upstream push would swap the model underneath a
-    # digest-pinned image with no review and no rollback path — and possibly
-    # one the pinned server does not expect. cd24312f is upstream main as of
-    # 2026-09-21 and is what is already on disk and serving, so adopting the
-    # pin is a no-op on deploy; bumping it later is a deliberate ~118 GiB fetch.
-    download.revision = "cd24312f5c5e671659f538ed1f489120c658901f";
+    # No `download.revision` here on purpose: it comes from the flake's
+    # `defaultWeightsRevision`, so the image and the model version it is
+    # known-good with live together and move together in one reviewed PR.
+    # Overriding it here would split that pair across two repos again.
     # Pull the pinned image at service start, as `user` — rootless podman
     # stores images per-user, so a root `podman pull` would be invisible to
     # this unit. Safe to leave on because the module pins `image` by digest:
