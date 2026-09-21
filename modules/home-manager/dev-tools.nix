@@ -3,6 +3,7 @@
   pkgs,
   lib,
   userOptions,
+  herdrPkg,
   ...
 }:
 
@@ -10,29 +11,24 @@ let
   configOnly = userOptions.configOnly or false;
 in
 {
+  # Development toolchains and editor config. The everyday CLI niceties
+  # (curl, tmux, ripgrep, fzf, bat, eza, difftastic, dyff, gh, fastfetch)
+  # live in ./cli-tools.nix instead, because they are installed on every
+  # host while this module is skipped on the k8s fleet.
   home.packages = lib.mkIf (!configOnly) (
     with pkgs;
     [
       htop
       git
-      curl
       wget
-      tmux
       btop
-      ripgrep
       yq
       jq
       rustup
-      fzf
       bash
       zsh
-      bat
-      eza
-      difftastic
-      dyff
       age
       sops
-      fastfetch
       nixfmt
       nixfmt-tree
       kubernetes-helm
@@ -41,8 +37,12 @@ in
       lsof
       binutils
       nodejs_24
-      gh
       bun
+
+      # Terminal-native runtime for AI coding agents. Comes from the
+      # `herdrPkg` special arg (prebuilt release binary via the herdr-nix
+      # flake) rather than `pkgs`, so no Rust/Zig build lands on any host.
+      herdrPkg
 
       hugo
     ]

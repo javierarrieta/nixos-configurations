@@ -7,6 +7,7 @@
   unstablePkgs,
   pkgsUnfree,
   unstablePkgsUnfree,
+  herdrPkg,
   ...
 }:
 
@@ -60,6 +61,10 @@
     useUserPackages = true;
     extraSpecialArgs = {
       inherit unstablePkgs pkgsUnfree unstablePkgsUnfree;
+      # base.nix -> dev-tools.nix expects this; this host builds its
+      # home-manager extraSpecialArgs by hand instead of reusing
+      # mkExtraArgs, so it has to be listed here explicitly.
+      inherit herdrPkg;
       hostname = "wsl";
       userOptions = {
         username = "javier";

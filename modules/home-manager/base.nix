@@ -14,6 +14,12 @@ let
     "k8s-pi03"
   ];
   isPiNode = lib.elem hostname piHostnames;
+  # k8s-* are infrastructure hosts, not dev machines: they keep the CLI
+  # niceties and the k8s tooling, but not the language toolchains,
+  # formatters and editor config that dev-tools brings. The prefix check
+  # covers the Pis as well, so new k8s hosts are excluded automatically.
+  isK8sHost = lib.hasPrefix "k8s-" hostname;
+  configOnly = userOptions.configOnly or false;
   hmProfileDir = "${userOptions.userHome}/.local/state/nix/profiles";
 in
 {
@@ -22,15 +28,19 @@ in
   imports = [
     ./host-common.nix
     ./shell.nix
+    ./cli-tools.nix
   ]
   ++ lib.optionals (!isPiNode) [
-    ./dev-tools.nix
+    # Pin node: no heavy python/k8s tooling (avoids native aarch64 builds)
     ./python.nix
     ./k8s.nix
+  ]
+  ++ lib.optionals (!isK8sHost) [
+    ./dev-tools.nix
   ];
 
-  # Pin node: no heavy dev/python/k8s tooling (avoids native aarch64 builds)
-  home.packages = lib.mkIf (!isPiNode && !(userOptions.configOnly or false)) (with pkgs; [ nixd ]);
+  # Nix LSP is dev tooling, so it follows dev-tools rather than the whole fleet.
+  home.packages = lib.mkIf (!isK8sHost && !configOnly) (with pkgs; [ nixd ]);
 
   programs.home-manager.enable = true;
 

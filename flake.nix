@@ -34,6 +34,18 @@
       url = "github:javierarrieta/halogen-flash-flake";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # herdr: terminal-native runtime for AI coding agents. Consumed from
+    # herdr-nix, which wraps upstream's prebuilt per-platform release
+    # binaries, rather than herdr's own source flake -- that one drags in
+    # the full Rust + Zig toolchain and compiles on every install and update
+    # with no binary cache behind it. This way it is a hash-verified download.
+    # AGPL-3.0-or-later, which nixpkgs treats as free, so the unfree
+    # whitelist in mkHomeConfig does not have to be widened for it.
+    herdr-nix = {
+      url = "github:herdrdev/herdr-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -51,6 +63,7 @@
       codex-cli-nix,
       llama-cpp,
       halogen-flash,
+      herdr-nix,
       ...
     }:
     let
@@ -68,6 +81,8 @@
           config.allowUnfree = true;
         };
         llamaPkgs = llama-cpp.packages.${system};
+        # Prebuilt herdr binary for this system (see the herdr-nix input note).
+        herdrPkg = herdr-nix.packages.${system}.default;
       };
 
       mkHomeConfig =

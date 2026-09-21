@@ -13,6 +13,7 @@
 {
   imports = [
     ../../../modules/home-manager/host-common.nix
+    ../../../modules/home-manager/cli-tools.nix
     ../../../modules/home-manager/dev-tools.nix
     ../../../modules/home-manager/shell.nix
   ];
