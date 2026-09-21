@@ -20,9 +20,14 @@ in
     ../../../modules/home-manager/media.nix
     ../../../modules/home-manager/macbook/dev-tools.nix
     ../../../modules/home-manager/local-llm.nix
+    ../../../modules/home-manager/kube-segregation.nix
   ];
 
   _module.args.localModels = import ./local-models.nix;
+
+  # Read-only-by-default kubeconfig; admin via `kadm` (~/.kube/admin.yaml).
+  # Defaults match the k8s-casa split done on this machine.
+  kubeSegregation.enable = true;
 
   home.stateVersion = "25.05";
 
