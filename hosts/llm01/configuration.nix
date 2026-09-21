@@ -214,6 +214,14 @@
     mode = "all";
     modelsDir = "/opt/llm/models/halogen"; # ~130 GiB of headroom needed
     download.enable = true;
+    # Pull the pinned image at service start, as `user` — rootless podman
+    # stores images per-user, so a root `podman pull` would be invisible to
+    # this unit. Safe to leave on because the module pins `image` by digest:
+    # if the registry is unreachable but that exact digest is already local
+    # the unit still succeeds, so an outage does not take the server down.
+    # A digest that is neither pullable nor present fails the unit, and the
+    # role units Require it — loud, and caught by the comin health gate.
+    pull.enable = true;
     # environment.HALOGEN_VISION_TOWER = "1"; # enable vision sidecar on /v1
   };
 
