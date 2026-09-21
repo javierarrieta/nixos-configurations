@@ -18,5 +18,9 @@
       "servicelb"
     ];
     taints = [ "node-role.kubernetes.io/master=true:NoSchedule" ];
+    # Expose 10257/10259 so Prometheus can scrape the control plane. See the
+    # option docs in modules/nixos/k3s.nix - the endpoints are authenticated,
+    # not open. Requires a service restart of k3s on this host.
+    controlPlaneMetricsBindAddress = "0.0.0.0";
   };
 }
