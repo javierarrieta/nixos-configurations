@@ -205,11 +205,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790002712,
-        "narHash": "sha256-+ebhPXuMkYf77AiFhhZWrxrx7PtLPiGYHty1M0LAdeo=",
+        "lastModified": 1790007715,
+        "narHash": "sha256-8OK95AHRf5cy8JQQtGcuMBB4V4wgSsu56NWC2lHJnDo=",
         "owner": "javierarrieta",
         "repo": "halogen-flash-flake",
-        "rev": "33a3647695d20b695c22151ae83a74ce84b91cc8",
+        "rev": "915175d7488a43537d5963e4715459b84d7d8141",
         "type": "github"
       },
       "original": {

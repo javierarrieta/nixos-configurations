@@ -51,6 +51,11 @@
     "current-system"
     "halogen-flash"
   ];
+  # A services.halogenFlash.download.revision change turns ExecStartPre into a
+  # ~118 GiB fetch that leaves the unit "activating" for hours. The 30 min
+  # default would roll back a deploy that is merely still downloading, so the
+  # window here is sized to outlast a full weights fetch.
+  cominGitOps.healthGate.halogenWarmupSec = 14400; # 4h
   coderHost.enable = true;
   # The built-in Coder provisioner runs in k3s and reaches llm01's Podman/helper
   # APIs from the LAN; restrict to the cluster network only.
@@ -214,6 +219,13 @@
     mode = "all";
     modelsDir = "/opt/llm/models/halogen"; # ~130 GiB of headroom needed
     download.enable = true;
+    # Pin the weights to a specific commit. Left empty they float on the HF
+    # default branch, so an upstream push would swap the model underneath a
+    # digest-pinned image with no review and no rollback path — and possibly
+    # one the pinned server does not expect. cd24312f is upstream main as of
+    # 2026-09-21 and is what is already on disk and serving, so adopting the
+    # pin is a no-op on deploy; bumping it later is a deliberate ~118 GiB fetch.
+    download.revision = "cd24312f5c5e671659f538ed1f489120c658901f";
     # Pull the pinned image at service start, as `user` — rootless podman
     # stores images per-user, so a root `podman pull` would be invisible to
     # this unit. Safe to leave on because the module pins `image` by digest:

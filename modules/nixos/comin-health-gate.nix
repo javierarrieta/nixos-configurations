@@ -75,20 +75,20 @@ let
   '';
 
   # halogen-flash (mode "all"): active + /health answering on the configured
-  # API port. Weight load takes minutes, so the warmup window is generous
-  # (30 min). NOTE: the very FIRST deploy that enables download.enable may
-  # spend hours in ExecStartPre fetching ~118 GiB — the unit stays
-  # "activating" the whole time and this check will roll back after 30 min.
-  # Pre-fetch the weights manually on the host (or temporarily drop this
-  # check) before the first enabling deploy.
+  # API port. Weight load takes minutes, so the window is generous; the real
+  # constraint is download.revision, which turns ExecStartPre into a ~118 GiB
+  # fetch that keeps the unit "activating" for hours. That is a legitimate
+  # deploy, not a broken one, so the window is configurable
+  # (cominGitOps.healthGate.halogenWarmupSec) rather than a fixed 30 min --
+  # a fixed window rolls back any deploy that is merely still downloading.
   halogenFlashCheck =
     lib.optionalString (hasCheck "halogen-flash" && config.services.halogenFlash.enable)
       ''
         i=0
         until ${pkgs.systemd}/bin/systemctl is-active --quiet halogen-flash \
             && ${pkgs.curl}/bin/curl -fsS --max-time 10 http://127.0.0.1:${toString config.services.halogenFlash.port}/health >/dev/null; do
-          if [ $i -ge 1800 ]; then
-            log "halogen-flash not healthy after warmup (active + :${toString config.services.halogenFlash.port} /health) — rolling back"
+          if [ $i -ge ${toString config.cominGitOps.healthGate.halogenWarmupSec} ]; then
+            log "halogen-flash not healthy after ${toString config.cominGitOps.healthGate.halogenWarmupSec}s warmup (active + :${toString config.services.halogenFlash.port} /health) — rolling back"
             rollback_and_suspend "halogen-flash unhealthy"
             exit 0
           fi
@@ -101,18 +101,51 @@ let
   # updated while /run/current-system stays old; a later GC then deletes the
   # rolled-back generation's binaries. Catch the iSCSI variant here: heal once,
   # roll back if still broken. Only active on hosts with openiscsi.enable.
+  # iscsiadm exit codes are load-bearing and must not be collapsed into
+  # "non-zero = sick":
+  #   0  -> db readable, records present
+  #   21 -> "No records found". A perfectly valid steady state on a host that
+  #         runs no host-level iSCSI. Longhorn is INVISIBLE to this check: it logs
+  #         into its own targets with the initiator bundled in its instance-manager
+  #         pods and never writes to /etc/iscsi, so a node can carry dozens of
+  #         healthy Longhorn engines with an empty host db (verified 2026-09-21 on
+  #         k8s-server01: `-m node` -> 21, `-m session` -> 21, empty
+  #         /etc/iscsi/nodes, 20 Longhorn pods running).
+  #   *  -> genuine failure needing attention, e.g. 6 = cannot create
+  #         /run/lock/iscsi/lock, or an unparseable db from a version skew.
+  # Treating 21 as unhealthy made this gate wipe /etc/iscsi/nodes on every deploy;
+  # nothing repopulates it via discovery, so the re-check returned 21 again and the
+  # gate rolled back EVERY deployment on such hosts from 2026-08-29 onward while
+  # still reporting comin status "done".
   iscsiCheck = lib.optionalString (hasCheck "iscsi" && config.openiscsi.enable) ''
-    if ! ${pkgs.openiscsi}/bin/iscsiadm -m node >/dev/null 2>&1; then
-      log "iscsiadm -m node failing — healing stale node db"
+    rc=0
+    ${pkgs.openiscsi}/bin/iscsiadm -m node >/dev/null 2>&1 || rc=$?
+    if [ "$rc" -eq 21 ]; then
+      log "iscsi node db empty (exit 21) — no host-level iSCSI on this host, treating as healthy"
+    elif [ "$rc" -ne 0 ]; then
+      # Guard the wipe. Kernel sessions outlive the on-disk records, so deleting
+      # /etc/iscsi/nodes underneath a live session leaves the volume attached now
+      # but unable to auto-login after the next reboot — a storage outage queued up
+      # weeks later by an unrelated config deploy. Never wipe while sessions are up.
+      sess=0
+      ${pkgs.openiscsi}/bin/iscsiadm -m session >/dev/null 2>&1 || sess=$?
+      if [ "$sess" -eq 0 ]; then
+        log "iscsiadm -m node failed (exit $rc) with ACTIVE sessions — refusing to wipe, rolling back"
+        rollback_and_suspend "iscsi db unreadable while sessions active (exit $rc)"
+        exit 0
+      fi
+      log "iscsiadm -m node failing (exit $rc) — healing stale node db"
       ${pkgs.systemd}/bin/systemctl stop iscsid.socket iscsid.service
       ${pkgs.coreutils}/bin/rm -rf /etc/iscsi/nodes /etc/iscsi/send_targets
       ${pkgs.coreutils}/bin/mkdir -p /etc/iscsi/nodes /etc/iscsi/send_targets
       ${pkgs.systemd}/bin/systemctl start iscsid.service iscsid.socket
       ${pkgs.coreutils}/bin/sleep 5
-    fi
-    if ! ${pkgs.openiscsi}/bin/iscsiadm -m node >/dev/null 2>&1; then
-      rollback_and_suspend "iscsi unhealthy after heal"
-      exit 0
+      rc=0
+      ${pkgs.openiscsi}/bin/iscsiadm -m node >/dev/null 2>&1 || rc=$?
+      if [ "$rc" -ne 0 ] && [ "$rc" -ne 21 ]; then
+        rollback_and_suspend "iscsi unhealthy after heal (exit $rc)"
+        exit 0
+      fi
     fi
   '';
 

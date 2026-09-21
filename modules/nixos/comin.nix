@@ -8,10 +8,32 @@ let
   pendingMetricText = ''
     set -u
     json=$(${config.services.comin.package}/bin/comin status --json 2>/dev/null || ${pkgs.coreutils}/bin/echo -n ''')
-    pending=$(${pkgs.coreutils}/bin/printf '%s' "$json" \
-      | ${pkgs.jq}/bin/jq -r 'if (.deploy_confirmer.submitted? != "" and .deploy_confirmer.confirmed? == "") then 1 else 0 end' 2>/dev/null \
-      || ${pkgs.coreutils}/bin/printf '0')
+    # 0 = nothing pending, 1 = awaiting `comin confirmation accept`,
+    # 2 = probe broken (comin status failed, empty output, or unexpected shape).
+    # The previous fallback emitted 0 on any error, so a dead probe was
+    # indistinguishable from a healthy idle host.
+    read_field() { # jq-filter -> value, or 2 when the probe cannot answer
+      local out
+      out=$(${pkgs.coreutils}/bin/printf '%s' "$json" | ${pkgs.jq}/bin/jq -r "$1" 2>/dev/null) || out=""
+      if [ -z "$out" ]; then out=2; fi
+      ${pkgs.coreutils}/bin/printf '%s' "$out"
+    }
+
+    if [ -z "$json" ]; then
+      pending=2
+      suspended=2
+    else
+      pending=$(read_field 'if (.deploy_confirmer.submitted? != "" and .deploy_confirmer.confirmed? == "") then 1 else 0 end')
+      # A suspended deployer never switches again until someone runs `comin
+      # resume`. The exporter's own comin_is_suspended covers manager-level
+      # suspension only, so the deployer-level suspend that the health gate
+      # triggers read as fully healthy on 2026-09-21 while the host sat on a
+      # generation that had just been rolled back.
+      suspended=$(read_field 'if (.deployer.is_suspended? == true) then 1 else 0 end')
+    fi
+
     ${pkgs.coreutils}/bin/printf 'comin_pending_confirmation %s\n' "$pending" > /tmp/comin.prom.$$
+    ${pkgs.coreutils}/bin/printf 'comin_deployer_suspended %s\n' "$suspended" >> /tmp/comin.prom.$$
     ${pkgs.coreutils}/bin/mv /tmp/comin.prom.$$ /var/lib/node-exporter/textfiles/comin.prom
   '';
 in
@@ -60,6 +82,19 @@ in
             "iscsi"
           ];
           description = "Health checks to run in the post-deployment gate. k3s hosts check route+k3s+current-system (+iscsi where openiscsi.enable); llm01 checks current-system+llama-cpp.";
+        };
+        halogenWarmupSec = lib.mkOption {
+          type = lib.types.int;
+          default = 1800;
+          description = ''
+            How long the halogen-flash check tolerates the service being
+            unhealthy before rolling back. A normal weight load takes minutes,
+            but a services.halogenFlash.download.revision change makes
+            ExecStartPre fetch ~118 GiB, which can run for hours while the
+            unit sits in "activating". Hosts that pin weights must raise this
+            above the worst-case fetch time or the gate rolls back a deploy
+            that is merely still downloading.
+          '';
         };
       };
       branch = lib.mkOption {
