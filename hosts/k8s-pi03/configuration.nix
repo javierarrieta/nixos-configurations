@@ -39,6 +39,11 @@ in
   ssh.enable = true;
   raspberryPi.enable = true;
 
+  # Generic cached kernel: the vendor linux-rpi build is in no aarch64 binary
+  # cache, so every deploy cost a ~5h native compile. Proven on pi01 first
+  # (6.18.49, node Ready, eth0 unchanged, rollback entries intact).
+  raspberryPi.kernelFlavour = "mainline";
+
   # Override boot loader for Raspberry Pi
   boot.loader.systemd-boot.enable = lib.mkForce false;
   boot.loader.generic-extlinux-compatible.enable = true;
