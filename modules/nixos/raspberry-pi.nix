@@ -35,6 +35,37 @@ in
         '';
       };
 
+      kernelFlavour = lib.mkOption {
+        type = lib.types.enum [
+          "vendor"
+          "mainline"
+        ];
+        default = "vendor";
+        description = ''
+          Which kernel the board boots.
+
+          "vendor" = pkgs.linuxPackages_rpi4, the Raspberry Pi downstream
+          kernel still shipped by nixpkgs. It is in no aarch64 binary cache
+          and nixpkgs now warns on every evaluation that the linux-rpi
+          series is going away, so each Pi recompiles it natively (~5h) on
+          every config change.
+
+          "mainline" = pkgs.linuxPackages_6_18, the generic aarch64 kernel,
+          which IS on cache.nixos.org: kernel, modules and initrd are
+          downloaded instead of compiled. It ships the same
+          bcm2711-rpi-*.dtb set and the same `ethernet0 = &genet` device
+          tree alias as the vendor tree, so the boot chain
+          (config.txt -> U-Boot -> extlinux FDTDIR) and the eth0 interface
+          name are unchanged.
+
+          Trade-off: the GENET ethernet MAC is built in on the vendor kernel
+          (CONFIG_BCMGENET=y in bcm2711_defconfig) but a module on the
+          generic one, so the MAC and PHY drivers are listed explicitly
+          below; without them upstream users report an ethernet that links
+          but passes no traffic.
+        '';
+      };
+
       zram = {
         enable = (lib.mkEnableOption "compressed zram swap as an OOM safety valve") // {
           default = true;
@@ -65,6 +96,11 @@ in
     # concurrency bounds peak RSS; zram absorbs the residual spike without
     # wearing the SD card the way a real swapfile would.
     #
+    # raspberryPi.kernelFlavour = "mainline" sidesteps the kernel half of
+    # this class outright (cached kernel, nothing compiled here), but the
+    # ceiling stays: the ~555 non-kernel derivations still build on the
+    # board, and they are what is left of the deploy time.
+    #
     # Plain assignment, not mkDefault: mkDefault (prio 50) would outrank a
     # host's own nix.settings assignment (prio 100). Tune via
     # raspberryPi.buildJobs / buildCores, or mkForce nix.settings here.
@@ -79,7 +115,35 @@ in
 
     boot.loader.grub.enable = false;
     boot.loader.generic-extlinux-compatible.enable = true;
-    boot.kernelPackages = pkgs.linuxPackages_rpi4;
+    boot.kernelPackages =
+      if cfg.kernelFlavour == "mainline" then pkgs.linuxPackages_6_18 else pkgs.linuxPackages_rpi4;
+
+    # Mainline only: the GENET MAC and the Broadcom PHY are modules on the
+    # generic kernel, built in on the vendor one. Load the PHY before the
+    # MAC, and stage both in the initrd so no boot path is left without
+    # ethernet -- the field failure mode is a link that passes no traffic.
+    #
+    # Naming trap: in this kernel the GENET module is `genet`, not
+    # `bcmgenet` (drivers/net/ethernet/broadcom/genet/genet.ko; verified
+    # against the 6.18.49 modules output). `bcmgenet` survives only as a
+    # `platform:` alias, and the older field reports that list `bcmgenet`,
+    # `bcm_phy_lib` and `mdio_bcm_unimac` predate the rename -- the PHY lib
+    # is pulled by modules.dep and the unimac MDIO is built in here.
+    boot.kernelModules = lib.optionals (cfg.kernelFlavour == "mainline") [
+      "broadcom"
+      "genet"
+    ];
+    boot.initrd.availableKernelModules = lib.optionals (cfg.kernelFlavour == "mainline") [
+      "broadcom"
+      "genet"
+    ];
+
+    # Mainline only: without a filter every DTB the generic kernel builds
+    # lands in /boot on each switch, and this board only ever needs its own.
+    hardware.deviceTree.filter = lib.mkIf (cfg.kernelFlavour == "mainline") (
+      lib.mkDefault "bcm2711-rpi-*.dtb"
+    );
+
     boot.kernelParams = [
       "8250.nr_uarts=1"
       "console=ttyAMA0,115200"

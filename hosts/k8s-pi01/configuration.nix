@@ -40,6 +40,12 @@ in
   ssh.enable = true;
   raspberryPi.enable = true;
 
+  # Canary for the generic-kernel migration: the vendor linux-rpi kernel is
+  # never binary cached, so every deploy costs a ~5h native compile per Pi.
+  # pi01 proves out pkgs.linuxPackages_6_18 (cached, same bcm2711 DTBs and
+  # same ethernet0 DT alias) before pi02/pi03 are flipped.
+  raspberryPi.kernelFlavour = "mainline";
+
   # Override boot loader for Raspberry Pi
   boot.loader.systemd-boot.enable = lib.mkForce false;
   boot.loader.generic-extlinux-compatible.enable = true;
