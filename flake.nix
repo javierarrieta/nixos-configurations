@@ -115,6 +115,9 @@
         macbookair = mkHomeConfig {
           hostname = "macbookair";
         };
+        macbookpro = mkHomeConfig {
+          hostname = "macbookpro";
+        };
         vps = mkHomeConfig {
           hostname = "vps";
           system = "x86_64-linux";
