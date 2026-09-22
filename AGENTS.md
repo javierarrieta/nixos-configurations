@@ -446,8 +446,19 @@ tooling that has no value on a worker node:
 4. Launch rebuilds as
    `sudo NIX_CONFIG="experimental-features = nix-command flakes" nixos-rebuild switch --flake /var/lib/comin/repository#k8s-piXX`
    (`nixos-rebuild --extra-experimental-features` flag does not exist).
-5. Eval warning `linux-rpi series will be removed in a future release` is expected;
-   the migration target is `nixos-hardware` eventually.
+5. **Kernel flavour: `raspberryPi.kernelFlavour`** (`modules/nixos/raspberry-pi.nix`).
+   `vendor` (default) = `linuxPackages_rpi4`, which is in **no** aarch64 binary
+   cache: every deploy recompiles it natively (~5h per Pi) and nixpkgs warns
+   `linux-rpi series will be removed in a future release`. `mainline` =
+   `linuxPackages_6_18`, the generic aarch64 kernel, which **is** cached, so
+   kernel + modules + initrd download instead of compiling. Proven on k8s-pi01
+   (2026-09): same `bcm2711-rpi-*.dtb` set and same `ethernet0 = &genet`
+   device-tree alias, so the boot chain and `eth0` are unchanged; node `Ready`,
+   clean dmesg, rollback entries intact. Do **not** take the warning's advice and
+   move to `nixos-hardware` for this — its own rpi kernel is just as uncached,
+   so it does not fix the build-time problem. pi02/pi03 remain on `vendor`
+   until each is flipped deliberately. See the module comment for the
+   `genet` module vs `bcmgenet` driver-name trap.
 
 ---
 

@@ -123,12 +123,16 @@ in
     # MAC, and stage both in the initrd so no boot path is left without
     # ethernet -- the field failure mode is a link that passes no traffic.
     #
-    # Naming trap: in this kernel the GENET module is `genet`, not
-    # `bcmgenet` (drivers/net/ethernet/broadcom/genet/genet.ko; verified
-    # against the 6.18.49 modules output). `bcmgenet` survives only as a
-    # `platform:` alias, and the older field reports that list `bcmgenet`,
-    # `bcm_phy_lib` and `mdio_bcm_unimac` predate the rename -- the PHY lib
-    # is pulled by modules.dep and the unimac MDIO is built in here.
+    # Naming trap, confirmed on the pi01 canary: the GENET *module* is
+    # `genet` (drivers/net/ethernet/broadcom/genet/genet.ko), but the
+    # platform *driver* it registers is `bcmgenet`. So
+    # /sys/class/net/eth0/device/driver and `ethtool -i` both read
+    # `bcmgenet` while the .ko is `genet`, bridged by the `platform:bcmgenet`
+    # entry in modules.alias. boot.kernelModules takes the module name, so
+    # `bcmgenet` here would be wrong even though sysfs says it -- do not
+    # "fix" this from sysfs. Older field reports listing bcmgenet /
+    # bcm_phy_lib / mdio_bcm_unimac predate the rename: the PHY lib comes
+    # from modules.dep and the unimac MDIO is built in.
     boot.kernelModules = lib.optionals (cfg.kernelFlavour == "mainline") [
       "broadcom"
       "genet"
