@@ -8,6 +8,7 @@ activated with `home-manager switch`:
 ```bash
 home-manager switch --flake .#oracle
 home-manager switch --flake .#macbookair
+home-manager switch --flake .#macbookpro
 home-manager switch --flake .#vps
 ```
 
