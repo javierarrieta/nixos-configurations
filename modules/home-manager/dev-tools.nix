@@ -1,7 +1,7 @@
 {
   config,
   pkgs,
-  unstablePkgs,
+  pkgsUnfree,
   lib,
   userOptions,
   herdrPkg,
@@ -45,7 +45,7 @@ in
       # flake) rather than `pkgs`, so no Rust/Zig build lands on any host.
       herdrPkg
 
-      unstablePkgs.coder
+      pkgsUnfree.coder
     ]
   );
 
