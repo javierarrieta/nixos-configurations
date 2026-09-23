@@ -1,8 +1,8 @@
 {
   autocomplete = {
-    modelId = "mradermacher/Qwen2.5-Coder-1.5B-i1-GGUF";
-    filename = "Qwen2.5-Coder-1.5B.i1-Q4_K_M.gguf";
-    ctxSize = 4096;
+    modelId = "mradermacher/Mellum-4b-base-GGUF";
+    filename = "Mellum-4b-base.Q4_K_M.gguf";
+    ctxSize = 8192;
     nPredict = 128;
   };
 }
