@@ -231,6 +231,39 @@ rm secrets.dec.yaml
 
 **In-place Encryption**: `sops -e -i secrets.yaml` - useful after accidental plaintext overwrite
 
+### Onboarding a New Machine (2026-09-23, macbookpro)
+
+Adding a laptop is **two independent steps**; the first one alone does nothing for
+existing secrets:
+
+1. **Generate + register the key** (works anywhere, no decrypt access needed):
+   ```bash
+   umask 077 && mkdir -p ~/.config/sops/age
+   age-keygen -o ~/.config/sops/age/keys.txt   # never cat this file into a chat/log
+   age-keygen -y ~/.config/sops/age/keys.txt   # recipient to paste into .sops.yaml
+   ```
+   Add the recipient under `key_groups[0].age` in `.sops.yaml` with a `# <machine>`
+   comment so future key rotations know who is who.
+2. **Re-encrypt the existing file** — `sops updatekeys secrets.yaml -y` must
+   *decrypt* first, so it can only run on a machine that already holds a current
+   recipient key. Editing `.sops.yaml` and pushing does **not** make the new key
+   usable; until step 2 lands, `sops -d secrets.yaml` on the new machine fails with
+   `Failed to get the data key ... group 0: FAILED`.
+
+   If the new machine is the one being onboarded and no other box is handy,
+   temporarily append an existing `AGE-SECRET-KEY-…` line to `keys.txt`, run
+   `updatekeys`, verify `sops -d secrets.yaml | head`, then delete the borrowed
+   line.
+
+**Verify before trusting a recipient list**: `sops -d secrets.yaml >/dev/null` on
+the new machine, and compare `.sops.yaml` against the file's own footer
+(`sops.key_groups[].age[].recipient` in `secrets.yaml`) — a key listed in
+`.sops.yaml` but missing from the footer means step 2 was never run. As of this
+commit the footer still has only the 3 pre-existing recipients.
+
+**Back up** `~/.config/sops/age/keys.txt` off-machine — losing it loses access,
+and it is deliberately outside the repo.
+
 ### SOPS Chicken-and-Egg Problem
 
 **Issue**: If you add `age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ]` to `sops-base.nix`, SOPS will fail to decrypt because the SSH key is provisioned BY SOPS.
