@@ -278,6 +278,23 @@ and it is deliberately outside the repo.
 - **Check**: `cat -e keyfile` should show `-----END OPENSSH PRIVATE KEY-----$`
 - **Fix**: Ensure secret value ends with `\n`
 
+**Login Keys — Single Source of Truth**: `common/ssh-keys.nix` is the *only* place
+javier's `openssh.authorizedKeys.keys` list is maintained. It is imported by both
+`common/users.nix` (all 13 full NixOS hosts) and `modules/nixos/minimal-image.nix`
+(`k8s-piXX-minimal` bootstrap images). Before 2026-09-23 the lists were duplicated
+and had drifted (the `nixos@WSL-PC-Javier` key existed only in `users.nix`, so the
+bootstrap images could not be reached from WSL). Do not add a key inline in a host's
+`configuration.nix` or in `users.nix` — add it to `common/ssh-keys.nix`.
+
+- **Verify after a change** (eval only, no build):
+  ```bash
+  nix eval --raw --impure --expr \
+    'builtins.concatStringsSep "\n" (builtins.getFlake (toString ./.)).nixosConfigurations.<host>.config.users.users.javier.openssh.authorizedKeys.keys'
+  ```
+- **Not in this list**: the `hermes` automation account (`modules/nixos/hermes-ssh.nix`)
+  has its own forced-command-restricted key, and `hosts/wsl` uses `mutableUsers = true`
+  with no managed authorized keys.
+
 ### Tool Quirks
 
 **yq Version**: Older version (3.4.3) lacks `-i` flag:
