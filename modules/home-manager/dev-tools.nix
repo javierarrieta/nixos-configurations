@@ -34,6 +34,7 @@ in
       nixfmt-tree
       kubernetes-helm
       scala-cli
+      jdk21
       pstree
       lsof
       binutils
@@ -48,6 +49,14 @@ in
       pkgsUnfree.coder
     ]
   );
+
+  # JVM tooling (gradle, maven, sbt, some IDE integrations) resolves the JDK
+  # through JAVA_HOME rather than `java` on PATH, so point it at the same
+  # derivation that provides the binaries. `pkgs.jdk21` is openjdk on Linux
+  # and zulu-ca on aarch64-darwin; both are cached for these systems.
+  home.sessionVariables = lib.mkIf (!configOnly) {
+    JAVA_HOME = "${pkgs.jdk21}";
+  };
 
   programs.neovim = lib.mkIf (!configOnly) {
     enable = true;
