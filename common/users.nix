@@ -6,6 +6,8 @@
   pkgsUnfree,
   unstablePkgsUnfree,
   herdrPkg,
+  piPkg,
+  agentSkills,
   ...
 }:
 
@@ -18,10 +20,10 @@
     useUserPackages = true;
     extraSpecialArgs = {
       inherit unstablePkgs pkgsUnfree unstablePkgsUnfree;
-      # base.nix -> dev-tools.nix expects this; home-manager modules get
-      # their args from here, not from the NixOS specialArgs, so it has to
+      # base.nix -> dev-tools.nix expects these; home-manager modules get
+      # their args from here, not from the NixOS specialArgs, so they have to
       # be re-exported explicitly.
-      inherit herdrPkg;
+      inherit herdrPkg piPkg agentSkills;
       hostname = config.networking.hostName;
       userOptions = {
         username = "javier";
