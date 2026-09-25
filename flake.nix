@@ -59,6 +59,16 @@
     # self-contained closure, so the version skew is contained to pi.
     pi.url = "github:lukasl-dev/pi.nix";
 
+    # nix-darwin is here for one thing: writing /etc/nix/nix.conf on the two
+    # laptops so the pi binary cache is trusted by the nix daemon. See
+    # modules/darwin/pi-cache.nix for why home-manager cannot do this.
+    # Follows the repo's nixpkgs so the Macs share one package tree with the
+    # rest of the fleet; nixpkgs is multi-platform despite the branch name.
+    nix-darwin = {
+      url = "github:LnL7/nix-darwin/nix-darwin-26.05";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Agent skills vendored straight from their upstream repos and symlinked into
     # ~/.pi/agent/skills by modules/home-manager/dev-tools.nix. These were
     # previously installed imperatively with the `skills` CLI (~/.agents/skills +
@@ -112,6 +122,7 @@
       halogen-flash,
       herdr-nix,
       pi,
+      nix-darwin,
       caveman-skills,
       gitguardian-skills,
       vercel-skills,
@@ -188,6 +199,38 @@
           hostname = "coder-workspace";
           system = "x86_64-linux";
         };
+      };
+
+      # macOS system configuration for the two laptops.
+      #
+      # Intentionally narrow: it only carries the pi binary cache. Dotfiles stay
+      # on the standalone homeConfigurations above and are still applied with
+      # `home-manager --flake .#macbookpro switch`; this is applied separately
+      # with `sudo darwin-rebuild switch --flake .#macbookpro`.
+      #
+      # Read before the first apply. nix.enable defaults to true in nix-darwin,
+      # so darwin-rebuild takes over /etc/nix/nix.conf, the nix-daemon launchd
+      # unit and nix.package (pkgs.nix from this flake's nixpkgs-26.05). If a
+      # laptop runs Determinate Nix, its nix.conf gets replaced -- diff the two
+      # first, and `darwin-rebuild --rollback` is available afterwards.
+      darwinConfigurations.macbookpro = nix-darwin.lib.darwinSystem {
+        modules = [
+          ./modules/darwin/pi-cache.nix
+          {
+            piCache.enable = true;
+            nixpkgs.hostPlatform = "aarch64-darwin";
+          }
+        ];
+      };
+
+      darwinConfigurations.macbookair = nix-darwin.lib.darwinSystem {
+        modules = [
+          ./modules/darwin/pi-cache.nix
+          {
+            piCache.enable = true;
+            nixpkgs.hostPlatform = "aarch64-darwin";
+          }
+        ];
       };
 
       nixosConfigurations.llm01 = nixpkgs.lib.nixosSystem {
