@@ -46,6 +46,53 @@
       url = "github:herdrdev/herdr-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # pi: terminal coding agent. Upstream ships no flake (earendil-works/pi#2310)
+    # and `pi-coding-agent` is absent from nixos-26.05, so it comes from
+    # lukasl-dev/pi.nix -- a bun2nix build of upstream, currently v0.87.1, with
+    # a public binary cache at https://pi.cachix.org (add it to your substituters
+    # or the first build per system compiles from source).
+    #
+    # Deliberately NOT `follows = nixpkgs`: the flake pins its own
+    # nixos-unstable plus a separate nixpkgs-26.05-darwin tree for Intel
+    # macOS, and the package expects the newer branch. It builds its own
+    # self-contained closure, so the version skew is contained to pi.
+    pi.url = "github:lukasl-dev/pi.nix";
+
+    # Agent skills vendored straight from their upstream repos and symlinked into
+    # ~/.pi/agent/skills by modules/home-manager/dev-tools.nix. These were
+    # previously installed imperatively with the `skills` CLI (~/.agents/skills +
+    # .skill-lock.json), which nothing in this repo could reproduce.
+    #
+    # `flake = false`: none of the three ships a flake, so each is locked as a
+    # plain source tree and we reference `skills/<name>` out of it directly.
+    caveman-skills = {
+      url = "github:JuliusBrussee/caveman";
+      flake = false;
+    };
+    gitguardian-skills = {
+      url = "github:gitguardian/agent-skills";
+      flake = false;
+    };
+    vercel-skills = {
+      url = "github:vercel-labs/skills";
+      flake = false;
+    };
+  };
+
+  # pi.cachix.org carries the prebuilt pi-coding-agent output (verified: the
+  # 0.87.1 x86_64-linux NAR is there, cache.nixos.org returns 404 for it), so
+  # without this every system compiles pi from source on first use.
+  #
+  # A flake's nixConfig only applies when it is the flake being operated on and
+  # needs one-time approval: either answer the prompt from `home-manager switch
+  # --flake .#<host>` / `nix build .#...`, or set `accept-flake-config = true`
+  # in ~/.config/nix/nix.conf. It is NOT inherited by machines that merely
+  # consume this repo as an input, so on a fresh host add the substituter to
+  # nix.conf / nix.settings directly.
+  nixConfig = {
+    extra-substituters = [ "https://pi.cachix.org" ];
+    extra-trusted-public-keys = [ "pi.cachix.org-1:lGeoGJaZ5ZDabuRzkcD5EBTNnDM4HJ1vqeOxlWk1Flk=" ];
   };
 
   outputs =
@@ -64,6 +111,10 @@
       llama-cpp,
       halogen-flash,
       herdr-nix,
+      pi,
+      caveman-skills,
+      gitguardian-skills,
+      vercel-skills,
       ...
     }:
     let
@@ -83,6 +134,17 @@
         llamaPkgs = llama-cpp.packages.${system};
         # Prebuilt herdr binary for this system (see the herdr-nix input note).
         herdrPkg = herdr-nix.packages.${system}.default;
+        # pi binary for this system (see the pi input note). Package only --
+        # the agent config is rendered by modules/home-manager/dev-tools.nix
+        # rather than the flake's own homeModules, so the merge semantics stay
+        # reviewable in this repo.
+        piPkg = pi.packages.${system}.coding-agent;
+        # Vendored skill sources, consumed by modules/home-manager/dev-tools.nix.
+        agentSkills = {
+          caveman = caveman-skills;
+          gitguardian = gitguardian-skills;
+          vercel = vercel-skills;
+        };
       };
 
       mkHomeConfig =
