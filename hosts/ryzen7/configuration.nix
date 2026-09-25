@@ -15,6 +15,7 @@
 
     # Modules
     ../../modules/nixos/base.nix
+    ../../modules/nixos/pi-cache.nix
     ../../modules/nixos/system-packages.nix
     ../../modules/nixos/ssh.nix
     ../../modules/nixos/sops-base.nix
@@ -115,6 +116,9 @@
   ];
 
   # Services
+  # pi is installed by dev-tools.nix here. base.enable is deliberately left off
+  # on this workstation, so the cache cannot come from base.nix.
+  piCache.enable = true;
   ssh.enable = true;
 
   # Open WebUI
