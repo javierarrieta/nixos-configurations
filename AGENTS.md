@@ -1070,3 +1070,59 @@ nix flake show | grep nixosConfigurations
 
 ## Safety Reminder (added after incident)
 Never commit or push without explicit user confirmation (e.g., direct 'commit and push'). Ask if ambiguous.
+
+## Branch Policy: `main` is PR-only
+
+`main` is the canary branch — every commit to it auto-deploys to `k8s-node05`
+and `llm01` (see *Branch-Based Rollout*). Because of that blast radius, **no
+change lands on `main` by direct push**. Everything goes through a pull request.
+
+This **is** enforced — by a GitHub **ruleset** named `default` (id 14106538,
+`enforcement: active`, `bypass_actors: []`, so it binds admins too).
+Verified 2026-09-26:
+
+```bash
+gh api repos/javierarrieta/nixos-configurations/rules/branches/main
+```
+
+Note this is a **ruleset**, not legacy branch protection: the older
+`GET /branches/main/protection` returns `404` even though `main` *is*
+protected. Check the rulesets endpoint, not the protection endpoint.
+
+| Rule | Effect on `main` |
+|---|---|
+| `pull_request` | a PR is required before merging |
+| `non_fast_forward` | force-push is rejected |
+| `deletion` | `main` cannot be deleted |
+| `required_linear_history` | **merge commits disabled** — squash or rebase only |
+
+Rules for agents:
+
+- **Never** `git push origin main` — not plain, not `--force`, not
+  `--force-with-lease`.
+- Work on a feature branch branched from `main`, then open a PR against `main`:
+  ```bash
+  git checkout -b feat/<topic> main
+  # ... commit ...
+  git push origin feat/<topic>
+  gh pr create --base main --head feat/<topic>
+  ```
+- Merge with `gh pr merge --squash` or `gh pr merge --rebase`. A plain
+  `gh pr merge` (merge commit) is **blocked** by `required_linear_history`.
+  Do not merge locally and push either — that bypasses the PR record.
+- Force-pushing to update an **open feature branch** is fine and expected
+  (e.g. amending after review). The restriction is on `main` itself.
+- Branch off `main`, not off another open feature branch — otherwise the PR
+  inherits that branch's commits and looks like it contains unrelated work.
+- `stable` is promoted from `main` by a human merge. Agents do not push
+  `stable` either.
+
+> **The gate is a record, not a review.** The `pull_request` rule is
+> configured with `required_approving_review_count: 0`,
+> `require_code_owner_review: false` and `require_last_push_approval: false`
+> — the author can open a PR and merge it immediately with no reviewer and
+> no thread resolution. It guarantees every change reaching the canary ring
+> has a PR trail; it does **not** guarantee anyone else looked at it. The
+> only extra gate is `require_extra_approval_for_unattributed_changes: true`
+> (changes not attributable to a GitHub identity). To get real review,
+> raise `required_approving_review_count` in ruleset 14106538.
