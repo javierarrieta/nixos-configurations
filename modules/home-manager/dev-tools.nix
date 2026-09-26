@@ -93,9 +93,11 @@ let
   # reproduce. The name list is explicit rather than a directory glob so a skill
   # added upstream cannot silently join the agent's routing table on a flake
   # update.
+  # cocoindex skill (vendored from upstream; repo is 114MB so committed locally)
   piVendoredSkills = [
     {
       input = agentSkills.caveman;
+      dir = "skills";
       origin = "JuliusBrussee/caveman";
       names = [
         "cavecrew"
@@ -122,6 +124,7 @@ let
     }
     {
       input = agentSkills.gitguardian;
+      dir = "skills";
       origin = "gitguardian/agent-skills";
       names = [
         "check-hmsl"
@@ -134,8 +137,16 @@ let
     }
     {
       input = agentSkills.vercel;
+      dir = "skills";
       origin = "vercel-labs/skills";
       names = [ "find-skills" ];
+    }
+    {
+      input = ./vendor/skills/cocoindex;
+      dir = null;
+      origin = "cocoindex-io/cocoindex";
+      names = [ "cocoindex" ];
+    }
     }
   ];
 
@@ -146,7 +157,7 @@ let
         map (
           n:
           lib.nameValuePair ".pi/agent/skills/${n}" {
-            source = "${s.input}/skills/${n}";
+            source = "${s.input}${lib.optionalString (s.dir != null) ("/" + s.dir)}/${n}";
             # force: these paths already exist as unmanaged symlinks left by the
             # `skills` CLI, which Home Manager would otherwise refuse to replace.
             force = true;
