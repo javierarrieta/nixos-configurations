@@ -127,8 +127,17 @@ in
       "hm-pull" =
         "set -l dir (pwd); cd $CODE_DIR/nixos-configurations; and git pull --ff-only origin; cd $dir";
       "hm-update" = "nix flake update --flake $CODE_DIR/nixos-configurations";
+      # -b <suffix>: move a conflicting untracked dotfile aside instead of
+      # aborting. Without it `hm-apply` dies on "Existing file '~/.zshrc' would be
+      # clobbered" whenever something (a manual copy, a leftover from an
+      # interrupted switch) leaves a plain file where HM wants a symlink -- and a
+      # half-applied switch is what strands the running shell on binaries the new
+      # profile no longer has (atuin/starship "unknown command" on every prompt).
+      # The suffix is a fish subshell, (date +%Y%m%d), expanded at run time so the
+      # backup is stamped with the date the conflict occurred. home.backupFileExtension
+      # is not a standalone-mode option, so the suffix comes from the CLI flag.
       "hm-apply" =
-        "nix run home-manager -- switch --flake ${userOptions.homeManagerConfigDir}#${hostname}";
+        "nix run home-manager -- switch -b (date +%Y%m%d) --flake ${userOptions.homeManagerConfigDir}#${hostname}";
       "hm-gc" = "nix-store -gc";
       "sshe" = "ssh -o \"UserKnownHostsFile=/dev/null\"";
       "kssh" = "kitten ssh";
