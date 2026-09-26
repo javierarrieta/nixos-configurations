@@ -188,6 +188,10 @@
           hostname = "coder-workspace";
           system = "x86_64-linux";
         };
+        llm01 = mkHomeConfig {
+          hostname = "llm01";
+          system = "x86_64-linux";
+        };
       };
 
       nixosConfigurations.llm01 = nixpkgs.lib.nixosSystem {
