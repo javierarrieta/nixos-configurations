@@ -452,10 +452,17 @@ nixos-rebuild build-image --flake .#k8s-pi01 --image-variant sd-card
 
 ### Package Slimming (2026-08)
 
-Pis compile the RPi kernel **natively on-device** (~5h each) — that's the dominant
-build cost and cannot be removed (custom `linuxPackages_rpi4` is not in the public
-aarch64 binary cache). To keep everything else fast, the Pis exclude heavy common
-tooling that has no value on a worker node:
+> **Updated 2026-09 — the kernel is no longer the cost.** All three Pis now run
+> `raspberryPi.kernelFlavour = "mainline"`, whose `linuxPackages_6_18` **is** on
+> `cache.nixos.org`, so kernel + modules + initrd download instead of compiling
+> (see item 5 under "Pi Upgrade Pitfalls"). What is still compiled on-device is the
+> **~258 non-kernel derivations per Pi** — a `--dry-run` of `k8s-pi01` reports 258
+> built against 1,277 fetched. The slimming below targets exactly that residue.
+
+This section was written when the dominant cost was compiling `linuxPackages_rpi4`
+natively on-device (~5h per Pi), which sat in no public aarch64 binary cache.
+To keep everything else fast, the Pis exclude heavy common tooling that has no
+value on a worker node:
 
 - `systemPackages.excludePackages` (in each `hosts/k8s-piXX/configuration.nix`)
   removes `kubernetes-helm` and `tpm2-tss` from the common set. `nfs-utils` is
@@ -466,12 +473,18 @@ tooling that has no value on a worker node:
 
 ### Pi Upgrade Pitfalls (learned 2026-08 — read before any Pi migration)
 
-1. **No shared cache is configured.** All three Pis poll the same repo via comin
-   and each compiles the kernel itself, in parallel. Pushing a config change costs
-   a ~5h kernel build on **every** Pi. Identical flake lock ⇒ identical store paths,
-   so a manual `nix copy --from ssh-ng://<pi1> --to ssh-ng://<pi2>` of the toplevel
-   closure dedupes perfectly — but must be done **before** the slower Pis start
-   building (i.e. comin stopped on them) or it's wasted.
+1. **No shared cache for our own outputs.** The kernel half of this pitfall is
+   gone — the `mainline` flavour is cached upstream, so no Pi compiles a kernel any
+   more. The remaining half stands: all three Pis poll the same repo via comin and
+   each compiles the same ~258 non-kernel derivations locally, in parallel.
+   Identical flake lock ⇒ identical store paths, so a manual
+   `nix copy --from ssh-ng://<pi1> --to ssh-ng://<pi2>` of the toplevel closure
+   still dedupes perfectly — but must be done **before** the slower Pis start
+   building (i.e. comin stopped on them) or it's wasted. A self-hosted binary cache
+   would remove this entirely; see `k8s-casa`
+   `docs/superpowers/specs/2026-09-26-nix-binary-cache-attic-design.md` §17.3. It
+   is deliberately out of scope there, because only a Pi can *produce* aarch64
+   store paths — which means a push-capable credential on a Pi.
 2. **Cancelling a running Pi build** requires killing the process tree in stages:
    `systemctl stop comin` → kill `nixos-rebuild` → kill the reparented `nix build`
    process → `pkill -9` any lingering `make -j4`/`cc1` (these run under the *nix
@@ -506,9 +519,10 @@ tooling that has no value on a worker node:
    device-tree alias, so the boot chain and `eth0` are unchanged; node `Ready`,
    clean dmesg, rollback entries intact. Do **not** take the warning's advice and
    move to `nixos-hardware` for this — its own rpi kernel is just as uncached,
-   so it does not fix the build-time problem. pi02/pi03 remain on `vendor`
-   until each is flipped deliberately. See the module comment for the
-   `genet` module vs `bcmgenet` driver-name trap.
+   so it does not fix the build-time problem. **All three Pis are on `mainline`
+   now** (`0daf662` put pi01 on it, `35b72c7` moved pi02 and pi03) — the
+   "pi02/pi03 remain on `vendor`" note that used to sit here is out of date. See
+   the module comment for the `genet` module vs `bcmgenet` driver-name trap.
 
 ---
 
