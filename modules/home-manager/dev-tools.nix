@@ -93,6 +93,11 @@ let
   # reproduce. The name list is explicit rather than a directory glob so a skill
   # added upstream cannot silently join the agent's routing table on a flake
   # update.
+  #
+  # One layout rule for every entry: <input>/skills/<name>. For the flake inputs
+  # `input` is the upstream repo root; for cocoindex it is a repo-root mirror
+  # committed under vendor/, so the same rule applies and no per-entry override
+  # is needed.
   piVendoredSkills = [
     {
       input = agentSkills.caveman;
@@ -136,6 +141,15 @@ let
       input = agentSkills.vercel;
       origin = "vercel-labs/skills";
       names = [ "find-skills" ];
+    }
+    {
+      # Vendored in-repo rather than as a flake input: cocoindex-io/cocoindex is a
+      # ~114MB framework repo, and a `flake = false` input would fetch all of it
+      # on every `nix flake update` to reach one skill folder. vendor/cocoindex/
+      # mirrors that repo's root so the shared <input>/skills/<name> rule holds.
+      input = ../../vendor/cocoindex;
+      origin = "cocoindex-io/cocoindex";
+      names = [ "cocoindex" ];
     }
   ];
 
