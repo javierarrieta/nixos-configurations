@@ -73,7 +73,13 @@ in
     healthGate.enable = true;
   };
 
-  nixSweep.enable = true;
+  nixSweep = {
+    enable = true;
+    # SD-card root: the optimiser is a full /nix/store scan and the dedup win is
+    # one-time, so sustained flash read/write is not worth it on a Pi.
+    # Generation pruning + GC above still run.
+    optimise = false;
+  };
 
   networking.hostName = vars.hostname;
 
