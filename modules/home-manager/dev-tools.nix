@@ -34,6 +34,20 @@ let
   # Per-host overrides live in that host's userOptions.nix under `pi`.
   piCfg = userOptions.pi or { };
 
+  # Opt a host out of pi entirely with `pi.enable = false` in its
+  # userOptions.nix. Why the flag exists: pi.cachix.org only carries
+  # x86_64-linux NARs -- upstream's sole cache push is a ubuntu-latest
+  # cron -- so every Mac compiles the bun2nix build from source, and that
+  # build fetches its npm tarballs at build time. On a network that will
+  # not serve registry.npmjs.org (oracle's returns 403 for
+  # @anthropic-ai/sandbox-runtime) the whole home generation becomes
+  # unbuildable. A host that will never run pi should opt out rather than
+  # depend on a working npm egress; the flag drops the package, the
+  # vendored skills and the agent config together, so nothing pi-shaped is
+  # left behind. configOnly hosts are unaffected: they never took the
+  # package, and they leave this flag alone.
+  piEnable = piCfg.enable or true;
+
   piSettings = {
     theme = "dark";
     defaultProvider = "llm01-halogen";
@@ -205,61 +219,65 @@ in
       # flake) rather than `pkgs`, so no Rust/Zig build lands on any host.
       herdrPkg
 
-      # pi comes from the `piPkg` special arg (bun2nix build of upstream
-      # earendil-works/pi) because `pi-coding-agent` is absent from
-      # nixos-26.05. It stays gated with the rest of this module: on configOnly
-      # hosts (the coder workspaces) pi is installed by hand, because its
-      # closure pulls dns-root-data -- a root-owned, DB-unregistered leftover
-      # of the workspace image's /nix/store that Nix cannot replace as uid
-      # 1000. The agent *config* and the vendored skills below stay ungated.
-      piPkg
-
       pkgsUnfree.coder
     ]
+    # pi comes from the `piPkg` special arg (bun2nix build of upstream
+    # earendil-works/pi) because `pi-coding-agent` is absent from
+    # nixos-26.05. It stays gated with the rest of this module: on configOnly
+    # hosts (the coder workspaces) pi is installed by hand, because its
+    # closure pulls dns-root-data -- a root-owned, DB-unregistered leftover
+    # of the workspace image's /nix/store that Nix cannot replace as uid
+    # 1000. The agent *config* and the vendored skills below stay ungated
+    # for exactly that reason, and follow `piEnable` instead.
+    ++ lib.optionals piEnable [ piPkg ]
   );
 
-  # Vendored skills -- see `piVendoredSkills` above.
-  home.file = piSkillFiles;
+  # Vendored skills -- see `piVendoredSkills` above. They route to pi, so
+  # they go when pi does; Home Manager unlinks the ones it managed.
+  home.file = lib.mkIf piEnable piSkillFiles;
 
   # The agent config is rendered even on configOnly hosts: those hosts get the
   # pi binary from the workspace image, but settings and model definitions
   # still come from here. Merged over the on-disk JSON rather than symlinked --
-  # see the note on `piSettings` above.
-  home.activation.piAgentConfig =
-    lib.hm.dag.entryAfter [ "writeBoundary" ] # bash
-      ''
-        _pi_agent_dir="${config.home.homeDirectory}/.pi/agent"
-        _pi_jq="${lib.getExe pkgs.jq}"
-        mkdir -p "$_pi_agent_dir"
+  # see the note on `piSettings` above. Wrapped as a set so `piEnable = false`
+  # removes the activation entry outright instead of leaving an empty one.
+  home.activation = lib.mkIf piEnable {
+    piAgentConfig =
+      lib.hm.dag.entryAfter [ "writeBoundary" ] # bash
+        ''
+          _pi_agent_dir="${config.home.homeDirectory}/.pi/agent"
+          _pi_jq="${lib.getExe pkgs.jq}"
+          mkdir -p "$_pi_agent_dir"
 
-        _merge_pi_json() {
-          _declared="$1"
-          _target="$2"
-          # A leftover home.file symlink would make the merge write into the store.
-          if [ -L "$_target" ]; then
-            rm -f "$_target"
-          fi
-          _tmp="$(mktemp "$_target.XXXXXX")"
-          if [ -f "$_target" ]; then
-            if ! $_pi_jq -s '.[0] * .[1]' "$_target" "$_declared" > "$_tmp"; then
-              rm -f "$_tmp"
-              echo "piAgentConfig: failed to merge $_target, leaving it untouched" >&2
-              return 0
+          _merge_pi_json() {
+            _declared="$1"
+            _target="$2"
+            # A leftover home.file symlink would make the merge write into the store.
+            if [ -L "$_target" ]; then
+              rm -f "$_target"
             fi
-          else
-            cp "$_declared" "$_tmp"
-          fi
-          chmod 0644 "$_tmp"
-          if cmp -s "$_tmp" "$_target" 2>/dev/null; then
-            rm -f "$_tmp"
-          else
-            mv "$_tmp" "$_target"
-          fi
-        }
+            _tmp="$(mktemp "$_target.XXXXXX")"
+            if [ -f "$_target" ]; then
+              if ! $_pi_jq -s '.[0] * .[1]' "$_target" "$_declared" > "$_tmp"; then
+                rm -f "$_tmp"
+                echo "piAgentConfig: failed to merge $_target, leaving it untouched" >&2
+                return 0
+              fi
+            else
+              cp "$_declared" "$_tmp"
+            fi
+            chmod 0644 "$_tmp"
+            if cmp -s "$_tmp" "$_target" 2>/dev/null; then
+              rm -f "$_tmp"
+            else
+              mv "$_tmp" "$_target"
+            fi
+          }
 
-        _merge_pi_json "${piSettingsFile}" "$_pi_agent_dir/settings.json"
-        _merge_pi_json "${piModelsFile}" "$_pi_agent_dir/models.json"
-      '';
+          _merge_pi_json "${piSettingsFile}" "$_pi_agent_dir/settings.json"
+          _merge_pi_json "${piModelsFile}" "$_pi_agent_dir/models.json"
+        '';
+  };
 
   # JVM tooling (gradle, maven, sbt, some IDE integrations) resolves the JDK
   # through JAVA_HOME rather than `java` on PATH, so point it at the same
