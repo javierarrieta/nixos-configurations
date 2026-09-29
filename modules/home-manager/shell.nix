@@ -10,6 +10,12 @@
 
 let
   configOnly = userOptions.configOnly or false;
+  # Home Manager is applied from the pushed repo rather than a local checkout, so
+  # `hm-apply` works on a machine that has no $CODE_DIR/nixos-configurations at
+  # all, and always builds the commit GitHub actually has (nix fetches that flake's
+  # own flake.lock, so the home-manager/nixpkgs pins come from the repo too).
+  # Consequence: local edits are invisible until they are pushed.
+  flakeRef = "github:javierarrieta/nixos-configurations";
 in
 {
   home.packages = (
@@ -136,8 +142,7 @@ in
       # The suffix is a fish subshell, (date +%Y%m%d), expanded at run time so the
       # backup is stamped with the date the conflict occurred. home.backupFileExtension
       # is not a standalone-mode option, so the suffix comes from the CLI flag.
-      "hm-apply" =
-        "nix run home-manager -- switch -b (date +%Y%m%d) --flake ${userOptions.homeManagerConfigDir}#${hostname}";
+      "hm-apply" = "nix run home-manager -- switch -b (date +%Y%m%d) --flake ${flakeRef}#${hostname}";
       "hm-gc" = "nix-store -gc";
       "sshe" = "ssh -o \"UserKnownHostsFile=/dev/null\"";
       "kssh" = "kitten ssh";
