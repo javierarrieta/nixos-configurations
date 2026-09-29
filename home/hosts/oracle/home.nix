@@ -84,7 +84,6 @@ in
     shellAliases = {
       "codex-brew" = "/opt/homebrew/bin/codex";
       "terraform" = "tofu";
-      "fashion-token" = "z ${userOptions.workspaces.fashion_token} && cargo run --release ; z -";
       "code4cline" = "SHELL=$HOME/.nix-profile/bin/bash code";
       "ministral-reasoning" =
         "llama-server --model ${userOptions.llmModelsDir}/unsloth_Ministral-3-14B-Reasoning-2512-GGUF_Ministral-3-14B-Reasoning-2512-Q4_K_M.gguf --jinja -ngl 99 --threads -1 --ctx-size 32684 --temp 0.6 --top-p 0.95   --offline";
