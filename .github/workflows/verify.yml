@@ -75,6 +75,71 @@ jobs:
           nix build .#nixosConfigurations.llm01.config.system.build.toplevel 2>&1 \
             | tee /tmp/build-llm01.log
 
+      # WRITE path -- warm the cache with what we just built.
+      #
+      # No `if:` gate: this runs on `push` AND `pull_request`, deliberately. A
+      # squash-merge changes commit metadata only, and the flake source store
+      # path is content-addressed by file contents, so main's tree after the
+      # merge is byte-identical to the PR's final tree. Warming the cache from
+      # the PR is what turns the post-merge verification into a substitution
+      # run, and makes every later push on the same branch upload only its
+      # delta.
+      #
+      # Same cache as every consumer. A separate PR-only cache would save no
+      # disk -- Attic dedups globally by content -- and the case for splitting
+      # it did not survive scrutiny: per-PR unique growth tracks version bumps,
+      # not PR count, and poisoning is not on the table, because planting
+      # attacker content at a chosen store path needs a SHA-256 collision and
+      # hosts only substitute paths already in their own closure. One cache
+      # keeps it at one key to trust and one retention policy; splitting stays
+      # one `attic cache create` if the PVC ever says otherwise.
+      #
+      # continue-on-error because the cache is an optimisation, not a
+      # dependency (design N1): a dead or full Attic must make builds slower
+      # and nothing else. The empty-token guard covers fork PRs, where GitHub
+      # withholds secrets outright -- without it the step would fail instead of
+      # skipping.
+      - name: Push closure to Attic
+        continue-on-error: true
+        env:
+          ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$ATTIC_TOKEN" ]; then
+            echo "ATTIC_TOKEN secret is unset (fork PR?); skipping cache push" >&2
+            exit 0
+          fi
+
+          # The two toplevels the smoke steps just built. Both resolve from the
+          # local store without rebuilding, and pushing a toplevel walks its
+          # whole closure -- which already contains the EMBEDDED home-manager
+          # activation package.
+          #
+          # That embedded/standalone distinction is why this does not also
+          # target `homeConfigurations.*`: the Pi coding agent lives in the
+          # embedded home-manager that comin deploys as part of the NixOS
+          # system (hosts/<h>/configuration.nix -> common/users.nix ->
+          # modules/home-manager/base.nix -> dev-tools.nix), and walking the
+          # llm01 derivation graph reaches pi-coding-agent-0.87.1 through it.
+          # The standalone homeConfigurations.llm01 has 14 packages and no pi
+          # at all -- checking that one instead of the embedded config is what
+          # sent an earlier draft of this step to push `vps`, which is not what
+          # these hosts run.
+          {
+            nix build .#nixosConfigurations.k8s-node05.config.system.build.toplevel \
+              --no-link --print-out-paths
+            nix build .#nixosConfigurations.llm01.config.system.build.toplevel \
+              --no-link --print-out-paths
+          } > /tmp/push-paths.txt
+          echo "Pushing $(wc -l < /tmp/push-paths.txt) toplevels to nixos-config"
+
+          nix run nixpkgs#attic-client -- login cache \
+            https://nix-cache.home.arrieta.eu "$ATTIC_TOKEN"
+          # `cache:nixos-config`, not bare `nixos-config`: the bare form only
+          # resolves against the *default* server, and `attic login` does not
+          # make one default without --set-default.
+          nix run nixpkgs#attic-client -- push cache:nixos-config --stdin < /tmp/push-paths.txt
+
       # The number that decides whether the read path is worth anything. A warm
       # cache should drive the *built* derivation count towards zero; 0 hits
       # against a warm cache means the trusted key does not match the cache's
