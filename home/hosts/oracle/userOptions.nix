@@ -7,9 +7,6 @@
   githubUser = "javierarrieta";
   pythonVersion = "3.12";
   llmModelsDir = "/Users/jaarriet/llm/models";
-  workspaces = {
-    fashion_token = "/Users/jaarriet/code/fashion_token";
-  };
   homeManagerConfigDir = "/Users/jaarriet/code/nixos-configurations";
 
   # No pi on this laptop. There is no darwin NAR for it in pi.cachix.org
