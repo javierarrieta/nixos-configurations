@@ -105,21 +105,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { host: k8s-node01,   runner: ubuntu-latest }
-          - { host: k8s-node02,   runner: ubuntu-latest }
-          - { host: k8s-node03,   runner: ubuntu-latest }
-          - { host: k8s-node04,   runner: ubuntu-latest }
-          - { host: k8s-node05,   runner: ubuntu-latest }
-          - { host: k8s-server01, runner: ubuntu-latest }
-          - { host: k8s-server02, runner: ubuntu-latest }
-          - { host: k8s-server03, runner: ubuntu-latest }
-          - { host: llm01,        runner: ubuntu-latest }
-          - { host: ryzen7,       runner: ubuntu-latest }
-          - { host: wsl,          runner: ubuntu-latest }
-          - { host: k8s-pi01,     runner: ubuntu-24.04-arm }
-          - { host: k8s-pi02,     runner: ubuntu-24.04-arm }
-          - { host: k8s-pi03,     runner: ubuntu-24.04-arm }
-    name: smoke (${{ matrix.host }})
+          # arch is display-only: it surfaces in the job name so an arm leg is
+          # visually distinguishable from an x86 one in the checks list. The
+          # runner field is what actually selects the machine.
+          - { host: k8s-node01,   runner: ubuntu-latest,     arch: x86_64 }
+          - { host: k8s-node02,   runner: ubuntu-latest,     arch: x86_64 }
+          - { host: k8s-node03,   runner: ubuntu-latest,     arch: x86_64 }
+          - { host: k8s-node04,   runner: ubuntu-latest,     arch: x86_64 }
+          - { host: k8s-node05,   runner: ubuntu-latest,     arch: x86_64 }
+          - { host: k8s-server01, runner: ubuntu-latest,     arch: x86_64 }
+          - { host: k8s-server02, runner: ubuntu-latest,     arch: x86_64 }
+          - { host: k8s-server03, runner: ubuntu-latest,     arch: x86_64 }
+          - { host: llm01,        runner: ubuntu-latest,     arch: x86_64 }
+          - { host: ryzen7,       runner: ubuntu-latest,     arch: x86_64 }
+          - { host: wsl,          runner: ubuntu-latest,     arch: x86_64 }
+          - { host: k8s-pi01,     runner: ubuntu-24.04-arm, arch: aarch64 }
+          - { host: k8s-pi02,     runner: ubuntu-24.04-arm, arch: aarch64 }
+          - { host: k8s-pi03,     runner: ubuntu-24.04-arm, arch: aarch64 }
+    name: smoke (${{ matrix.host }} · ${{ matrix.arch }})
 
     steps:
       - name: Checkout
