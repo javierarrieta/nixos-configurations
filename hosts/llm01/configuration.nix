@@ -3,7 +3,6 @@
   lib,
   pkgs,
   unstablePkgs,
-  llamaPkgs,
   nix-sweep,
   home-manager,
   halogen-flash,
@@ -28,7 +27,6 @@
     ../../modules/nixos/comin-health-gate.nix
     ../../modules/nixos/coder-host.nix
     ../../modules/nixos/openiscsi.nix
-    ../../modules/nixos/llama-cpp/agent.nix
     halogen-flash.nixosModules.default
 
     # Users
@@ -156,8 +154,7 @@
     ++ (with unstablePkgs; [
       rocmPackages.rocm-smi
       rocmPackages.clr
-    ])
-    ++ [ llamaPkgs.vulkan ];
+    ]);
 
   home-manager.users.javier.imports = [
     ../../modules/home-manager/llm.nix
@@ -194,28 +191,15 @@
     '';
   };
 
-  # llama.cpp serving stack (options in modules/nixos/llama-cpp/agent.nix)
-  services.llamaCppAgent = {
-    # enable = true;                 # leave off until the weights are wanted
-    package = llamaPkgs.vulkan;
-    models = import ./llm-models.nix;
-    threads = 8;
-    threadsBatch = 8;
-    metrics.enable = true;
-    # 6-model preset; router default cap is 4 — without this, requests for
-    # the 6th model evict a loaded one and scrapes re-load it (thrash loop)
-    extraServerArgs = [ "--models-max 6" ];
-    environment = {
-      GGML_VK_DISABLE_COOPMAT = "1";
-      GGML_VK_VISIBLE_DEVICES = "0";
-      RADV_PERFTEST = "nogttspill";
-    };
-  };
-
-  # halogen-flash-server (Strix Halo, Qwen3.8-Flash-Next, ROCm).
-  # MUTUALLY EXCLUSIVE with llamaCppAgent: both live in the same ~112–120 GiB
-  # GTT pool on this iGPU, so enable only one at a time. To go back to
-  # llama.cpp: set halogenFlash.enable = false and llamaCppAgent.enable = true.
+  # halogen-flash-server (Strix Halo, Qwen3.8-Flash-Next, ROCm) is the
+  # serving stack on this host. It owns the iGPU's ~112-120 GiB GTT pool, so
+  # nothing else configured here may claim it.
+  #
+  # The llama.cpp stack that used to sit here is gone (2026-09-30): the
+  # service was already disabled and halogen-flash replaced it. Note that
+  # `llamaPkgs.vulkan` was also in systemPackages.extraPackages, so the
+  # package stayed in the system closure even with the service off -- that is
+  # why removal, not just leaving it disabled, was the point.
   services.halogenFlash = {
     enable = true;
     user = "ollama"; # rootless podman; container runs as ollama (uid 27002)
