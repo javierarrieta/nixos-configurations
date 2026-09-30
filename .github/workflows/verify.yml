@@ -27,3 +27,58 @@ jobs:
 
       - name: Build smoke test (llm01)
         run: nix build .#nixosConfigurations.llm01.config.system.build.toplevel
+
+      # WRITE path for PRs -- warm the same cache that main/stable push to.
+      #
+      # Why PRs push at all: a squash-merge changes commit metadata only, and
+      # the flake source store path is content-addressed by file contents, so
+      # main's tree after the merge is byte-identical to the PR's final tree.
+      # Warming the cache from the PR turns the post-merge verification from a
+      # rebuild into a substitution run, and makes every later push on the same
+      # branch upload only its delta.
+      #
+      # Same cache as the main/stable pusher, deliberately. Attic dedups
+      # globally by content, so a second cache would save no disk, and the
+      # case for splitting it did not survive scrutiny: per-PR unique growth is
+      # small (the multi-GB custom set is shared infrastructure that only moves
+      # with version bumps, not with PR count), and poisoning is not on the
+      # table -- planting attacker content at a chosen store path needs a
+      # SHA-256 collision, and hosts only substitute paths already in their own
+      # closure. One cache keeps it at one key to trust and one retention
+      # policy. If PR churn ever shows up on the PVC, splitting is one
+      # `attic cache create`.
+      #
+      # continue-on-error because the cache is an optimisation, not a
+      # dependency (design N1): a dead or full Attic must make builds slower
+      # and nothing else. The empty-token guard exists for fork PRs, where GitHub
+      # withholds secrets outright -- without it the step would fail instead of
+      # skipping.
+      - name: Push PR closure to Attic
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$ATTIC_TOKEN" ]; then
+            echo "ATTIC_TOKEN secret is unset (fork PR?); skipping cache push" >&2
+            exit 0
+          fi
+
+          # Both toplevels were just built by the smoke steps above, so these
+          # resolve from the local store without rebuilding. Pushing the toplevel
+          # walks the entire closure, which already contains the embedded
+          # home-manager activation package -- no separate target needed.
+          nix build .#nixosConfigurations.k8s-node05.config.system.build.toplevel \
+            --no-link --print-out-paths > /tmp/push-paths.txt
+          nix build .#nixosConfigurations.llm01.config.system.build.toplevel \
+            --no-link --print-out-paths >> /tmp/push-paths.txt
+          echo "Pushing $(wc -l < /tmp/push-paths.txt) toplevels to nixos-config"
+
+          nix run nixpkgs#attic-client -- login cache \
+            https://nix-cache.home.arrieta.eu "$ATTIC_TOKEN"
+          # `cache:nixos-config`, not bare `nixos-config`: the bare form only
+          # resolves against the *default* server, and `attic login` does not make
+          # one default without --set-default. The qualified form is unambiguous
+          # either way.
+          nix run nixpkgs#attic-client -- push cache:nixos-config --stdin < /tmp/push-paths.txt
