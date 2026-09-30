@@ -16,7 +16,12 @@ concurrency:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest: the latter migrates to Ubuntu 26 on
+    # 2026-10-19 (actions/runner-images#14748). Swapping the base OS under a
+    # fourteen-leg matrix is a change worth making deliberately rather than
+    # absorbing mid-PR. 24.04 is also what the ubuntu-24.04-arm legs already
+    # run, so both architectures are on the same base image.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     # READ path for the self-hosted Attic cache (deployed from k8s-casa).
@@ -53,10 +58,20 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
+      # v23 runs on Node 24; v14 targeted Node 20, which GitHub now
+      # force-overrides and warns about.
+      #
+      # This action bundles actions/cache internally to warm the runner's Nix
+      # store, and there is no input to turn it off. Its occasional
+      # `Failed to save: ...Our services aren't available right now` and
+      # `Failed to restore: Cache service responded with 400` are GitHub's own
+      # cache service flaking under fourteen concurrent legs. The action
+      # catches both and continues, and they cost nothing here: Attic, the
+      # cache that actually matters, is configured through NIX_CONFIG above.
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v14
+        uses: DeterminateSystems/nix-installer-action@v23
 
       - name: Flake check
         run: nix flake check --no-build
@@ -108,17 +123,17 @@ jobs:
           # arch is display-only: it surfaces in the job name so an arm leg is
           # visually distinguishable from an x86 one in the checks list. The
           # runner field is what actually selects the machine.
-          - { host: k8s-node01,   runner: ubuntu-latest,     arch: x86_64 }
-          - { host: k8s-node02,   runner: ubuntu-latest,     arch: x86_64 }
-          - { host: k8s-node03,   runner: ubuntu-latest,     arch: x86_64 }
-          - { host: k8s-node04,   runner: ubuntu-latest,     arch: x86_64 }
-          - { host: k8s-node05,   runner: ubuntu-latest,     arch: x86_64 }
-          - { host: k8s-server01, runner: ubuntu-latest,     arch: x86_64 }
-          - { host: k8s-server02, runner: ubuntu-latest,     arch: x86_64 }
-          - { host: k8s-server03, runner: ubuntu-latest,     arch: x86_64 }
-          - { host: llm01,        runner: ubuntu-latest,     arch: x86_64 }
-          - { host: ryzen7,       runner: ubuntu-latest,     arch: x86_64 }
-          - { host: wsl,          runner: ubuntu-latest,     arch: x86_64 }
+          - { host: k8s-node01,   runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-node02,   runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-node03,   runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-node04,   runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-node05,   runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-server01, runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-server02, runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-server03, runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: llm01,        runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: ryzen7,       runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: wsl,          runner: ubuntu-24.04,   arch: x86_64 }
           - { host: k8s-pi01,     runner: ubuntu-24.04-arm, arch: aarch64 }
           - { host: k8s-pi02,     runner: ubuntu-24.04-arm, arch: aarch64 }
           - { host: k8s-pi03,     runner: ubuntu-24.04-arm, arch: aarch64 }
@@ -126,10 +141,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v14
+        uses: DeterminateSystems/nix-installer-action@v23
 
       # Cheap, and it is the only thing that separates "cache is empty" from
       # "cache is misconfigured". continue-on-error because the cache is an
