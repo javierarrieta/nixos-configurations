@@ -19,6 +19,11 @@
     ../../modules/nixos/system-packages.nix
     ../../modules/nixos/nix-sweep.nix
     ../../modules/nixos/pi-cache.nix
+    # Pulled in directly rather than via base.nix: this host uses wsl-base.nix,
+    # which declares its own `base` option and never imports base.nix. Setting
+    # `base.enable = true` here does NOT bring base.nix in, so the cache module
+    # has to be listed explicitly or this host silently stays off the cache.
+    ../../modules/nixos/attic-cache.nix
   ];
 
   base.enable = true;

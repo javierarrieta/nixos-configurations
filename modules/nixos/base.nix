@@ -5,7 +5,15 @@
   ...
 }:
 {
-  imports = [ ./dbus-broker-timeout.nix ];
+  imports = [
+    ./dbus-broker-timeout.nix
+    # Imported unconditionally, NOT inside the `base.enable` gate below: the
+    # binary cache is wanted on every host, including ones that do not opt into
+    # the rest of base.nix. ryzen7 imports this file without ever setting
+    # base.enable = true, so gating the cache on that flag would silently leave
+    # that host off the cache.
+    ./attic-cache.nix
+  ];
 
   options = {
     base = {
