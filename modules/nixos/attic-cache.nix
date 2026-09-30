@@ -50,9 +50,20 @@ in
 
       url = lib.mkOption {
         type = lib.types.str;
-        default = "https://nix-cache.l.arrieta.eu";
+        default = "https://nix-cache.l.arrieta.eu/nixos-config";
         description = ''
-          Attic front door used for substitution.
+          Attic cache URL used for substitution.
+
+          The path suffix is the CACHE NAME and is not optional. Attic serves
+          every route -- `/nix-cache-info`, `/narinfo/:hash`, `/nar/:hash` --
+          under a per-cache prefix. The bare origin answers `/` with the
+          Attic landing page and returns a 404 JSON body for `/nix-cache-info`,
+          which nix reports as `'<url>' does not appear to be a binary cache`
+          and then substitutes nothing from it, silently. That is the same
+          100%-miss failure the trustedPublicKey assertion below exists to
+          catch, reached a second way; see the URL of the same shape in
+          .github/workflows/verify.yml, which was always correct because CI
+          also has to push to the same route.
 
           The LAN address on purpose: `.l.` resolves to the Traefik VIP on
           public DNS, so on-LAN pulls are a direct hop with no router
@@ -96,6 +107,29 @@ in
 
     (lib.mkIf cfg.enable {
       assertions = [
+        {
+          # Catches the bare-origin case only -- the one this file's default
+          # shipped until 2026-09-30. Deliberately not a hardcoded
+          # "/nixos-config": that would put the cache name in two files, which
+          # is exactly the coupling trustedPublicKey below avoids. A URL with
+          # no path is never a usable Attic substituter, whatever the cache is
+          # called.
+          assertion = builtins.match "^https?://[^/]+/.+" cfg.url != null;
+          message = ''
+            atticCache.url has no path component: ${cfg.url}
+
+            Attic serves /nix-cache-info and /narinfo under a per-cache prefix,
+            so a bare origin is not a binary cache. nix logs
+            "does not appear to be a binary cache" once and then substitutes
+            nothing from it, for every path in the closure, with no further
+            error -- a 100% cache miss that looks exactly like a slow build.
+
+            Expected shape, verified live on 2026-09-30:
+              https://nix-cache.l.arrieta.eu/nixos-config/nix-cache-info -> 200
+              https://nix-cache.l.arrieta.eu/nix-cache-info             -> 404
+            The path segment is the cache name, from `attic cache list`.
+          '';
+        }
         {
           assertion = cfg.trustedPublicKey != "";
           message = ''
