@@ -66,20 +66,36 @@ jobs:
 
   smoke:
     needs: lint
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     env: *attic-read-path
 
-    # Every x86_64-linux config in the flake. This is the whole point of the
-    # matrix: CI used to build only the two canaries, so the other nine hosts
-    # each compiled their own unique paths on every deploy. Building all of
-    # here pushes those closures into the cache and moves that work off the
-    # hosts.
+    # Every deployable config in the flake, each built on a runner of its own
+    # architecture. This is the whole point of the matrix: CI used to build
+    # only the two canaries, so every other host compiled its own unique paths
+    # on every deploy. Building all of them here pushes those closures into the
+    # cache and moves that work off the hosts.
     #
-    # Excluded on purpose: the three k8s-piXX-minimal installer images
-    # (aarch64, and not deployable configs). The Pis themselves are excluded
-    # because this runner is x86_64-linux -- they need an aarch64 builder,
-    # which does not exist yet, and no amount of x86 caching helps them.
+    # The arm legs are what changed the Pi story. Design §17.3 assumed only a
+    # Pi could produce aarch64 store paths, which would have meant a standing
+    # push credential on a Pi -- the exact thing §7 exists to avoid.
+    # GitHub-hosted arm64 Linux runners are standard now, and this repo is
+    # public, so they are free and unlimited. CI produces the aarch64 paths
+    # instead and no credential ever lands on a Pi.
+    #
+    # Nothing is needed on the client side for the Pis to consume them:
+    # modules/nixos/attic-cache.nix already installs the nixos-config
+    # substituter and trusted key on all 14 hosts. Narinfo is signed per-cache,
+    # not per-architecture, so they already trust the right key -- there was
+    # simply nothing aarch64 in the cache to fetch.
+    #
+    # ubuntu-24.04-arm is the arm64 counterpart of the ubuntu-latest (24.04)
+    # the x86 legs use.
+    #
+    # Excluded on purpose: the three k8s-piXX-minimal installer images. They
+    # are aarch64 and could be cached here, but they are bootstrap images
+    # rather than deployable configs, and an sd-image build is the heaviest
+    # thing in the tree on a 14 GB runner disk.
     #
     # ryzen7 is still a live config in flake.nix with its own
     # hardware-configuration.nix, so it is built and cached here. If it is
@@ -88,11 +104,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        host: [
-          k8s-node01, k8s-node02, k8s-node03, k8s-node04, k8s-node05,
-          k8s-server01, k8s-server02, k8s-server03,
-          llm01, ryzen7, wsl
-        ]
+        include:
+          - { host: k8s-node01,   runner: ubuntu-latest }
+          - { host: k8s-node02,   runner: ubuntu-latest }
+          - { host: k8s-node03,   runner: ubuntu-latest }
+          - { host: k8s-node04,   runner: ubuntu-latest }
+          - { host: k8s-node05,   runner: ubuntu-latest }
+          - { host: k8s-server01, runner: ubuntu-latest }
+          - { host: k8s-server02, runner: ubuntu-latest }
+          - { host: k8s-server03, runner: ubuntu-latest }
+          - { host: llm01,        runner: ubuntu-latest }
+          - { host: ryzen7,       runner: ubuntu-latest }
+          - { host: wsl,          runner: ubuntu-latest }
+          - { host: k8s-pi01,     runner: ubuntu-24.04-arm }
+          - { host: k8s-pi02,     runner: ubuntu-24.04-arm }
+          - { host: k8s-pi03,     runner: ubuntu-24.04-arm }
     name: smoke (${{ matrix.host }})
 
     steps:
