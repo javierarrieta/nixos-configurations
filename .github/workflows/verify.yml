@@ -6,9 +6,23 @@ on:
   pull_request:
     branches: [ main, stable ]
 
+# With a matrix this wide, a pushed branch that gets amended while a run is in
+# flight would otherwise keep burning eleven runners per push. Cancelling the
+# superseded run is always safe: the cache is content-addressed and idempotent,
+# so a half-finished push costs nothing to redo.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  verify:
-    runs-on: ubuntu-latest
+  lint:
+    # Pinned rather than ubuntu-latest: the latter migrates to Ubuntu 26 on
+    # 2026-10-19 (actions/runner-images#14748). Swapping the base OS under a
+    # fourteen-leg matrix is a change worth making deliberately rather than
+    # absorbing mid-PR. 24.04 is also what the ubuntu-24.04-arm legs already
+    # run, so both architectures are on the same base image.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
 
     # READ path for the self-hosted Attic cache (deployed from k8s-casa).
     #
@@ -19,8 +33,8 @@ jobs:
     #     trusted-public-keys.
     #   - A missing or stale key is a silent 100% cache miss: no error, nothing
     #     in the log, indistinguishable from an empty cache. The probe and the
-    #     summary steps exist to make that case visible instead of inferred from
-    #     a build that "just takes a while".
+    #     summary steps in the smoke job exist to make that case visible instead
+    #     of inferred from a build that "just takes a while".
     #
     # NIX_CONFIG rather than ~/.config/nix/nix.conf: nix-installer-action has
     # already started the daemon before any later step runs, and the daemon does
@@ -33,17 +47,104 @@ jobs:
     # off-LAN. Both names terminate at the same Traefik VIP and the same pod,
     # and narinfo is signed per-cache rather than per-hostname, so this one key
     # covers both front doors.
-    env:
+    #
+    # The anchor is aliased by the smoke job so a key rotation stays one edit in
+    # one place -- the same reasoning that makes the key a module default in
+    # modules/nixos/attic-cache.nix rather than a per-host value.
+    env: &attic-read-path
       NIX_CONFIG: |
         extra-substituters = https://nix-cache.home.arrieta.eu/nixos-config
         extra-trusted-public-keys = nixos-config:YrRk3/J8iJGRauzYYESpv6dsn3hqs6jTrINjE5d0hUc=
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+
+      # v23 runs on Node 24; v14 targeted Node 20, which GitHub now
+      # force-overrides and warns about.
+      #
+      # This action bundles actions/cache internally to warm the runner's Nix
+      # store, and there is no input to turn it off. Its occasional
+      # `Failed to save: ...Our services aren't available right now` and
+      # `Failed to restore: Cache service responded with 400` are GitHub's own
+      # cache service flaking under fourteen concurrent legs. The action
+      # catches both and continues, and they cost nothing here: Attic, the
+      # cache that actually matters, is configured through NIX_CONFIG above.
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v23
+
+      - name: Flake check
+        run: nix flake check --no-build
+
+      - name: Format check (nixfmt)
+        run: nix fmt -- --ci
+
+  smoke:
+    needs: lint
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env: *attic-read-path
+
+    # Every deployable config in the flake, each built on a runner of its own
+    # architecture. This is the whole point of the matrix: CI used to build
+    # only the two canaries, so every other host compiled its own unique paths
+    # on every deploy. Building all of them here pushes those closures into the
+    # cache and moves that work off the hosts.
+    #
+    # The arm legs are what changed the Pi story. Design §17.3 assumed only a
+    # Pi could produce aarch64 store paths, which would have meant a standing
+    # push credential on a Pi -- the exact thing §7 exists to avoid.
+    # GitHub-hosted arm64 Linux runners are standard now, and this repo is
+    # public, so they are free and unlimited. CI produces the aarch64 paths
+    # instead and no credential ever lands on a Pi.
+    #
+    # Nothing is needed on the client side for the Pis to consume them:
+    # modules/nixos/attic-cache.nix already installs the nixos-config
+    # substituter and trusted key on all 14 hosts. Narinfo is signed per-cache,
+    # not per-architecture, so they already trust the right key -- there was
+    # simply nothing aarch64 in the cache to fetch.
+    #
+    # ubuntu-24.04-arm is the arm64 counterpart of the ubuntu-latest (24.04)
+    # the x86 legs use.
+    #
+    # Excluded on purpose: the three k8s-piXX-minimal installer images. They
+    # are aarch64 and could be cached here, but they are bootstrap images
+    # rather than deployable configs, and an sd-image build is the heaviest
+    # thing in the tree on a 14 GB runner disk.
+    #
+    # ryzen7 is still a live config in flake.nix with its own
+    # hardware-configuration.nix, so it is built and cached here. If it is
+    # genuinely decommissioned, dropping it from this list (and the flake) is
+    # the cheaper follow-up.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # arch is display-only: it surfaces in the job name so an arm leg is
+          # visually distinguishable from an x86 one in the checks list. The
+          # runner field is what actually selects the machine.
+          - { host: k8s-node01,   runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-node02,   runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-node03,   runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-node04,   runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-node05,   runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-server01, runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-server02, runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-server03, runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: llm01,        runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: ryzen7,       runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: wsl,          runner: ubuntu-24.04,   arch: x86_64 }
+          - { host: k8s-pi01,     runner: ubuntu-24.04-arm, arch: aarch64 }
+          - { host: k8s-pi02,     runner: ubuntu-24.04-arm, arch: aarch64 }
+          - { host: k8s-pi03,     runner: ubuntu-24.04-arm, arch: aarch64 }
+    name: smoke (${{ matrix.host }} · ${{ matrix.arch }})
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v14
+        uses: DeterminateSystems/nix-installer-action@v23
 
       # Cheap, and it is the only thing that separates "cache is empty" from
       # "cache is misconfigured". continue-on-error because the cache is an
@@ -57,23 +158,11 @@ jobs:
           curl -fsS -m 10 https://nix-cache.home.arrieta.eu/nixos-config/nix-cache-info \
             || echo "::warning::Attic unreachable; falling back to cache.nixos.org and local builds"
 
-      - name: Flake check
-        run: nix flake check --no-build
-
-      - name: Format check (nixfmt)
-        run: nix fmt -- --ci
-
-      - name: Build smoke test (k8s-node05)
+      - name: Build smoke test (${{ matrix.host }})
         run: |
           set -o pipefail
-          nix build .#nixosConfigurations.k8s-node05.config.system.build.toplevel 2>&1 \
-            | tee /tmp/build-node05.log
-
-      - name: Build smoke test (llm01)
-        run: |
-          set -o pipefail
-          nix build .#nixosConfigurations.llm01.config.system.build.toplevel 2>&1 \
-            | tee /tmp/build-llm01.log
+          nix build .#nixosConfigurations.${{ matrix.host }}.config.system.build.toplevel 2>&1 \
+            | tee "/tmp/build-${{ matrix.host }}.log"
 
       # WRITE path -- warm the cache with what we just built.
       #
@@ -90,16 +179,18 @@ jobs:
       # it did not survive scrutiny: per-PR unique growth tracks version bumps,
       # not PR count, and poisoning is not on the table, because planting
       # attacker content at a chosen store path needs a SHA-256 collision and
-      # hosts only substitute paths already in their own closure. One cache
-      # keeps it at one key to trust and one retention policy; splitting stays
-      # one `attic cache create` if the PVC ever says otherwise.
+      # hosts only substitute paths already in their own closure.
+      #
+      # Each leg pushes only its own toplevel. That is what actually extends
+      # coverage beyond the two canaries, and it means a retried leg re-pushes
+      # just itself rather than the whole set.
       #
       # continue-on-error because the cache is an optimisation, not a
       # dependency (design N1): a dead or full Attic must make builds slower
       # and nothing else. The empty-token guard covers fork PRs, where GitHub
       # withholds secrets outright -- without it the step would fail instead of
       # skipping.
-      - name: Push closure to Attic
+      - name: Push closure to Attic (${{ matrix.host }})
         continue-on-error: true
         env:
           ATTIC_TOKEN: ${{ secrets.ATTIC_TOKEN }}
@@ -110,10 +201,9 @@ jobs:
             exit 0
           fi
 
-          # The two toplevels the smoke steps just built. Both resolve from the
-          # local store without rebuilding, and pushing a toplevel walks its
-          # whole closure -- which already contains the EMBEDDED home-manager
-          # activation package.
+          # Resolves from the store the smoke step just populated, so this is a
+          # no-op build. Pushing the toplevel walks its whole closure, which
+          # already contains the EMBEDDED home-manager activation package.
           #
           # That embedded/standalone distinction is why this does not also
           # target `homeConfigurations.*`: the Pi coding agent lives in the
@@ -125,13 +215,9 @@ jobs:
           # at all -- checking that one instead of the embedded config is what
           # sent an earlier draft of this step to push `vps`, which is not what
           # these hosts run.
-          {
-            nix build .#nixosConfigurations.k8s-node05.config.system.build.toplevel \
-              --no-link --print-out-paths
-            nix build .#nixosConfigurations.llm01.config.system.build.toplevel \
-              --no-link --print-out-paths
-          } > /tmp/push-paths.txt
-          echo "Pushing $(wc -l < /tmp/push-paths.txt) toplevels to nixos-config"
+          nix build .#nixosConfigurations.${{ matrix.host }}.config.system.build.toplevel \
+            --no-link --print-out-paths > /tmp/push-paths.txt
+          echo "Pushing ${{ matrix.host }} toplevel to nixos-config"
 
           nix run nixpkgs#attic-client -- login cache \
             https://nix-cache.home.arrieta.eu "$ATTIC_TOKEN"
@@ -140,15 +226,15 @@ jobs:
           # make one default without --set-default.
           nix run nixpkgs#attic-client -- push cache:nixos-config --stdin < /tmp/push-paths.txt
 
-      # The number that decides whether the read path is worth anything. A warm
-      # cache should drive the *built* derivation count towards zero; 0 hits
-      # against a warm cache means the trusted key does not match the cache's
-      # signing key, which is the silent-miss case this whole step guards.
-      - name: Attic substitution summary
+      # The number that decides whether the read path is worth anything, per
+      # host. A warm cache should drive the *built* derivation count towards
+      # zero; 0 hits against a warm cache means the trusted key does not match
+      # the cache's signing key, which is the silent-miss case this step guards.
+      - name: Attic substitution summary (${{ matrix.host }})
         if: always()
         run: |
-          hits=$(cat /tmp/build-*.log 2>/dev/null | grep -c "nix-cache.home.arrieta.eu" || true)
+          hits=$(grep -c "nix-cache.home.arrieta.eu" "/tmp/build-${{ matrix.host }}.log" 2>/dev/null || true)
           echo "Log lines fetched from Attic: ${hits:-0}"
           if [ "${hits:-0}" -eq 0 ]; then
-            echo "::warning::Nothing substituted from Attic. Expected on a run against an empty cache; against a warm cache it means extra-trusted-public-keys does not match the cache's signing key."
+            echo "::warning::Nothing substituted from Attic for ${{ matrix.host }}. Expected on the first run against an empty cache; against a warm cache it means extra-trusted-public-keys does not match the cache's signing key."
           fi
