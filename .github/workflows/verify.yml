@@ -9,12 +9,53 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+
+    # READ path for the self-hosted Attic cache (deployed from k8s-casa).
+    #
+    # Both settings are required, and they fail independently:
+    #   - extra-substituters alone means nix finds the narinfo and then refuses
+    #     it. Publishing the cache removes *authentication*, not *signature
+    #     verification* -- every path still has to be signed by a key listed in
+    #     trusted-public-keys.
+    #   - A missing or stale key is a silent 100% cache miss: no error, nothing
+    #     in the log, indistinguishable from an empty cache. The probe and the
+    #     summary steps exist to make that case visible instead of inferred from
+    #     a build that "just takes a while".
+    #
+    # NIX_CONFIG rather than ~/.config/nix/nix.conf: nix-installer-action has
+    # already started the daemon before any later step runs, and the daemon does
+    # not re-read nix.conf. The client passes NIX_CONFIG through to it.
+    #
+    # `extra-` prefixed so cache.nixos.org stays in the list as the real
+    # fallback. `nix config show substituters` confirms the merge.
+    #
+    # `.home.arrieta.eu`, not the `.l.` name the NixOS hosts use: the runner is
+    # off-LAN. Both names terminate at the same Traefik VIP and the same pod,
+    # and narinfo is signed per-cache rather than per-hostname, so this one key
+    # covers both front doors.
+    env:
+      NIX_CONFIG: |
+        extra-substituters = https://nix-cache.home.arrieta.eu/nixos-config
+        extra-trusted-public-keys = nixos-config:YrRk3/J8iJGRauzYYESpv6dsn3hqs6jTrINjE5d0hUc=
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v14
+
+      # Cheap, and it is the only thing that separates "cache is empty" from
+      # "cache is misconfigured". continue-on-error because the cache is an
+      # optimisation, not a dependency -- an unreachable Attic has to make
+      # builds slower and nothing else.
+      - name: Attic read-path probe
+        continue-on-error: true
+        run: |
+          echo "substituters: $(nix config show substituters)"
+          echo "trusted-public-keys: $(nix config show trusted-public-keys)"
+          curl -fsS -m 10 https://nix-cache.home.arrieta.eu/nixos-config/nix-cache-info \
+            || echo "::warning::Attic unreachable; falling back to cache.nixos.org and local builds"
 
       - name: Flake check
         run: nix flake check --no-build
@@ -23,7 +64,26 @@ jobs:
         run: nix fmt -- --ci
 
       - name: Build smoke test (k8s-node05)
-        run: nix build .#nixosConfigurations.k8s-node05.config.system.build.toplevel
+        run: |
+          set -o pipefail
+          nix build .#nixosConfigurations.k8s-node05.config.system.build.toplevel 2>&1 \
+            | tee /tmp/build-node05.log
 
       - name: Build smoke test (llm01)
-        run: nix build .#nixosConfigurations.llm01.config.system.build.toplevel
+        run: |
+          set -o pipefail
+          nix build .#nixosConfigurations.llm01.config.system.build.toplevel 2>&1 \
+            | tee /tmp/build-llm01.log
+
+      # The number that decides whether the read path is worth anything. A warm
+      # cache should drive the *built* derivation count towards zero; 0 hits
+      # against a warm cache means the trusted key does not match the cache's
+      # signing key, which is the silent-miss case this whole step guards.
+      - name: Attic substitution summary
+        if: always()
+        run: |
+          hits=$(cat /tmp/build-*.log 2>/dev/null | grep -c "nix-cache.home.arrieta.eu" || true)
+          echo "Log lines fetched from Attic: ${hits:-0}"
+          if [ "${hits:-0}" -eq 0 ]; then
+            echo "::warning::Nothing substituted from Attic. Expected on a run against an empty cache; against a warm cache it means extra-trusted-public-keys does not match the cache's signing key."
+          fi
