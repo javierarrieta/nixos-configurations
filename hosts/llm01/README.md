@@ -105,12 +105,12 @@ By placing the bootstrap age key directly on the mounted filesystem before insta
    ```
  4. The system will use persistent SSH host keys from secrets
  5. WireGuard and other services will start automatically
- 6. llama-cpp server will be available on port 8001
+ 6. halogen-flash-server is reachable on its configured API port
 
-> **Note:** Open WebUI and ComfyUI are referenced in `flake.nix` but are **not
-> currently enabled**. The `comfyui-nix` module and overlay are wired in for
-> future use; uncomment `services.comfyui.enable = true;` in
-> `hosts/llm01/configuration.nix` to activate ComfyUI.
+> **Note:** ComfyUI is referenced in `flake.nix` — input, overlay and nixos
+> module — but is **not enabled**: nothing anywhere sets `services.comfyui.enable`.
+> That is dead wiring awaiting a decision, not a stopped service. Open WebUI is
+> likewise absent.
 
 ## Troubleshooting
 
@@ -167,64 +167,21 @@ sudo systemd-cryptenroll /dev/mapper/disk0-llm
 
 **Note**: TPM2 auto-unlock requires the same hardware and firmware configuration as when the key was enrolled. Changing hardware or firmware updates may require re-enrollment.
 
-## Agent Routing Tiers
+## Serving Stack
 
-A single llama.cpp server serves several models; clients pick one by setting the
-`model` parameter to an alias. The aliases live in
-`hosts/llm01/llm-models.nix` as INI `alias` lists. Routing is client-side — the
-server just maps the alias to a model — so adding a tier never changes the
-serving stack.
+`halogen-flash-server` (`services.halogenFlash` in `configuration.nix`) is the
+inference server on this host: a ROCm container on the Strix Halo iGPU, image
+pinned by digest, weights pinned through the flake's `defaultWeightsRevision` so
+image and known-good model version move together in one reviewed PR.
 
-### Tiers
+The llama.cpp stack that used to sit here was removed on 2026-09-30 —
+`modules/nixos/llama-cpp/` (agent + orphaned metrics), `hosts/llm01/llm-models.nix`,
+the `llama-cpp` flake input, and the `llama-cpp` health-gate check. Worth
+knowing why removal rather than leaving-it-disabled was the point:
+`llamaPkgs.vulkan` was listed in `systemPackages.extraPackages`, so the package
+stayed in the system closure even though `services.llamaCppAgent.enable` was
+commented out. Disabling the service never dropped the weight.
 
-| Tier | Alias | Models | Use case |
-|------|-------|--------|----------|
-| Fast/Small | `agent-fast` | Qwen3.5-4B | tool calls, file reads, quick commands, short prompts |
-
-Alias values must be unique across all presets — one alias maps to exactly
-one model. The small models keep their own name aliases (`Qwen-3.5-2B`,
-`Qwen-3.5-4B`, `mellum`); `agent-fast` points at Qwen3.5-4B.
-| Fast/Large | `agent` | Ling-3.0-flash (127B, IQ4_XS, draft-mtp) | default agent brain — complex reasoning at speed |
-| Accurate/Large | `agent-quality` | Ornith-1.5-35B (Q5_K_M) | quality-critical: architecture, deep debugging |
-
-> **Note (2026-09-02)**: `Qwen3.8-27B` is commented out in
-> `llm-models.nix` due to GPU OOM / Vulkan device lost on llm01. Re-enable
-> when the GPU memory situation allows.
-
-Existing aliases (`default`, `opencode`, `hermes`, `multimodal`, …) are left
-untouched, so anything pointed at a model name keeps working.
-
-### Context policy
-
-`modules/nixos/llama-cpp/agent.nix` writes `/etc/llm-agent/context-policy.json`.
-This is the contract between the server and any agent frontend (opencode, hermes):
-
-```json
-{
-  "maxHistoryTurns": 20,
-  "summarizeAfterTurns": 10,
-  "systemPromptCache": true,
-  "batchToolCalls": true
-}
-```
-
-- **`maxHistoryTurns` (20)** — sliding window: never re-inject more than this
-  many raw turns into the context; older turns are summarized to a single block.
-- **`summarizeAfterTurns` (10)** — after this many raw turns the client compacts
-  the history, keeping per-turn prompt size (and cost) down.
-- **`systemPromptCache` (true)** — the agent role definition is sent
-  byte-for-byte every turn so llama.cpp's prompt cache can reuse it.
-- **`batchToolCalls` (true)** — when a model emits multiple independent tool
-  calls, the client runs them and returns them in one round-trip.
-
-### Example config
-
-The host wires the serving stack through the module options only:
-
-```nix
-  services.llamaCppAgent = {
-    enable = true;
-    package = llamaPkgs.vulkan;
-    models = import ./llm-models.nix;
-  };
-```
+Cluster-side monitoring deliberately kept its `llamacpp:*` metric names: halogen
+emits them as a llama.cpp compatibility shim, so the Grafana AMD GPU dashboard
+and `llm-alerts.yaml` in `k8s-casa` work unchanged. Do not "clean those up".

@@ -14,7 +14,7 @@
 - `k8s-pi01`, `k8s-pi02`, `k8s-pi03` - ARM64 worker nodes
 
 **Special Purpose (2):**
-- `llm01` - LLM server with ComfyUI (NVIDIA GPU, CUDA)
+- `llm01` - LLM inference server (AMD Strix Halo iGPU, ROCm, halogen-flash-server)
 - `ryzen7` - Workstation (AMD CPU, development machine)
 
 ### Module Architecture
@@ -305,9 +305,15 @@ jq '.key = "value"' file.json > new.json
 yq -y . new.json > file.yaml
 ```
 
-### llama-cpp Router Mode: Scraping `/metrics?model=` Autoloads Models (2026-09-01)
+### llama-cpp Router Mode: Scraping `/metrics?model=` Autoloads Models (2026-09-01) — HISTORICAL
 
-llm01 runs a single `llama-server --models-preset` (router mode). In router mode
+> **No longer applies to llm01.** The llama.cpp stack was removed there on
+> 2026-09-30 and replaced by halogen-flash-server. Kept because the failure
+> mode is a general lesson about any endpoint that can mutate server state as a
+> side effect of being observed — and because the `llamacpp:*` metric names this
+> incident shaped are still live: halogen emits them as a compatibility shim.
+
+llm01 ran a single `llama-server --models-preset` (router mode). In router mode
 **any endpoint that names a model autoloads it** (upstream default; `/metrics`
 even requires `?model=`). The cluster Prometheus scrapes `/metrics?model=<id>`
 for every preset model — once the preset's combined weights+KV exceeded the
@@ -323,7 +329,8 @@ Rules:
   with headroom, or scrapes/requests thrash.
 - `/models` reports per-model status (`{"value":"loaded"}` object in current
   llama.cpp); only scrape models whose status is `loaded`. The nixos
-  `llama-cpp-metrics` oneshot does this (agent.nix); the cluster Prometheus
+  `llama-cpp-metrics` oneshot did this (in the now-deleted
+  `modules/nixos/llama-cpp/agent.nix`); the cluster Prometheus
   target list must be curated by hand (k8s-casa repo).
 - Per-request escape hatch: `?autoload=false` on a routed GET returns an
   error instead of loading — candidate for Prometheus scrape URLs.
@@ -553,16 +560,30 @@ hostVars = {
 }
 ```
 
-### ComfyUI (LLM Server)
+### ComfyUI (llm01) — wired, but NOT enabled
+
+`comfyui-nix` is still a flake input and is still applied to llm01 three ways:
+as `specialArgs`, as a `nixpkgs.overlays` entry, and as a nixos module. But
+**no host ever sets `services.comfyui.enable`**, so nothing runs. The overlay is
+the part with teeth — it mutates llm01's package set for a service that never
+starts.
+
+If it were ever picked up, note `rocm`, not `cuda`: llm01 is an AMD Strix Halo
+iGPU box and has never held an NVIDIA card.
+
 ```nix
 services.comfyui = {
   enable = true;
-  gpuSupport = "cuda";  # or "rocm"
+  gpuSupport = "rocm";
   enableManager = true;
   listenAddress = "0.0.0.0";
   openFirewall = true;
 };
 ```
+
+This wiring is dead weight and a candidate for removal. It was deliberately left
+out of the 2026-09-30 llama.cpp cleanup because dropping a flake input plus an
+overlay is its own decision, not part of that one.
 
 ---
 
@@ -883,12 +904,13 @@ command; keep the agent's private key restricted on the runner side.
 Health gate (`postDeploymentCommand`, all 12 hosts): per-host `checks`.
 k3s hosts (node05 + fleet) check the default route, the k3s service, and
 that `/run/current-system` matches the switched generation's `out_path`.
-`llm01` checks current-system plus llama-cpp-server (active **and** listening
-on `:8001`, with a warmup retry for model reloads). Auto-heal (restore route
+`llm01` checks current-system plus halogen-flash (active **and** `/health`
+answering on the configured API port, with a warmup retry bounded by
+`cominGitOps.healthGate.halogenWarmupSec`). Auto-heal (restore route
 from the SOPS `network_env` / restart k3s) and on persistent failure roll back
 the comin profile (`/nix/var/nix/profiles/system-profiles/comin`, NOT
 `nixos-rebuild --rollback`) and suspend comin — on k3s hosts only (llm01 checks
-only current-system+llama-cpp, so its failed-branch heal is a no-op). On
+only current-system+halogen-flash, so its failed-branch heal is a no-op). On
 `COMIN_STATUS=failed` it heals (route from SOPS `network_env`, k3s reset/start),
 then retries the generation once (`comin deployment submit-latest`, bounded by
 the flag file `/var/lib/comin-health-gate/failed-retry-pending`); it suspends

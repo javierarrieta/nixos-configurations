@@ -23,10 +23,6 @@
       url = "github:sadjow/codex-cli-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    llama-cpp = {
-      url = "github:ggml-org/llama.cpp/b10649";
-    };
-
     # halogen-flash-server (Strix Halo inference) deployment module.
     # Swap the local path for github:javierarrieta/halogen-flash-flake once
     # pushed; the repo is independent and only feeds this flake via nixosModules.
@@ -108,7 +104,6 @@
       comfyui-nix,
       nixos-wsl,
       codex-cli-nix,
-      llama-cpp,
       halogen-flash,
       herdr-nix,
       pi,
@@ -131,7 +126,6 @@
           localSystem = system;
           config.allowUnfree = true;
         };
-        llamaPkgs = llama-cpp.packages.${system};
         # Prebuilt herdr binary for this system (see the herdr-nix input note).
         herdrPkg = herdr-nix.packages.${system}.default;
         # pi binary for this system (see the pi input note). Package only --

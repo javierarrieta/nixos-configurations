@@ -61,19 +61,6 @@ let
     fi
   '';
 
-  llamaCppCheck = lib.optionalString (hasCheck "llama-cpp") ''
-    i=0
-    until ${pkgs.systemd}/bin/systemctl is-active --quiet llama-cpp-server \
-        && ${pkgs.iproute2}/bin/ss -tln | ${pkgs.gnugrep}/bin/grep -q ':8001 '; do
-      if [ $i -ge 600 ]; then
-        log "llama-cpp-server not healthy after warmup (active + :8001) — rolling back"
-        rollback_and_suspend "llama-cpp-server unhealthy"
-        exit 0
-      fi
-      ${pkgs.coreutils}/bin/sleep 5; i=$((i + 5))
-    done
-  '';
-
   # halogen-flash (mode "all"): active + /health answering on the configured
   # API port. Weight load takes minutes, so the window is generous; the real
   # constraint is download.revision, which turns ExecStartPre into a ~118 GiB
@@ -234,7 +221,6 @@ let
 
     ${routeCheck}
     ${k3sCheck}
-    ${llamaCppCheck}
     ${halogenFlashCheck}
     ${iscsiCheck}
     ${currentSystemCheck}

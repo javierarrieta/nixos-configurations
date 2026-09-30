@@ -70,7 +70,6 @@ in
               "route"
               "k3s"
               "current-system"
-              "llama-cpp"
               "halogen-flash"
               "iscsi"
             ]
@@ -81,7 +80,7 @@ in
             "current-system"
             "iscsi"
           ];
-          description = "Health checks to run in the post-deployment gate. k3s hosts check route+k3s+current-system (+iscsi where openiscsi.enable); llm01 checks current-system+llama-cpp.";
+          description = "Health checks to run in the post-deployment gate. k3s hosts check route+k3s+current-system (+iscsi where openiscsi.enable); llm01 checks current-system+halogen-flash.";
         };
         halogenWarmupSec = lib.mkOption {
           type = lib.types.int;
