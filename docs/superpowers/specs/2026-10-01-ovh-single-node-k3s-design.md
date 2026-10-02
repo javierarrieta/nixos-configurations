@@ -59,7 +59,7 @@ git diff --cached | grep -noE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' \
 | D11 | Storage class | k3s `local-path-provisioner` (matches `k8s-techdelivery`, which is also k3s + `local-path`) | proposed |
 | D12 | `stateVersion` | `26.05` (new host; do not copy the fleet's `23.11`/`25.11`) | proposed |
 | D13 | Disk layout | **mdraid-1 under LVM**: plain 1 GiB ESP on the low-wear disk, `/dev/md/titan` (RAID1) → VG `vg0` → `lv-root` 150 G → `/` (store, containerd images/overlays, emptyDir, logs, k3s db) + `lv-pvc` 240 G → `/var/lib/rancher/k3s/storage` (**PVs only** — the only irreplaceable data), ~29 G unallocated as VG headroom. systemd-boot unchanged (§7a) | confirmed 2026-10-01 |
-| D14 | WireGuard topology | **`titan` becomes the hub.** `techdelivery.es` is a VPS that cannot run arbitrary OS (no NixOS), so it stays a *client* of the new hub. All existing WG clients get rewired to `titan`. | confirmed |
+| D14 | WireGuard topology | **`titan` becomes the hub.** `techdelivery.es` is a VPS that cannot run arbitrary OS (no NixOS), so it stays a *client* of the new hub. All existing WG clients get rewired to `titan`. **Amended 2026-10-02 — the core is a triangle:** `titan`, `techdelivery.es` and the OPNsense box each hold a direct link to the other two, each with its own keypair; the leaves (`chiclana`, `llm01`, roadwarriors) dial `titan` alone. No standby hub, no shared keypair, no failover procedure — losing `titan` costs the leaves and what sits behind `titan`, not home↔VPS. See §4.3. | confirmed |
 | D15 | WG migration style | **Renumber the mesh `192.168.2.0/24` → `192.168.133.0/24`** as part of the hub move. Every client config changes anyway, and disjoint subnets let both hubs run in parallel without a duplicate hub address. | confirmed (checklist in §11a) |
 
 ---
@@ -130,9 +130,17 @@ Consequences:
 *Correction kept on the record:* an earlier draft of this spec asserted `/32 + off-link` as fact. That is the Additional-IP pattern, not the primary-IP one, and it would have added a route flag the kernel did not need.
 
 
-### 4.3 WireGuard — `titan` is the hub (D14)
+### 4.3 WireGuard — `titan` is the hub, and the core is a triangle (D14)
 
 The mesh moves: `titan` listens, everything else dials in. `techdelivery.es` (VPS, non-NixOS) becomes a peer like any other; its A record may later be repointed at `titan`, which would let clients that resolve the endpoint by hostname follow automatically.
+
+**The triangle (amended 2026-10-02).** Three boxes — `titan`, `techdelivery.es`, OPNsense — each hold a direct link to the other two, so the mesh survives `titan` for the one path worth saving (home↔VPS). Everything else dials `titan` and only `titan`.
+
+A standby hub was considered and rejected. A standby reachable under one name forces both boxes to hold the **same private key**, because a WireGuard peer entry binds a key, not an address — which would put the hub key on a long-lived public VPS, where rooting it means impersonating the hub to every peer. It also drags in a shared identity that cannot peer with itself, a bounce-on-DNS-change step, and a firewall-parity rule to verify under pressure. The triangle buys the part that mattered with none of it.
+
+Two consequences for this repo. First, the two extra core links live in the VPS's and OPNsense's own hand-maintained configs, so **`titan`'s own peer list carries no `endpoint` at all** — every peer dials in — and the module's hub assertion keeps holding. Second, those configs must advertise `titan`'s `/32` *plus the leaf `/32`s* `titan` forwards for, or the core has no route to the leaves.
+
+**Roadwarriors sit at `.129`/`.130`, not the `.101`/`.102` they had on the old flat `/24`.** `public-host.nix` answers 6443/10250/9100/4243 only to `wireguard.staticSubnet` (`192.168.133.0/25` = `.0`–`.127`), so the old numbers would have put both laptops inside the trusted static range and made the static/roadwarrior split decorative.
 
 New module `modules/nixos/wireguard.nix` (none exists today) must support **both** roles, because this repo will now own the hub:
 
@@ -489,7 +497,7 @@ Order of operations:
 1. `titan` installed, public, stable — old mesh untouched, nothing depends on `titan` yet.
 2. Inventory finished (Q5, Q12); keys generated per peer.
 3. `wireguard.nix` hub deployed to `titan` on the **new** subnet with all peers defined. Two hubs coexist, nobody is connected to `titan` yet, so nothing breaks.
-3a. **Bridge the two hubs** (added 2026-10-02). Add `titan` as a peer on the old hub with `192.168.133.0/24` in AllowedIPs, and the old hub as a peer on `titan` with `192.168.2.0/24`. Without this, the moment a peer moves every peer still on the old mesh black-holes traffic to it — the old hub still routes that peer's old address, which no longer exists. The bridge makes the whole flip window non-breaking, and retiring the old hub becomes deleting one peer instead of untangling a half-migrated mesh. Cost: two hubs routing each other's subnets for a few hours, which is precisely what is wanted while peers move one at a time.
+3a. **Bridge the two hubs** (added 2026-10-02). Add `titan` as a peer on the old hub with `192.168.133.0/24` in AllowedIPs, and the old hub as a peer on `titan` with `192.168.2.0/24`. Without this, the moment a peer moves every peer still on the old mesh black-holes traffic to it — the old hub still routes that peer's old address, which no longer exists. The bridge makes the whole flip window non-breaking, and retiring the old hub becomes deleting one peer instead of untangling a half-migrated mesh. Cost: two hubs routing each other's subnets for a few hours, which is precisely what is wanted while peers move one at a time. **Update 2026-10-02:** the bridge is not throwaway — the `titan`↔`techdelivery.es` link it creates is permanent, because that pair is two corners of the core triangle (§4.3). What gets deleted at the end is the old hub role, not the link.
 4. Flip clients **one at a time**, least-critical first: `pixel7` → `macbookair` → chiclana → home LAN → `llm01` → `techdelivery.es` VPS. Roadwarriors first because nothing runs behind them. Home LAN before `llm01` because the backup restore drill needs MinIO through it. The VPS is demoted last because it *is* the old hub. Each flip changes that peer's endpoint *and* address in one step; a star mesh means only that peer blips.
 5. Verify each flip: `wg show` handshake on `titan`, ping the peer's new WG IP, then the real consumer (Prometheus target, MinIO, gatus check). Tick the checklist row.
 6. Confirm the home router's return route by connecting **from home toward** `titan` (not just `titan` toward home) — the direction people forget.
