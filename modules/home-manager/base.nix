@@ -8,17 +8,25 @@
 }:
 
 let
-  piHostnames = [
+  # Hosts that get host-common + shell + cli-tools only (cli-tools is imported
+  # unconditionally below, so "minimal" never means bare). The Pis are here to
+  # keep a slow ARM box from compiling a Rust toolchain on every deploy; titan is
+  # here because a 150 G root filesystem shared with etcd and container images has
+  # no business holding a Scala toolchain nobody will invoke on a headless server.
+  minimalHostnames = [
     "k8s-pi01"
     "k8s-pi02"
     "k8s-pi03"
+    "titan"
   ];
-  isPiNode = lib.elem hostname piHostnames;
+  isMinimalHost = lib.elem hostname minimalHostnames;
   # k8s-* are infrastructure hosts, not dev machines: they keep the CLI
   # niceties and the k8s tooling, but not the language toolchains,
   # formatters and editor config that dev-tools brings. The prefix check
   # covers the Pis as well, so new k8s hosts are excluded automatically.
   isK8sHost = lib.hasPrefix "k8s-" hostname;
+  # titan is not a k8s-* hostname but has the same reason to skip dev-tools.
+  skipDevTools = isK8sHost || isMinimalHost;
   configOnly = userOptions.configOnly or false;
   hmProfileDir = "${userOptions.userHome}/.local/state/nix/profiles";
 in
@@ -30,17 +38,18 @@ in
     ./shell.nix
     ./cli-tools.nix
   ]
-  ++ lib.optionals (!isPiNode) [
-    # Pin node: no heavy python/k8s tooling (avoids native aarch64 builds)
+  ++ lib.optionals (!isMinimalHost) [
+    # Minimal hosts skip this: no heavy python/k8s tooling (avoids native
+    # aarch64 builds on the Pis, and tools nobody runs on a headless box)
     ./python.nix
     ./k8s.nix
   ]
-  ++ lib.optionals (!isK8sHost) [
+  ++ lib.optionals (!skipDevTools) [
     ./dev-tools.nix
   ];
 
   # Nix LSP is dev tooling, so it follows dev-tools rather than the whole fleet.
-  home.packages = lib.mkIf (!isK8sHost && !configOnly) (with pkgs; [ nixd ]);
+  home.packages = lib.mkIf (!skipDevTools && !configOnly) (with pkgs; [ nixd ]);
 
   programs.home-manager.enable = true;
 

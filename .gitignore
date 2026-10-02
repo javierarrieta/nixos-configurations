@@ -8,3 +8,13 @@ __pycache__/
 /target/
 
 .terraform/
+
+# Operator-only companion docs. This repo is PUBLIC — see
+# docs/superpowers/specs/*-design.md §0. Never force-add these.
+*.private.md
+
+# Added by ggshield
+.cache_ggshield
+
+# ggshield local scan cache (config it writes is .gitguardian.yaml, committed)
+.cache_ggshield

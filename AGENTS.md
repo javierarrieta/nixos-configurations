@@ -2,7 +2,7 @@
 
 ## Infrastructure Overview
 
-### Host Inventory (16 hosts)
+### Host Inventory (17 hosts)
 
 **K3s Servers (3):**
 - `k8s-server01`, `k8s-server02`, `k8s-server03` - Control plane nodes with etcd
@@ -16,6 +16,11 @@
 **Special Purpose (2):**
 - `llm01` - LLM inference server (AMD Strix Halo iGPU, ROCm, halogen-flash-server)
 - `ryzen7` - Workstation (AMD CPU, development machine)
+
+**Standalone Cluster (1):**
+- `titan` - OVH baremetal, its own single-node k3s cluster and the WireGuard hub.
+  Public-facing: SSH on 13491 key-only, default-deny firewall. Not in the home
+  bind zone, so `scripts/comin-approve.sh` addresses it by FQDN on a custom port.
 
 ### Module Architecture
 
@@ -855,10 +860,12 @@ Rules:
 
 Two rings, two branches:
 
-- **Canary ring (branch `main`, auto-deploy):** `k8s-node05` + `llm01`.
-  Every commit to `main` auto-deploys to both (`deployConfirmer.mode =
-  "auto"`), exercising the health-gate rollback path with a two-host blast
-  radius.
+- **Canary ring (branch `main`, auto-deploy):** `k8s-node05` + `llm01` +
+  `titan`. Every commit to `main` auto-deploys to all three
+  (`deployConfirmer.mode = "auto"`), exercising the health-gate rollback path
+  with a three-host blast radius. `titan` is the only canary reached over WAN —
+  and the only one outside the bind zone, so the gatekeeper uses its FQDN on port
+  13491.
 - **Fleet ring (branch `stable`, manual-confirm):** `k8s-node01..04`,
   `k8s-server01..03`, `k8s-pi01..03` (`deployConfirmer.mode = "manual"`).
   They fetch/build automatically but pause before

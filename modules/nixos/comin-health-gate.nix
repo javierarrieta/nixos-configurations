@@ -27,10 +27,16 @@ let
     else
       config.staticNetwork.defaultGateway;
 
+  routeFlagsStr =
+    if config.staticNetwork.routeFlags == [ ] then
+      ""
+    else
+      lib.concatStringsSep " " config.staticNetwork.routeFlags + " ";
+
   routeCheckBody = ''
     if ! ${pkgs.iproute2}/bin/ip route show default | ${pkgs.gnugrep}/bin/grep -q "default via ${defaultGatewayRef} dev ${config.staticNetwork.interface}"; then
       log "no correct default route — healing"
-      ${pkgs.iproute2}/bin/ip route replace default via "${defaultGatewayRef}" dev ${config.staticNetwork.interface}
+      ${pkgs.iproute2}/bin/ip route replace ${routeFlagsStr}default via "${defaultGatewayRef}" dev ${config.staticNetwork.interface}
     fi
   '';
 

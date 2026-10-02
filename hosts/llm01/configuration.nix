@@ -184,12 +184,14 @@
     # SSH comes entirely from the ssh module (PermitRootLogin = "no")
     # Node exporter enable/collectors come from the prometheus module
     prometheus.exporters.node.openFirewall = true;
-
-    # Logs are forwarded to Loki via rsyslog; keep the local journal small
-    journald.extraConfig = ''
-      SystemMaxUse=500M
-    '';
   };
+
+  # Logs are forwarded to Loki via rsyslog; keep the local journal small.
+  # Same value base.nix already ships, stated explicitly because the intent (Loki
+  # holds the history, the journal is a ring buffer) is the point. An option, not
+  # an extraConfig append: two SystemMaxUse lines in one file work only because
+  # journald keeps the last one.
+  base.journald.systemMaxUse = "500M";
 
   # halogen-flash-server (Strix Halo, Qwen3.8-Flash-Next, ROCm) is the
   # serving stack on this host. It owns the iGPU's ~112-120 GiB GTT pool, so

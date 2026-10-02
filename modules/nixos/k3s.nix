@@ -17,11 +17,22 @@
       };
       serverAddr = lib.mkOption {
         type = lib.types.str;
-        description = "K3s server address (required for agent role)";
+        default = "";
+        description = ''
+          K3s server address (required for agent role). Empty for a server that
+          initialises its own embedded etcd, which includes a single-node
+          cluster: upstream only emits --server when this is non-empty.
+        '';
       };
       tokenFile = lib.mkOption {
-        type = lib.types.str;
-        description = "Path to K3s token file";
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Path to the K3s token file. null omits --token-file entirely; the
+          empty string does NOT (upstream tests for null, so "" emits a bare
+          --token-file that eats the following argument). A single-node server
+          mints its own token and needs no file.
+        '';
       };
       disable = lib.mkOption {
         type = lib.types.listOf lib.types.str;
@@ -68,12 +79,43 @@
         default = [ ];
         description = "Additional flags";
       };
+      clusterCidr = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        example = "10.62.0.0/16";
+        description = ''
+          Pod CIDR. Empty keeps the k3s default 10.42.0.0/16. Set it on any host
+          whose pod ranges could ever be routed to another cluster -- titan
+          reaches the home LAN over WireGuard, where 10.42/10.43 are already
+          claimed by two clusters.
+        '';
+      };
+      serviceCidr = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        example = "10.63.0.0/16";
+        description = "Service CIDR. Empty keeps the k3s default 10.43.0.0/16.";
+      };
+      requiresMountFor = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        example = [ "var-lib-rancher-k3s-storage.mount" ];
+        description = ''
+          systemd units k3s must wait for -- the mount units of filesystems under
+          /var/lib/rancher. Without this, k3s can win the race against a separate
+          data LV, create the directory on the root filesystem, and silently write
+          PersistentVolume data to / until the root disk fills.
+        '';
+      };
     };
   };
 
   config = lib.mkIf config.k3s.enable {
-    # Disable firewall for Kubernetes networking
-    networking.firewall.enable = false;
+    # k3s needs to masquerade and DNAT freely, so the fleet disables the NixOS
+    # firewall outright. mkDefault rather than a hard assignment so an
+    # internet-facing host (titan) can keep the firewall on via public-host.nix
+    # without lib.mkForce; every existing host leaves it at false.
+    networking.firewall.enable = lib.mkDefault false;
 
     services.k3s = {
       enable = true;
@@ -92,6 +134,8 @@
           "--kube-controller-manager-arg=bind-address=${config.k3s.controlPlaneMetricsBindAddress}"
           "--kube-scheduler-arg=bind-address=${config.k3s.controlPlaneMetricsBindAddress}"
         ]
+        ++ lib.optionals (config.k3s.clusterCidr != "") [ "--cluster-cidr=${config.k3s.clusterCidr}" ]
+        ++ lib.optionals (config.k3s.serviceCidr != "") [ "--service-cidr=${config.k3s.serviceCidr}" ]
         ++ config.k3s.extraFlags
       );
     };
@@ -103,5 +147,12 @@
       util-linux
       cryptsetup
     ];
+
+    # requires + after: `after` alone would still start k3s when the mount unit
+    # failed, and k3s would then write PV data to / unnoticed.
+    systemd.services.k3s = {
+      requires = config.k3s.requiresMountFor;
+      after = config.k3s.requiresMountFor;
+    };
   };
 }
