@@ -1,4 +1,22 @@
 creation_rules:
+  # titan's own secrets, and nothing else. Recipients are the admin keys PLUS titan's
+  # host key, so a popped titan decrypts this file and cannot open secrets.yaml. The
+  # admin keys are here so `sops -e` and `updatekeys` keep working from a workstation.
+  #
+  # titan's key must NOT be added to the rule below: that hands back the entire blast
+  # radius this split exists to remove.
+  #
+  # This rule is required, not an override: the generic regex below is literal
+  # `secrets\.ya?ml$`, which does not match a path under secrets/ (verified with a probe
+  # file -- sops reports "no rules matched").
+  - path_regex: ^secrets/titan\.yaml$
+    key_groups:
+      - age:
+          - "age1wynx7pnkg8z6n20zxg2krecmgyy5gdlj6xrs2tmfjctefy2xwv3qa2v24g"
+          - "age1ewq0v3rjm0y4m86xq9z555weuspsklz4sz07emhx4awqttjd9sjqnf2t3u" # macbookpro laptop
+          - "age1m5w6y8mh0cq00w8k3du5fk3ct92pyr5z3kdy9ww5w7avgwycgdtq2ezmt3" # Coder workspace key
+          - age1rlvgte0l7225vqdusvkzmdqmsyfd3u255rfy7ku93xx99k4vldsqhxnyxx # bootstrap key
+          - "age1vrsm5d9a4gd7wugem8lskq93n5hc7yxvdms77a76xcrqu7eunylscvh48e" # titan host key
   - path_regex: secrets\.ya?ml$
     key_groups:
       - age:

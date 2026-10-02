@@ -47,7 +47,14 @@
   users.mutableUsers = false;
   users.users.javier = {
     isNormalUser = true;
-    hashedPasswordFile = config.sops.secrets."users/javier_password_hash".path;
+    # On a key-only host (titan) there is no password to provision: turning off
+    # sopsBase.javierPasswordHash drops the sops secret and locks the account instead,
+    # so /etc/shadow holds "!" and password auth has nothing to succeed against even if
+    # PasswordAuthentication were ever flipped back on.
+    hashedPasswordFile =
+      lib.mkIf config.sopsBase.javierPasswordHash
+        config.sops.secrets."users/javier_password_hash".path;
+    hashedPassword = lib.mkIf (!config.sopsBase.javierPasswordHash) "!";
     extraGroups = [
       "wheel"
       "networkmanager"
