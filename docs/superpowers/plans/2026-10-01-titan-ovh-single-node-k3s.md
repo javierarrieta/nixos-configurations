@@ -2372,6 +2372,62 @@ is the v1 exit criterion."
 
 ---
 
+## Task 17: Give `titan` its own age key, scoped to `titan`'s secrets
+
+SOPS encrypts a *data key* to every recipient, so anyone holding any recipient's
+private key decrypts the **whole file**. "titan may only read titan's secrets" is
+therefore impossible inside one file — it needs a second file with a narrower
+recipient set. Task 14 bootstraps with the operator's admin key because that key
+already exists; this task replaces it.
+
+**Files:** create `secrets/titan.yaml`; edit `.sops.yaml`, `hosts/titan/configuration.nix`,
+`modules/nixos/sops-base.nix`, `common/users.nix`; edit `secrets.yaml` (drop the moved keys).
+
+- [ ] **Step 1 — Decide what titan actually needs.** Today it declares eight secrets:
+  the five titan keys, plus `users/javier_password_hash`, `ssh_keys/javier_private`,
+  `ssh_keys/javier_public`. The two `javier_*` entries are the problem: they put
+  javier's **personal SSH private key** on an internet-facing host, which is a
+  lateral-movement path independent of `secrets.yaml`. Add
+  `sopsBase.javierSshKey = lib.mkEnableOption ... ` to `sops-base.nix` (default `true`,
+  `false` on titan) and an equivalent for the password hash; `common/users.nix:50`
+  uses `hashedPasswordFile`, so on a key-only host the account can be locked instead
+  (`password = "!"`). Target end state: titan holds **only** its own five keys.
+
+- [ ] **Step 2 — Generate the host key.** `umask 077; age-keygen -o /tmp/titan-age.key`
+  (never commit it, never paste it into a chat or a terminal transcript).
+
+- [ ] **Step 3 — Recipient rules.** In `.sops.yaml`, add a creation rule for
+  `^secrets/titan\.yaml$` whose `key_groups` are the four admin recipients **plus the
+titan public key**, and put it **above** the existing `secrets\.ya?ml$` rule — sops
+  uses the first match. The titan public key must NOT be added to the rule matching
+  `secrets.yaml`; doing so returns all the blast radius this task removes.
+
+- [ ] **Step 4 — Move the values.** Write the five titan keys into `secrets/titan.yaml`
+  (same key names), `sops -e` it, verify, then delete those five from `secrets.yaml`
+  so each value lives in exactly one file. Re-run `sops updatekeys` on both files after
+  any recipient change.
+
+- [ ] **Step 5 — Point the module at the new file.** In `hosts/titan/configuration.nix`,
+  each of the five becomes
+  `sops.secrets."titan/network_env" = { sopsFile = ../../secrets/titan.yaml; ... }`.
+
+- [ ] **Step 6 — Swap the key on the host.** Copy the titan private key to
+  `/var/lib/sops-nix/key.txt` (root:root, 0600) **after** `shred -u` the admin key that
+  Task 14 left there. Then deploy and confirm all remaining secrets materialise:
+  `ssh -p 13491 nixos@titan.arrieta.eu 'ls -l /run/secrets/titan /run/secrets/ssh_keys'`.
+
+- [ ] **Step 7 — Prove the narrowing, not just the happy path.** From titan:
+  ```bash
+  sudo sops -d /etc/nixos/secrets.yaml >/dev/null; echo "exit=$?"
+  ```
+  This must **fail** with `Failed to get the data key ... group 0: FAILED`. A green
+  decrypt here means the split did not happen and Step 6 only moved bytes around.
+
+- [ ] **Step 8 — Commit** `secrets/titan.yaml`, `.sops.yaml`, and the module changes, and
+  record the titan public key in the private companion doc.
+
+---
+
 ## Exit criteria
 
 v1 is done when all of these are true and each has a command behind it in the task that owns it:
@@ -2382,4 +2438,6 @@ v1 is done when all of these are true and each has a command behind it in the ta
 - Public probes: 13491/80/443/51820 reachable, 6443/9100/10250 unreachable from the internet, 6443 reachable from a static mesh peer and unreachable from a roadwarrior.
 - Mesh at `192.168.133.0/24` with titan as hub, old hub retired, Prometheus scraping titan and rsyslog arriving at `192.168.0.41`.
 - etcd snapshot and restic backup both landing, and one restore drill logged with a date.
+- titan's `/var/lib/sops-nix/key.txt` decrypts `secrets/titan.yaml` and **fails** on
+  `secrets.yaml` (Task 17 Step 7), and titan holds no copy of javier's personal SSH key.
 - No credentials and no concrete public IPv4/IPv6 anywhere in the public repo (spec §0 greps clean).
