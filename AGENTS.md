@@ -340,6 +340,44 @@ Rules:
 - Per-request escape hatch: `?autoload=false` on a routed GET returns an
   error instead of loading — candidate for Prometheus scrape URLs.
 
+### OVH Baremetal (titan) — bring-up lessons (2026-10-02)
+
+Four traps, each of which cost real time. Full detail in `hosts/titan/README.md`.
+
+1. **Never trust an interface name read from a rescue image.** The hardware survey
+   recorded `eth0`/`eth1`; the installed system has `eno1`/`eno2`. OVH rescue images
+   differ on whether predictable network naming is on, and installed NixOS always uses
+   it. A wrong name is not cosmetic: `staticNetwork`, `k8sNetwork.primaryInterface` and
+   `--flannel-iface` all derive from `vars.nix`, and k3s refuses to start with
+   `interface eth0 does not have a correct global unicast ip`. Confirm the name in the
+   installed system, not just in rescue.
+2. **OVH's proactive DDoS mitigation raises an intervention when the primary IP stops
+   answering ICMP, and keeps it raised while the condition holds.** A host with a broken
+   network config therefore sits in intervention indefinitely, and inbound traffic is
+   dropped at the edge -- which looks from outside exactly like a local firewall drop.
+   ICMP and TCP timeouts are not host diagnostics on OVH. Disable proactive interventions
+   during bring-up; re-enable after a few unattended deploys.
+3. **`nixos-anywhere` must come from `nixpkgs`, not the GitHub flake, in a Coder
+   workspace.** Any *local* build fails with `fchmodat2 ... Operation not permitted`:
+   seccomp blocks the syscall Nix 2.34 uses to make store paths writable, and Nix
+   retries on `ENOSYS` but not on `EPERM`. Substitution from cache.nixos.org is
+   unaffected, which is why `nix build` of a fully-cached toplevel succeeds while a flake
+   that must be built does not. `bootstrap_host.sh` uses `nixpkgs#nixos-anywhere`;
+   override with `NIXOS_ANYWHERE=`.
+4. **Secrets passed as shell arguments get mangled.** `--age-key "$(cat keys.txt)"`
+   produced an empty key file and a `setupSecrets` failure that looked like a key
+   mismatch. `bootstrap_host.sh` now takes `--age-key-file`, extracts exactly the
+   `AGE-SECRET-KEY-` line, prints what it is shipping, and refuses to install if it is
+   missing. Verify a shipped key by hash, never by printing it:
+   `sha256sum` of the single key line on both ends.
+
+Two more worth keeping handy: `switch-to-configuration` is at
+`/run/current-system/bin/switch-to-configuration`, **not** `sw/bin`. And a public host
+needs a console path that does not depend on SSH -- titan now has a break-glass password
+(`users/javier_password_hash_titan` in `secrets/titan.yaml`) with `sudo` requiring it,
+while `ssh.passwordAuthentication` stays false so the password is unreachable over the
+network.
+
 ### Longhorn iSCSI Disk Medium Errors (2026-08-26)
 
 **Observed**: During `nixos-rebuild switch` on k8s-node03 (and node02), kernel logged critical medium errors on iSCSI devices (sdy, sdz - Longhorn volumes from TrueNAS):
