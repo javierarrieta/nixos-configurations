@@ -2013,6 +2013,23 @@ cd ../public-dns-tf && git add titan.arrieta.eu.tf && git commit -m "feat(dns): 
 
 ## Task 14: Bootstrap the machine
 
+> **DONE 2026-10-02.** Three bootstrap runs. Run 1 failed `setupSecrets` (age key arrived
+> word-split as a shell argument). Run 2 installed cleanly but `main` still named `eth0`,
+> so comin deployed a generation k3s could not start (`interface eth0 does not have a
+> correct global unicast ip`, restart counter 136) and the health gate healed, retried and
+> suspended the deployer instead of accepting it -- the gate earning its keep on its first
+> real deployment. Run 3, after #56 and #57, is the machine now running: generation
+> `d22f2bqpip8j0r9wz51945nxmyv3mb0q-nixos-system-titan`, `titan Ready` with `INTERNAL-IP`
+> = the public address, `vg0-pvc` mounted under `/var/lib/rancher/k3s/storage`, `md127`
+> `[2/2][UU]`, comin live and unsuspended, bootstrap generation identical to `main`.
+>
+> **Still unproven:** the `ip addr replace` from #57 has never run on a real switch --
+> comin had nothing to deploy. The next change touching titan is the actual test.
+>
+> Found and fixed on the way: `eth0` vs `eno1` (#56), static address not re-applied on
+> switch plus the break-glass password (#57), `--age-key-file` and `nixos-anywhere` from
+> `nixpkgs` (#57). See `hosts/titan/README.md`.
+
 The one irreversible task. Everything before it is evaluated, not executed. Read spec §17 (hard ordering) and §11 (hub migration) first, and keep the OVH IP-KVM session open for the whole run — the first boot is where an mdraid/LVM initrd mistake shows up.
 
 **Files:**

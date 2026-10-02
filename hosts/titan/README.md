@@ -89,18 +89,32 @@ From a workstation that can reach the rescue system, with the box in rescue mode
 ```bash
 cd ~/nixos-configurations
 ./bootstrap_host.sh --no-build-on-remote --host titan --ip <OVH_PUBLIC_IP> \
-  --age-key "$(cat ~/.config/sops/age/keys.txt)" \
+  --age-key-file ~/.config/sops/age/titan-key.txt \
   --disk-password throwaway
 ```
 
-- **The age key here is an *admin* key, not titan's own host key.** Until Task 17 Step 4
-  runs, titan's five secrets live in `secrets.yaml`, whose recipients are the four admin
-  keys only -- titan's key is deliberately not one of them, so passing it here fails
-  activation with `Failed to get the data key ... group 0: FAILED`. Task 17 Step 6 is the
-  point where `/var/lib/sops-nix/key.txt` becomes the titan-scoped key and the admin key
-  is shredded. Check which key you are holding with `age-keygen -y <file>` and compare
-  against the `sops.key_groups` footer of the file it has to open. Reading it with `$(cat
-  ...)` rather than pasting keeps it out of your shell history.
+- **Use `--age-key-file`, never `--age-key "$(cat ...)"`.** The first bootstrap wrote an
+  empty `/var/lib/sops-nix/key.txt` and died in `setupSecrets` with `Error getting data
+  key: 0 successful groups required, got 0`, because a multi-line key passed as a shell
+  argument can arrive word-split (fish splits unquoted substitutions on newlines, so the
+  script receives only the `# created:` comment line). The file argument removes quoting
+  from the path; the script also extracts exactly the `AGE-SECRET-KEY-` line, prints
+  `age key: AGE-SECRET-KEY-1EC... 74 chars` so you can see what it is shipping, and
+  refuses to install anything if the line is absent.
+- **The key is titan's own**, `~/.config/sops/age/titan-key.txt`, not an admin key. Since
+  the Task 17 split, titan's secrets live in `secrets/titan.yaml`, which the titan key
+  opens and the admin keys also open -- but the admin key never has to land on an
+  internet-facing box, so it does not. Verify before you run:
+  `age-keygen -y ~/.config/sops/age/titan-key.txt` must match the recipient in the
+  `secrets/titan.yaml` footer. Confirming it by hash after the fact, without printing the
+  key: `sudo sha256sum /var/lib/sops-nix/key.txt` on the box against
+  `grep '^AGE-SECRET-KEY-' <file> | sha256sum` here.
+- **`nixos-anywhere` comes from `nixpkgs`, not the GitHub flake.** Inside a Coder
+  workspace a local build fails with `fchmodat2 ... Operation not permitted`: seccomp
+  blocks the syscall Nix 2.34 uses to make store paths writable, and Nix falls back on
+  `ENOSYS` but not on `EPERM`. Substitution is unaffected, and nixpkgs ships the same
+  1.13.0 prebuilt. Override with `NIXOS_ANYWHERE=github:nix-community/nixos-anywhere`
+  on a machine without that restriction.
 - `--no-build-on-remote` is required. The Attic cache is reachable only over the
   mesh, which does not exist yet, so the build happens on the workstation and ships
   its closure over SSH.
@@ -116,7 +130,7 @@ cd ~/nixos-configurations
 The mesh does not exist yet, so everything here goes over the WAN.
 
 ```bash
-ssh -p 13491 nixos@titan.arrieta.eu '
+ssh -p 13491 javier@titan.arrieta.eu '
   readlink /run/current-system
   systemctl is-system-running --wait
   findmnt -no SOURCE,TARGET /var/lib/rancher/k3s/storage
@@ -160,16 +174,27 @@ In order. SSH never depends on WireGuard, so "WG is down" is not a lockout — i
 degrades Prometheus, Attic and rsyslog only.
 
 1. `ssh -p 13491 javier@<OVH_PUBLIC_IP>` — the primary path, not the emergency one.
-2. Box up but config broken: `nixos-rebuild switch --rollback` over that session, or
+2. **IP-KVM console, logged in as `javier` with the break-glass password.** This exists
+   precisely for the case where SSH is unreachable: `ssh.passwordAuthentication` is false,
+   so the password is only ever usable here, and `sudo` prompts for it. Test it while you
+   do not need it (`sudo -u javier sudo -n true` should answer `a password is required`).
+   If it ever fails, the account can still be reached by editing the boot entry: at the
+   systemd-boot menu press `e`, replace `init=/nix/store/.../init` with `init=/bin/sh`,
+   add ` rw`, boot, then `mount -o remount,rw /`.
+3. Box up but config broken: `nixos-rebuild switch --rollback` over that session, or
    boot the previous systemd-boot entry from the panel KVM
    (`boot.loader.systemd-boot.configurationLimit = 5` keeps rollback entries on disk).
-3. WG down and you need a home-side thing (Prometheus, Attic, rsyslog): nothing
+   Note `switch-to-configuration` lives in `/run/current-system/bin/`, **not** `sw/bin`.
+4. WG down and you need a home-side thing (Prometheus, Attic, rsyslog): nothing
    breaks the box; those just go stale.
-4. Box won't boot: OVH **rescue mode** → mount the root FS → chroot →
+5. Box won't boot: OVH **rescue mode** → mount the root FS → chroot →
    `nixos-rebuild switch` from `/run/current-system`, or re-run nixos-anywhere.
    This step needs ENF rule 3 (TCP 22).
-5. Network config wrong and SSH unreachable: OVH **IP-KVM** to see the console.
-6. OVH panel firewall to cut inbound while a bad rule is live.
+6. Network config wrong and SSH unreachable: that is rung 2 -- the console path is the
+   reason the break-glass password exists. Fix the address from there
+   (`ip addr replace <IP>/24 dev eno1; ip route replace default via <OVH_GATEWAY> dev eno1`)
+   and re-deploy rather than reinstalling.
+7. OVH panel firewall to cut inbound while a bad rule is live.
 
 ## Recovery commands
 
@@ -199,6 +224,26 @@ cat /proc/mdstat
 sudo mdadm --detail /dev/md/titan
 sudo lvdisplay vg0
 ```
+
+## ICMP is not a liveness probe on OVH
+
+OVH's proactive DDoS mitigation raises an **intervention when the primary IP stops
+answering ICMP**, and it **stays raised for as long as the condition holds** -- so a box
+whose network config is broken sits in intervention indefinitely, and "waiting it out"
+waits for something that will not happen on its own. Panel -> Server -> DDoS ->
+**Resume normal traffic** clears it; fixing the host is what keeps it clear.
+
+Consequences, all learned the hard way on 2026-10-02:
+
+- A host that has lost its address stops answering ping, which trips the intervention.
+  The intervention is a *symptom* of the outage, not a second problem.
+- While an intervention is up, inbound traffic is dropped at the edge and looks exactly
+  like a local firewall drop from outside: `SSH times out` tells you nothing about
+  whether `sshd` is alive. Do not diagnose the host from ICMP or from a timeout.
+- ENF rules apply during mitigation even when the panel toggle reads "off".
+- **Disable proactive interventions during bring-up.** A transient route blip mid-switch
+  should be a blip, not a multi-hour lockout. Re-enable it once titan has survived a
+  couple of unattended comin deploys.
 
 ## After any OVH intervention
 
