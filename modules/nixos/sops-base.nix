@@ -16,6 +16,26 @@
       javierPasswordHash = lib.mkEnableOption "provision javier's password hash" // {
         default = true;
       };
+
+      javierPasswordSecret = lib.mkOption {
+        type = lib.types.str;
+        default = "users/javier_password_hash";
+        description = ''
+          Which sops key holds the hash. Override it on a host that must not share
+          the fleet password -- an internet-facing box needs a break-glass password
+          whose loss does not open every other machine.
+        '';
+      };
+
+      javierPasswordSopsFile = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          File holding javierPasswordSecret. null means defaultSopsFile, i.e. the
+          whole-repo secrets.yaml. Set it for hosts whose secrets live in a narrower
+          file that their own age key can open (titan).
+        '';
+      };
     };
   };
 
@@ -31,10 +51,13 @@
       # in the file.
       secrets =
         lib.optionalAttrs config.sopsBase.javierPasswordHash {
-          "users/javier_password_hash" = {
+          ${config.sopsBase.javierPasswordSecret} = {
             mode = "0600";
             owner = "root";
             neededForUsers = true;
+          }
+          // lib.optionalAttrs (config.sopsBase.javierPasswordSopsFile != null) {
+            sopsFile = config.sopsBase.javierPasswordSopsFile;
           };
         }
         // lib.optionalAttrs config.sopsBase.javierSshKey {
