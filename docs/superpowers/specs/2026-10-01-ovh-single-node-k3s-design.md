@@ -460,7 +460,7 @@ Two changes at once: the hub moves from the `techdelivery.es` VPS to `titan`, **
 |---|---|---|
 | `192.168.2.2/32, 192.168.0.0/24` | **home LAN gateway** — it advertises the whole LAN; this is how the OVH side reaches `192.168.0.42` | `192.168.133.2/32` + keep `192.168.0.0/24` |
 | `192.168.2.3/32` (`#`, `192.168.1.1/32` commented) | chiclana site; the commented `192.168.1.1/32` suggests its LAN route was deliberately disabled | `192.168.133.3/32` |
-| `192.168.2.4/32` | llm01 — **leaves the mesh entirely, do not renumber.** Its peer was a leftover from bridging llm01 to the VPS; llm01 now sits inside the home LAN and is reached at `192.168.0.29` via the gateway peer. **Checked 2026-10-02: llm01 configures no WireGuard interface at all** — no `networking.wireguard`, no import of `wireguard.nix`, nothing. | peer deleted; verify on the host first (see Task 15) |
+| `192.168.2.4/32` | llm01 — **leaves the mesh entirely, do not renumber.** Its peer was a leftover from bridging llm01 to the VPS; llm01 now sits inside the home LAN and is reached at `192.168.0.29` via the gateway peer. **Confirmed dead on the host 2026-10-02:** `wg show` lists no interface, `/etc/wireguard` does not exist, no `wireguard*` units. The old hub has been holding a peer that could never have handshaked. | **peer deleted** |
 | `192.168.2.101/32` | **roadwarrior** — Pixel 7 | `192.168.133.101/32` |
 | `192.168.2.102/32` | **roadwarrior** — MacBook Air | `192.168.133.102/32` |
 | `192.168.2.1/32` (hub itself) | **confirmed 2026-10-02** — the current hub's own address, read from the VPS. Retires when every peer has handshaked with `titan`. | `192.168.133.1/24` on `titan`; the VPS rejoins as a plain client at `.5` |
