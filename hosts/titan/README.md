@@ -72,9 +72,12 @@ Properties of this firewall that bite:
 - Availability is not guaranteed on the **Eco** product line (Rise / So you Start /
   Kimsufi); this host does expose the configuration page.
 
-Proof the deny is actually in force, from outside: a closed port must **time out**, not
-return `connection refused`. Refused means the packet reached the box, i.e. no deny rule
-applied.
+Proof the deny is actually in force, from outside: probe a port that is **not** in the
+allow list — 6443, 9100, 8080 — and expect a **timeout**. Do not use 22/13491/80/443 for
+this test: rules 3–6 explicitly allow them, so the packet reaches the box and
+`connection refused` there is correct behaviour, not a leak. Verified 2026-10-02 with the
+firewall enabled: 22 open (rescue sshd), 13491/80/443 refused, and 6443/9100/8080/3306/
+10250 all dropped.
 
 Source: <https://docs.ovhcloud.com/en/guides/bare-metal-cloud/dedicated-servers/firewall-network>
 
