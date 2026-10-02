@@ -2103,12 +2103,16 @@ nix run github:nix-community/nixos-anywhere -- \
   --extra-files "$TMP_DIR" \
   --disk-encryption-keys /tmp/disko-password "$TMP_DIR/disko-password" \
   --phases kexec,disko,install \
-  --ssh-port 10022 \
   --flake ".#titan" \
   "root@<OVH_PUBLIC_IP>"
 
 rm -rf "$TMP_DIR"
 ```
+
+> Corrected 2026-10-02: an earlier draft of that snippet passed `--ssh-port 10022`.
+> OVH rescue-mode sshd listens on **22**, which is also nixos-anywhere's default, so
+> the flag must not be passed at all. Verified against the live rescue system
+> (`ssh root@<OVH_PUBLIC_IP>` answers with a publickey banner on 22).
 
 There is no `--no-build-on-remote` flag on `nixos-anywhere` itself — building locally is its default, and `bootstrap_host.sh` is what hardcodes the opposite.
 
