@@ -2383,29 +2383,43 @@ already exists; this task replaces it.
 **Files:** create `secrets/titan.yaml`; edit `.sops.yaml`, `hosts/titan/configuration.nix`,
 `modules/nixos/sops-base.nix`, `common/users.nix`; edit `secrets.yaml` (drop the moved keys).
 
-- [ ] **Step 1 — Decide what titan actually needs.** Today it declares eight secrets:
-  the five titan keys, plus `users/javier_password_hash`, `ssh_keys/javier_private`,
-  `ssh_keys/javier_public`. The two `javier_*` entries are the problem: they put
-  javier's **personal SSH private key** on an internet-facing host, which is a
-  lateral-movement path independent of `secrets.yaml`. Add
-  `sopsBase.javierSshKey = lib.mkEnableOption ... ` to `sops-base.nix` (default `true`,
-  `false` on titan) and an equivalent for the password hash; `common/users.nix:50`
-  uses `hashedPasswordFile`, so on a key-only host the account can be locked instead
-  (`password = "!"`). Target end state: titan holds **only** its own five keys.
+- [x] **Step 1 — Decide what titan actually needs.** It declared eight secrets: the five
+  titan keys, plus `users/javier_password_hash`, `ssh_keys/javier_private`,
+  `ssh_keys/javier_public`. The two `javier_*` entries were the problem: they put
+  javier's **personal SSH private key** on an internet-facing host — a lateral-movement
+  path independent of `secrets.yaml`. Added `sopsBase.javierSshKey` and
+  `sopsBase.javierPasswordHash` to `sops-base.nix` (both default `true`, so the fleet is
+  unchanged) and set both `false` on titan; `common/users.nix` locks the account with
+  `hashedPassword = "!"` when the hash is off. Verified by evaluation: titan now declares
+  exactly its five keys, `hashedPasswordFile = null`, `hashedPassword = "!"`, while
+  `k8s-node01` and `ryzen7` are byte-for-byte unchanged.
+  Note `sops.secrets.<name> = lib.mkIf false {...}` does **not** work here — `sops.secrets`
+  is an `attrsOf submodule` and the empty instance still materialises, then fails at build
+  time. `lib.optionalAttrs` on the whole `secrets` set is the form that works.
 
-- [ ] **Step 2 — Generate the host key.** `umask 077; age-keygen -o /tmp/titan-age.key`
-  (never commit it, never paste it into a chat or a terminal transcript).
+- [x] **Step 2 — Generate the host key.** Done with `umask 077; age-keygen`. Public key
+  `age1vrsm5d9a4gd7wugem8lskq93n5hc7yxvdms77a76xcrqu7eunylscvh48e`; the private half is at
+  `~/.config/sops/age/titan-key.txt` (0600) on the Coder workspace and was never printed.
+  Regenerating is cheap: run `age-keygen` again and replace the recipient in `.sops.yaml`
+  before Step 4 runs — after Step 4 the file must be re-encrypted with `sops updatekeys`.
 
-- [ ] **Step 3 — Recipient rules.** In `.sops.yaml`, add a creation rule for
-  `^secrets/titan\.yaml$` whose `key_groups` are the four admin recipients **plus the
-titan public key**, and put it **above** the existing `secrets\.ya?ml$` rule — sops
-  uses the first match. The titan public key must NOT be added to the rule matching
-  `secrets.yaml`; doing so returns all the blast radius this task removes.
+- [x] **Step 3 — Recipient rules.** `.sops.yaml` now has a `^secrets/titan\.yaml$` rule
+  whose `key_groups` are the four admin recipients **plus the titan public key**, listed
+  first. Correction to the reasoning written here earlier: the generic `secrets\.ya?ml$`
+  rule is literal and does **not** match a path under `secrets/` (probed with a scratch
+  file — sops reports "no rules matched"), so the new rule is required rather than an
+  override, and ordering is hygiene, not correctness. The titan public key is deliberately
+  absent from the `secrets.yaml` rule; adding it returns all the blast radius removed.
 
-- [ ] **Step 4 — Move the values.** Write the five titan keys into `secrets/titan.yaml`
-  (same key names), `sops -e` it, verify, then delete those five from `secrets.yaml`
-  so each value lives in exactly one file. Re-run `sops updatekeys` on both files after
-  any recipient change.
+- [x] **Step 4 scripted, not run.** `scripts/titan-key-split.sh` moves the five values,
+  re-encrypts `secrets.yaml` to its own recipients, and verifies by **path** (a grep for
+  `network_env` is a false alarm — every host has one). Shaped around two sops realities:
+  the creation rule is chosen from the path handed to sops, so encryption must happen in
+  place (`sops -e -i`), and sops has no value-removal flag, so the strip goes through
+  plaintext at the real path for a moment under `umask 077` with a trap that restores the
+  encrypted backup on any non-clean exit. Tested end to end in a throwaway `git worktree`:
+  recipients went 4 → 5 in `secrets/titan.yaml` and stayed 4 in `secrets.yaml`, and the
+  re-run guard refuses when the destination exists.
 
 - [ ] **Step 5 — Point the module at the new file.** In `hosts/titan/configuration.nix`,
   each of the five becomes

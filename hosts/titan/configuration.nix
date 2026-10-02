@@ -38,6 +38,13 @@ in
     passwordAuthentication = false;
   };
   sopsBase.enable = true;
+  # Neither of these belongs on an internet-facing host. javier's personal SSH private
+  # key would be a lateral-movement path paid for nothing (titan reaches the fleet over
+  # the mesh, not by impersonating a laptop), and a key-only box has no password to
+  # provision -- the account is locked in common/users.nix instead. Dropping them is also
+  # what lets Task 17 scope titan's own age key to titan's secrets alone.
+  sopsBase.javierSshKey = false;
+  sopsBase.javierPasswordHash = false;
   nixSweep.enable = true;
 
   networking.hostName = vars.hostname;
