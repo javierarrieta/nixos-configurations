@@ -64,11 +64,18 @@ in
   # unused rather than overlooked.
   networking.interfaces.eth1.useDHCP = false;
 
+  # These five live in secrets/titan.yaml, not secrets.yaml. SOPS encrypts a data key to
+  # every recipient of a file, so any key that opens secrets.yaml opens all of it -- the
+  # only way to give titan a key that reads just titan's secrets is to put those secrets in
+  # a file of their own (see .sops.yaml and Task 17). The path is relative to this file and
+  # must move with it.
   sops.secrets."titan/network_env" = {
+    sopsFile = ../../secrets/titan.yaml;
     mode = "0400";
     owner = "root";
   };
   sops.secrets."wireguard/titan_private_key" = {
+    sopsFile = ../../secrets/titan.yaml;
     mode = "0400";
     owner = "root";
   };
@@ -89,11 +96,13 @@ in
   publicHost.enable = true;
 
   sops.secrets."ssh_keys/titan_host_private" = {
+    sopsFile = ../../secrets/titan.yaml;
     mode = "0600";
     owner = "root";
     path = "/etc/ssh/ssh_host_ed25519_key";
   };
   sops.secrets."ssh_keys/titan_host_public" = {
+    sopsFile = ../../secrets/titan.yaml;
     mode = "0644";
     owner = "root";
     path = "/etc/ssh/ssh_host_ed25519_key.pub";
@@ -111,6 +120,7 @@ in
   };
 
   sops.secrets."k3s_token_titan" = {
+    sopsFile = ../../secrets/titan.yaml;
     mode = "0600";
     owner = "root";
   };
