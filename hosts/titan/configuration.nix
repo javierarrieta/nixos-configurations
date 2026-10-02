@@ -165,6 +165,20 @@ in
   # Inbound default-deny; the allowlist is the contract in spec §4.4.
   publicHost.enable = true;
 
+  # Home LAN devices reach titan through the OPNsense peer with a 192.168.0.x
+  # source, not a mesh /32, so the static /25 alone would refuse them the mesh
+  # ports even with a healthy tunnel. Blast radius, stated plainly: every device
+  # on the LAN -- including the IoT ones nobody trusts -- can now reach 6443,
+  # 10250 and the exporters on titan. The k3s API still demands credentials; 9100
+  # and 4243 are unauthenticated metrics, so "read titan's metrics" stops being a
+  # mesh-peer privilege. Narrow it to specific hosts later if that turns out to be
+  # more than was needed.
+  #
+  # Still matched with -i wg0, so this cannot expose the ports on the public NIC,
+  # and it is inert until the OPNsense peer advertises 192.168.0.0/24 -- without
+  # that route titan has no way back.
+  publicHost.meshTCPPortExtraSources = [ "192.168.0.0/24" ];
+
   sops.secrets."ssh_keys/titan_host_private" = {
     sopsFile = ../../secrets/titan.yaml;
     mode = "0600";
