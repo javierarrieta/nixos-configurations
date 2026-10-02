@@ -129,6 +129,13 @@ degrades Prometheus, Attic and rsyslog only.
 ## Recovery commands
 
 ```bash
+# If /var/lib/sops-nix/key.txt is gone or wrong, the host can no longer deploy:
+# every sops secret fails to materialise, so activation fails. It lives in /var/lib,
+# not the store, so it survives rebuilds and GC — losing it means losing /var/lib or
+# overwriting it by hand. Restore by copying an admin age key back over it
+# (root:root, 0600) and re-running the switch.
+sudo install -m 0600 -o root -g root /path/to/keys.txt /var/lib/sops-nix/key.txt
+
 # Route watchdog around any build/switch (fresh worker switches can drop the
 # default route mid-activation). Absolute paths for BOTH commands: a loop whose
 # `sleep` is missing from PATH becomes a 200-spawn/sec flood into rsyslog.
@@ -160,3 +167,9 @@ exotic one. Check, in order:
 
 Residual accepted risk: a single node has no redundancy, so an intervention is a
 full outage. Mitigated by the health gate and the rollback entry, not by failover.
+
+Second residual risk, until Task 17 lands: titan's age key is the **repo-wide admin
+key**, so a popped titan can decrypt all of `secrets.yaml` — every host's SSH host
+key, the k3s tokens, the object-store credentials. The firewalls limit exposure, not
+blast radius. Task 17 replaces it with a titan-only key that decrypts only
+`secrets/titan.yaml`.
