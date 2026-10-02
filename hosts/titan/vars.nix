@@ -36,6 +36,19 @@ in
       # LAN instead of the local bridge. Pin it to the public NIC (spec §6).
       "--flannel-iface=${networkInterface}"
 
+      # --- embedded etcd (spec D1) ---
+      # A lone k3s server does NOT get etcd: without this flag it runs on sqlite at
+      # server/db/state.db, and every --etcd-s3-* flag below is inert. This was
+      # discovered the hard way on 2026-10-02 -- `k3s etcd-snapshot save` answered
+      # "etcd datastore disabled" -- because the module comment claimed an empty
+      # serverAddr implied embedded etcd. It does not; upstream only omits --server.
+      #
+      # Enabling it is not a flag flip on a live cluster: k3s cannot migrate
+      # sqlite -> etcd in place. The migration is 'stop k3s, move state.db aside,
+      # start with this flag, re-apply' -- see the Backup section of README.md.
+      # Done now, while the cluster is empty, rather than after workloads land.
+      "--cluster-init"
+
       # --- etcd snapshots to MinIO over the mesh (spec §13b, Task 16a) ---
       # An etcd snapshot is every Secret in the cluster in plaintext, so the bucket
       # is the most sensitive object in the design: the MinIO key is scoped to

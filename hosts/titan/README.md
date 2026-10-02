@@ -235,6 +235,44 @@ PV data has **no backup yet** -- the cluster has no PVCs, so restic is deferred
 (Task 16b) until there is data worth backing up and a `k8s-titan` GitOps tree to
 put the CronJob in.
 
+### The datastore must be etcd, and it was not (2026-10-02)
+
+`k3s etcd-snapshot save` answered **`etcd datastore disabled`** because a lone k3s
+server without `--cluster-init` runs on **sqlite**, not embedded etcd. Until
+`--cluster-init` is in `vars.nix` every `--etcd-s3` flag is inert and there is
+nothing to snapshot.
+
+k3s cannot migrate sqlite -> etcd in place. The migration is a rebuild of the
+datastore, so do it while the cluster is empty:
+
+```bash
+K=/etc/rancher/k3s/k3s.yaml
+# 1. prove what you are about to lose
+kubectl --kubeconfig $K get pods -A -o wide
+kubectl --kubeconfig $K get ns,pvc -A
+kubectl --kubeconfig $K get ns,secret,configmap,deploy,svc,ingress,pvc,cm -A -o yaml \
+  > /root/k3s-sqlite-export-$(date +%F).yaml     # the only thing that can put it back
+
+# 2. stop comin so a deploy cannot race the migration
+systemctl stop comin
+
+# 3. retire the sqlite store (the CA and certs in server/ stay, so k3s.yaml survives)
+systemctl stop k3s
+mkdir -p /root/sqlite-retired-$(date +%F)
+mv /var/lib/rancher/k3s/server/db/state.db* /root/sqlite-retired-$(date +%F)/
+
+# 4. deploy the generation that carries --cluster-init, then start
+systemctl start comin            # or: nixos-rebuild switch --flake /var/lib/comin/repository#titan
+
+# 5. prove etcd is real
+ls /var/lib/rancher/k3s/server/db/etcd           # must exist now
+journalctl -u k3s -g "initialized new cluster|etcd-server" --no-pager | tail
+```
+
+If k3s refuses to start with both `state.db` and `--cluster-init` present, the
+health gate rolls back; move `state.db*` aside and redeploy. Rollback of the
+migration itself is: stop k3s, move `state.db*` back, drop `--cluster-init`, switch.
+
 ### Checking snapshots are landing
 
 ```bash

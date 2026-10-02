@@ -2274,6 +2274,17 @@ nc -zvw3 192.168.133.1 6443;  echo "must succeed"
 
 ## Task 16: Backups, and the restore drill that closes v1
 
+> **PREREQUISITE FOUND THE HARD WAY (2026-10-02): titan had no etcd at all.**
+> `k3s etcd-snapshot save` answered `etcd datastore disabled`. A lone k3s server
+> without `--cluster-init` runs on **sqlite**; the module comment claiming an empty
+> `serverAddr` implied embedded etcd was wrong, so spec D1 was written down and never
+> actually satisfied. `--cluster-init` is now in `extraFlags`, and because k3s cannot
+> migrate sqlite -> etcd in place the datastore has to be rebuilt -- see the
+> "datastore must be etcd" section of `hosts/titan/README.md` for the procedure.
+> Everything below assumes that migration has happened. Note the home fleet's
+> `k8s-server01` also lacks `--cluster-init`; its etcd was bootstrapped out-of-band
+> and survives only because the data directory does. Do not "fix" a live cluster.
+
 Spec §13b and Q15: etcd snapshots go to S3 with k3s' native mechanism, PV data goes to restic, both land in MinIO over the mesh. The restore drill is the v1 exit criterion — a backup nobody has restored is a rumour.
 
 **Files:**
