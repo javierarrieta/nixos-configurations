@@ -2198,7 +2198,7 @@ The mesh renumber (D15: `192.168.2.0/24` → `192.168.133.0/24`) and the hub mov
 - Consumes: `wireguard` module (Task 5), `titan.arrieta.eu` (Task 13), the peer table in the private companion doc.
 - Produces: the mesh at `192.168.133.0/24` with titan as hub.
 
-- [ ] **Step 1: Confirm what is left before touching anything.** Q5c and Q12 are **closed** — the old hub is `192.168.2.1`, the old mesh is `192.168.2.0/24`, and `192.168.133.0/24` is free at home, chiclana and on the OVH host network. One thing left to *verify*, not to decide: whether the old hub masquerades or the home router carries a return route for the mesh. `titan` ships `forwardToLan = true`, which SNATs mesh→LAN and needs no return route, so this is a check that the replacement behaves at least as well, not a fork in the design (spec Q5d).
+- [ ] **Step 1: Confirm what is left before touching anything.** Q5c and Q12 are **closed** — the old hub is `192.168.2.1`, the old mesh is `192.168.2.0/24`, and `192.168.133.0/24` is free at home, chiclana and on the OVH host network. **Q5d is now closed too** (2026-10-02): the home router is `OPNsense`, and the mesh returns by **route, not masquerade** — OPNsense must carry `192.168.133.0/24` into its WG peer, which its WireGuard plugin installs from the endpoint's Allowed IPs. Whether the old hub masquerades is still worth recording for the audit (Firewall → NAT → Outbound, or Routing → Static Routes), but it no longer gates the move, and any existing masquerade stays exactly where it is until the old hub is retired. See spec §11a.
 
 - [ ] **Step 2: Generate one keypair per peer** and record `{ mesh address, public key, role }` in the private companion doc. Static peers take `192.168.133.2…127`, roadwarriors `192.168.133.128+`.
 
@@ -2224,7 +2224,9 @@ ssh -p 13491 nixos@titan.arrieta.eu 'wg show | grep -c "(resolved)"'
 ```
 Expected: one line per peer that is currently online.
 
-- [ ] **Step 4: Rewire each peer** to endpoint `titan.arrieta.eu:51820` with its new address. For the `techdelivery.es` VPS, that is its client config, not a hub config any more. Roll one peer at a time and confirm `wg show` on titan shows a fresh handshake before moving to the next.
+- [ ] **Step 3a: Bridge the two hubs.** Add `titan` as a peer on the old hub with `192.168.133.0/24` in AllowedIPs, and the old hub as a peer on `titan` with `192.168.2.0/24`. Without this the moment a peer moves, every peer still on the old mesh black-holes traffic to it, because the old hub keeps routing that peer's dead old address. With it the whole flip window is non-breaking and retiring the old hub is one deletion. Verify both directions before flipping anything: `ping -c1 192.168.2.4` from `titan` and `ping -c1 192.168.133.4` from the VPS.
+
+- [ ] **Step 4: Rewire each peer**, in this order — `pixel7`, `macbookair`, `chiclana`, home LAN (`OPNsense`), `llm01`, then the `techdelivery.es` VPS. Roadwarriors first (nothing runs behind them), home LAN before `llm01` because the restore drill needs MinIO through it, the VPS last because it *is* the old hub. to endpoint `titan.arrieta.eu:51820` with its new address. For the `techdelivery.es` VPS, that is its client config, not a hub config any more. Roll one peer at a time and confirm a **fresh** handshake on `titan` before moving to the next — compare the `latest handshake` counter, do not trust that a line exists at all. Rollback for any step is to revert that one peer to the old hub and its old address; the bridge means nothing else notices.
 
 - [ ] **Step 5: Repoint everything that addressed the old mesh.** In `../k8s-techdelivery`: Prometheus scrape targets, `node-exporter-llm01.yaml`, `chiclana-hass.yaml`, `gatus.yaml`. Then verify each path independently — a green `wg show` proves the tunnel, not the services behind it:
 
