@@ -125,21 +125,29 @@ in
     # only member -- and it means OPNsense must keep its old-mesh link as well as
     # its new one, or home loses chiclana until the box is reachable again.
     #
+    # WHY 192.168.0.0/24 IS NOT IN allowedIPs YET. AllowedIPs become routes the
+    # moment the generation is deployed, whether or not the peer ever handshakes.
+    # Advertising the LAN here would install `192.168.0.0/24 dev wg0` on a box with
+    # no live tunnel, and titan's Attic cache resolves into that range:
+    # nix-cache.home.arrieta.eu -> 192.168.0.42 (verified 2026-10-02, and it is in
+    # nix.settings.extra-substituters). Today a build that wants it gets "no route
+    # to host" and falls through to cache.nixos.org in milliseconds. With a black
+    # hole route it eats a full connect timeout per narinfo lookup instead -- every
+    # path in the closure, silently, which is a slow-build mystery with no error to
+    # grep. Add the LAN range in the Task 15 session, once the peer actually
+    # handshakes and the route leads somewhere.
+    #
     # Roadwarriors sit at .129/.130, NOT the .101/.102 they had on the old flat
     # /24. publicHost answers 6443/10250/9100/4243 only to wireguard.staticSubnet
     # (192.168.133.0/25 = .0-.127), so .101 and .102 would have handed the two
     # laptops control-plane access and made the static/roadwarrior split decorative.
     peers = [
-      # OPNsense, home LAN gateway. The only peer that advertises a range beyond
-      # its own /32: this is how titan reaches 192.168.0.42 (MinIO) and the rest
-      # of the LAN. Its own /32 is what makes the return route on OPNsense
-      # necessary -- see the Q5d decision in spec §11a.
+      # OPNsense, home LAN gateway. Its own /32 only -- see the note below for why
+      # the LAN range is not here yet. Its /32 is what makes the return route on
+      # OPNsense necessary: see the Q5d decision in spec §11a.
       {
         publicKey = "PZ00ZAz1DC5bMb7aYjKNsG4vd5xA1LizmsOJEo5TWAc=";
-        allowedIPs = [
-          "192.168.133.2/32"
-          "192.168.0.0/24"
-        ];
+        allowedIPs = [ "192.168.133.2/32" ];
       }
       # pixel7 (roadwarrior)
       {
