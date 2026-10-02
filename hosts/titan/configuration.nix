@@ -145,8 +145,15 @@ in
       # OPNsense, home LAN gateway. Its own /32 only -- see the note below for why
       # the LAN range is not here yet. Its /32 is what makes the return route on
       # OPNsense necessary: see the Q5d decision in spec §11a.
+      #
+      # This is NOT the key OPNsense uses on the old mesh (that one is still
+      # PZ00ZAz1..., and the VPS keeps using it for chiclana). One box, two
+      # identities, because it belongs to two meshes at once: the old instance
+      # dials the VPS, the new `wg_titan` instance dials here. Separate keypairs
+      # rather than one key on two interfaces, so a roaming bug on one mesh cannot
+      # silently corrupt the other.
       {
-        publicKey = "PZ00ZAz1DC5bMb7aYjKNsG4vd5xA1LizmsOJEo5TWAc=";
+        publicKey = "dkpVTI+DtKSo2giq6HVUF5WHQzwmxH5tofQW65bCRhg=";
         allowedIPs = [ "192.168.133.2/32" ];
       }
       # pixel7 (roadwarrior)
