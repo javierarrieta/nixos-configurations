@@ -86,7 +86,7 @@ git diff --cached | grep -noE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' \
 - Mostly self-hosted services, HTTPS ingress on 80/443, wildcard `*.titan.arrieta.eu`.
 - SSH on port 13491, public (option 1).
 - DNS-01, same mechanism as `../k8s-techdelivery`.
-- Hardware (read from rescue mode 2026-10-01): **Intel Xeon E5-1650 v4 (6c/12t), 125 GiB RAM, 2× Intel SSDPE2MX450G7 450 GB NVMe** — identical model and size, both with **no partition table at all**, SMART self-assessment PASSED on both. UEFI (no BIOS), no TPM. Interfaces `eth0` (up, OVH public) and `eth1` (down, unused — no vRack).
+- Hardware (read from rescue mode 2026-10-01): **Intel Xeon E5-1650 v4 (6c/12t), 125 GiB RAM, 2× Intel SSDPE2MX450G7 450 GB NVMe** — identical model and size, both with **no partition table at all**, SMART self-assessment PASSED on both. UEFI (no BIOS), no TPM. Interfaces `eno1` (up, OVH public) and `eth1` (down, unused — no vRack).
 - **Public IPv4: `<OVH_PUBLIC_IP>`** (OVH — literal in the gitignored companion, §0). Netmask and gateway still to be read from rescue mode — see §4.2.
 
 **Discovered in the existing repos (drives the design)**
@@ -107,11 +107,11 @@ OVH model/RAM/disk count, primary IP + netmask + gateway as OVH states them, int
 
 | Interface | Purpose | Addressing |
 |---|---|---|
-| `eth0` | OVH public IPv4, ingress, SSH, WireGuard endpoint | static `<OVH_PUBLIC_IP>/24`, gateway `<OVH_GW>` — **on-link, confirmed from rescue mode** (§4.2) |
+| `eno1` | OVH public IPv4, ingress, SSH, WireGuard endpoint | static `<OVH_PUBLIC_IP>/24`, gateway `<OVH_GW>` — **on-link, confirmed from rescue mode** (§4.2) |
 | `eth1` | present, `DOWN`, unused (no vRack on this box) | left unconfigured |
 | `wg0` | WireGuard **hub** for the whole mesh (§4.3, D14) | `192.168.133.1/24` in the new `192.168.133.0/24` (D15) — `/24`, not `/32`: the hub is the endpoint every peer's routes point at, so it holds the whole mesh prefix on its own address rather than a point-to-point /32 |
 
-`vars.nix` carries `networkInterface = "eth0"` and it is threaded into `staticNetwork.interface`, `k8sNetwork.primaryInterface`, and `--flannel-iface`.
+`vars.nix` carries `networkInterface = "eno1"` and it is threaded into `staticNetwork.interface`, `k8sNetwork.primaryInterface`, and `--flannel-iface`.
 
 **IPv6 is deliberately not configured for v1.** Rescue mode showed a routed `<OVH_IPV6>`/128 with live router advertisements, but `static-network.nix` is IPv4-only, so `titan` comes up IPv4-only and gets no `AAAA` record (§13a publishes A + wildcard A only). Follow-up, not a gap: OVH routed IPv6 is a `/128` plus a link-local default, and the NixOS firewall default-drops inbound v6 either way.
 
@@ -119,7 +119,7 @@ Resolver: `213.186.33.99` (OVH, seen in rescue) as `DNS1`, `1.1.1.1` as `DNS2` i
 
 ### 4.2 OVH addressing — resolved from rescue mode (2026-10-01)
 
-Rescue mode answered it: `eth0` carries `<OVH_PUBLIC_IP>` as a **/24**, and `default via <OVH_GW> dev eth0` sits inside the on-link `scope link` route, with the gateway resolving to OVH's virtual MAC (`00:00:0c:…`). This is the **classic on-link /24** shape, not the `/32` + off-link pattern.
+Rescue mode answered it: `eno1` carries `<OVH_PUBLIC_IP>` as a **/24**, and `default via <OVH_GW> dev eno1` sits inside the on-link `scope link` route, with the gateway resolving to OVH's virtual MAC (`00:00:0c:…`). This is the **classic on-link /24** shape, not the `/32` + off-link pattern.
 
 Consequences:
 
@@ -594,7 +594,7 @@ Four things to get right:
 
    Two ENF traps: rules are applied **automatically during DDoS mitigation even if the firewall is toggled off**, so a wrong set bites on an attack day; and the ENF is IPv4-only, which matches §4.2's v1 decision. **Write the rule set into `hosts/titan/README.md`**, because a rule the repo cannot see is the one that surprises future-you. Record the **Q20 = interventions ON** decision in the same place.
 2. Panel: boot into **rescue mode**; `ssh root@<ip>`.
-3. ~~Collect on-machine facts~~ **done 2026-10-01** (§3, §4.2, §7a): `eth0` on-link `/24`, 2× empty 450 GB Intel DC NVMe, UEFI, wear recorded. Re-check only if the hardware changed.
+3. ~~Collect on-machine facts~~ **done 2026-10-01** (§3, §4.2, §7a): `eno1` on-link `/24`, 2× empty 450 GB Intel DC NVMe, UEFI, wear recorded. Re-check only if the hardware changed.
 4. Fill in `vars.nix`, `disko.nix`, secrets (§10); `nix eval .#nixosConfigurations.titan.config.system.build.toplevel --show-trace`.
 5. `make bootstrap HOST=titan IP=<rescue-ip> AGE_KEY=… DISK_PASSWORD=<throwaway>` — `bootstrap_host.sh` already runs `nixos-anywhere` with `--phases kexec,disko,install` (no reboot phase: OVH netboot is panel-controlled, so a reboot phase drops the box back into rescue). `DISK_PASSWORD` is required by the script but unused, since D9 removed the LUKS node.
 
@@ -630,7 +630,7 @@ Four things to get right:
 |---|---|---|---|
 | ~~Q1~~ | **ANSWERED 2026-10-01: hostname = `titan`.** | — | — |
 | ~~Q2~~ | **ANSWERED 2026-10-01: plain A + wildcard A records in the existing `arrieta.eu` zone, managed in `../public-dns-tf` (OVH Terraform provider).** WG endpoint and SSH hostname = `titan.arrieta.eu`. See §13a. | — | — |
-| ~~Q3~~ | **ANSWERED 2026-10-01 from rescue mode:** E5-1650 v4 (6c/12t), 125 GiB RAM, 2× identical Intel SSDPE2MX450G7 450 GB NVMe (empty, SMART PASSED), UEFI, `eth0`, gateway on-link `/24`. Follow-ups: NVMe wear counters (§7) and `efibootmgr` after first install. | — | — |
+| ~~Q3~~ | **ANSWERED 2026-10-01 from rescue mode:** E5-1650 v4 (6c/12t), 125 GiB RAM, 2× identical Intel SSDPE2MX450G7 450 GB NVMe (empty, SMART PASSED), UEFI, `eno1`, gateway on-link `/24`. Follow-ups: NVMe wear counters (§7) and `efibootmgr` after first install. | — | — |
 | ~~Q4~~ | **ANSWERED 2026-10-01: unencrypted root (option 2).** LUKS + initrd SSH unlock deferred to its own PR — but it must be decided *before* `titan` takes state, since it cannot be retrofitted without a reinstall. | — | — |
 | Q5 | **MOSTLY ANSWERED 2026-10-01; (c) CLOSED 2026-10-02:** hub config is `/etc/wireguard/wg0.conf` on the VPS; peer inventory captured in §11a. (c) **confirmed: the hub's own old address is `192.168.2.1`** — so the VPS is *not* `.5` in the old mesh, and `.5` is only its planned address as a client of the new hub. Still open: (d) does the current hub masquerade, or does the home router carry a return route for the mesh subnet? — **downgraded from a decision to a verification**, because `titan` ships `wireguard.forwardToLan = true`, which SNATs mesh→LAN and needs no home-router return route at all; Task 15 step 1 checks the live behaviour rather than gating on it. Prefix also confirmed: the old mesh is `192.168.2.0/24`, not the `/28` earlier drafts assumed — `.101`/`.102` could not have lived in a `/28`. | §11a step 6 verification, not a code decision | operator |
 | ~~Q6~~ | **ANSWERED 2026-10-01: `main` + auto, "for now".** Revisit when `titan` holds workloads worth the manual gate; moving it to `stable` later also means the approve-script name fix becomes mandatory. | — | — |
