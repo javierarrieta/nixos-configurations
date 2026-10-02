@@ -125,26 +125,32 @@ in
     # only member -- and it means OPNsense must keep its old-mesh link as well as
     # its new one, or home loses chiclana until the box is reachable again.
     #
-    # WHY 192.168.0.0/24 IS NOT IN allowedIPs YET. AllowedIPs become routes the
-    # moment the generation is deployed, whether or not the peer ever handshakes.
-    # Advertising the LAN here would install `192.168.0.0/24 dev wg0` on a box with
-    # no live tunnel, and titan's Attic cache resolves into that range:
-    # nix-cache.home.arrieta.eu -> 192.168.0.42 (verified 2026-10-02, and it is in
-    # nix.settings.extra-substituters). Today a build that wants it gets "no route
-    # to host" and falls through to cache.nixos.org in milliseconds. With a black
-    # hole route it eats a full connect timeout per narinfo lookup instead -- every
-    # path in the closure, silently, which is a slow-build mystery with no error to
-    # grep. Add the LAN range in the Task 15 session, once the peer actually
-    # handshakes and the route leads somewhere.
+    # WHY 192.168.0.0/24 IS IN allowedIPs NOW, AND WHY IT WAITED. AllowedIPs become
+    # routes the moment the generation is deployed, whether or not the peer ever
+    # handshakes. Advertising the LAN before the tunnel worked would have installed
+    # `192.168.0.0/24 dev wg0` on a box with no live path to it, and titan's Attic
+    # cache resolves into that range: nix-cache.home.arrieta.eu -> 192.168.0.42
+    # (verified 2026-10-02, and it is in nix.settings.extra-substituters). Before the
+    # tunnel, a build wanting it got "no route to host" and fell through to
+    # cache.nixos.org in milliseconds; with a black hole route it eats a full connect
+    # timeout per narinfo lookup instead -- every path in the closure, silently, which
+    # is a slow-build mystery with no error to grep. So it waited until the tunnel was
+    # proven live in both directions on 2026-10-02.
+    #
+    # Two things need this route, and neither works without it:
+    #   - backups: extraHosts pins s3.l.arrieta.eu to 192.168.0.42, so restic cannot
+    #     reach MinIO until titan has a path into the LAN;
+    #   - the binary cache: same address, so without it every deploy on titan
+    #     compiles from source instead of downloading.
     #
     # Roadwarriors sit at .129/.130, NOT the .101/.102 they had on the old flat
     # /24. publicHost answers 6443/10250/9100/4243 only to wireguard.staticSubnet
     # (192.168.133.0/25 = .0-.127), so .101 and .102 would have handed the two
     # laptops control-plane access and made the static/roadwarrior split decorative.
     peers = [
-      # OPNsense, home LAN gateway. Its own /32 only -- see the note below for why
-      # the LAN range is not here yet. Its /32 is what makes the return route on
-      # OPNsense necessary: see the Q5d decision in spec §11a.
+      # OPNsense, home LAN gateway. Its own /32 plus the LAN range it routes for --
+      # see the note above for why that range waited for a live tunnel, and the Q5d
+      # decision in spec §11a for why OPNsense must hold a return route for it.
       #
       # This is NOT the key OPNsense uses on the old mesh (that one is still
       # PZ00ZAz1..., and the VPS keeps using it for chiclana). One box, two
@@ -154,7 +160,12 @@ in
       # silently corrupt the other.
       {
         publicKey = "dkpVTI+DtKSo2giq6HVUF5WHQzwmxH5tofQW65bCRhg=";
-        allowedIPs = [ "192.168.133.2/32" ];
+        allowedIPs = [
+          "192.168.133.2/32"
+          # titan's only path to the home network: MinIO for backups, and the Attic
+          # cache, both at 192.168.0.42.
+          "192.168.0.0/24"
+        ];
       }
       # pixel7 (roadwarrior)
       {
@@ -181,9 +192,9 @@ in
   # mesh-peer privilege. Narrow it to specific hosts later if that turns out to be
   # more than was needed.
   #
-  # Still matched with -i wg0, so this cannot expose the ports on the public NIC,
-  # and it is inert until the OPNsense peer advertises 192.168.0.0/24 -- without
-  # that route titan has no way back.
+  # Still matched with -i wg0, so this cannot expose the ports on the public NIC, and
+  # it needs the OPNsense peer to advertise 192.168.0.0/24 -- without that route titan
+  # has no way back to a LAN source. It does now.
   publicHost.meshTCPPortExtraSources = [ "192.168.0.0/24" ];
 
   sops.secrets."ssh_keys/titan_host_private" = {
