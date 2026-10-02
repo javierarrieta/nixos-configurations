@@ -98,12 +98,19 @@ in
     address = "192.168.133.1/24";
     privateKeyFile = config.sops.secrets."wireguard/titan_private_key".path;
     forwardToLan = true;
-    # Hub migration (spec §11a). One mesh, one set of addresses that never change:
-    # every peer is a plain client with a fixed /32 dialling wg.arrieta.eu, and
-    # whichever box answers that name is the hub. The techdelivery VPS is the
-    # standby hub at .5 and is deliberately absent below -- its keypair does not
-    # exist yet, and a placeholder here is a runtime wg-quick failure, not a
-    # build-time one. Add it when the key is generated.
+    # Hub migration (spec §11a). One mesh, one set of addresses that never change.
+    #
+    # Shape: this file lists titan's side, but the CORE is a triangle -- titan, the
+    # techdelivery VPS and the OPNsense box each hold a direct link to the other
+    # two, so losing titan costs the leaves and whatever sits behind titan, and not
+    # home-to-VPS. Those two links live in the VPS's and OPNsense's own configs
+    # (hand-maintained; private companion doc §5), which is also where titan
+    # advertises the leaf /32s it forwards for. No shared keys, no standby hub, no
+    # failover procedure: redundancy here is just a link that is still up.
+    #
+    # The VPS peer is absent because its keypair does not exist yet, and a
+    # placeholder public key is a runtime wg-quick failure, not a build-time one.
+    # It dials titan like everyone else, so it lands here with no endpoint.
     #
     # Roadwarriors sit at .129/.130, NOT the .101/.102 they had on the old flat
     # /24. publicHost answers 6443/10250/9100/4243 only to wireguard.staticSubnet
