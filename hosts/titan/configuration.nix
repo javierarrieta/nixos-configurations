@@ -197,6 +197,24 @@ in
   # has no way back to a LAN source. It does now.
   publicHost.meshTCPPortExtraSources = [ "192.168.0.0/24" ];
 
+  # MinIO credentials for etcd snapshots, as an EnvironmentFiles-shaped secret:
+  # k3s reads --etcd-s3-access-key from $AWS_ACCESS_KEY_ID and --etcd-s3-secret-key
+  # from $AWS_SECRET_ACCESS_KEY, so the file is exactly two KEY=value lines and no
+  # flag carries a secret into the world-readable unit file.
+  #
+  # It lives in secrets/titan.yaml, NOT secrets.yaml: an etcd snapshot is every
+  # Secret in the cluster in plaintext, so the key that writes it should be
+  # decryptable by titan's own age key and by no other host (Task 17's split).
+  sops.secrets."titan/minio_env" = {
+    sopsFile = ../../secrets/titan.yaml;
+    mode = "0400";
+    owner = "root";
+  };
+
+  systemd.services.k3s.serviceConfig.EnvironmentFiles = [
+    config.sops.secrets."titan/minio_env".path
+  ];
+
   sops.secrets."ssh_keys/titan_host_private" = {
     sopsFile = ../../secrets/titan.yaml;
     mode = "0600";

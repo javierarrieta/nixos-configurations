@@ -225,6 +225,69 @@ sudo mdadm --detail /dev/md/titan
 sudo lvdisplay vg0
 ```
 
+## Backups and the restore drill
+
+etcd is snapshotted hourly by k3s itself into MinIO over the mesh
+(`titan-etcd` bucket, `titan/` folder, 24 kept). Flags live in `vars.nix`;
+credentials are the `titan/minio_env` sops secret, delivered to the unit as
+`EnvironmentFiles` so no secret appears in the world-readable unit file.
+PV data has **no backup yet** -- the cluster has no PVCs, so restic is deferred
+(Task 16b) until there is data worth backing up and a `k8s-titan` GitOps tree to
+put the CronJob in.
+
+### Checking snapshots are landing
+
+```bash
+k3s etcd-snapshot list          # first one lands at the top of the next hour
+```
+
+If the list is empty, the usual cause is the bucket: MinIO answers
+`AccessDenied` -- not `NoSuchBucket` -- for a bucket that does not exist, so a
+missing bucket and a permissions problem look identical.
+
+### The drill (DESTRUCTIVE)
+
+`--cluster-reset` rewrites the datastore. Run it deliberately, never as a
+reaction to something else being on fire.
+
+```bash
+K=/etc/rancher/k3s/k3s.yaml
+kubectl --kubeconfig $K create ns drill
+kubectl --kubeconfig $K -n drill create configmap canary --from-literal=written=before
+k3s etcd-snapshot save --name pre-drill
+k3s etcd-snapshot list                       # note the exact stored name
+kubectl --kubeconfig $K -n drill delete configmap canary   # make it really gone
+```
+
+Then restore. **The manual `k3s server` invocation does not inherit the unit's
+flags.** The plan's version only sourced the credentials, which is not enough:
+`--etcd-s3-endpoint`, `--etcd-s3-bucket` and especially
+`--etcd-s3-bucket-lookup-type=path` have no environment variable behind them, so
+without them k3s reaches for `s3.amazonaws.com` and the restore fails against a
+stopped cluster. Repeat them explicitly:
+
+```bash
+systemctl stop k3s
+set -a; . /run/secrets/titan/minio_env; set +a
+k3s server --cluster-reset \
+  --cluster-reset-restore-path=s3://titan-etcd/titan/pre-drill \
+  --etcd-s3 --etcd-s3-endpoint=https://s3.l.arrieta.eu \
+  --etcd-s3-bucket=titan-etcd --etcd-s3-region=us-east-1 \
+  --etcd-s3-folder=titan --etcd-s3-bucket-lookup-type=path
+# it exits once the store is reset; then:
+systemctl start k3s
+kubectl --kubeconfig $K -n drill get configmap canary -o jsonpath='{.data.written}'
+```
+
+Expected: `before`, node `Ready`, no CrashLoopBackOff fleet-wide.
+
+### Drill log
+
+_None yet -- v1 is not done until this section has a dated entry._
+
+| date | wall clock | result | notes |
+|---|---|---|---|
+
 ## ICMP is not a liveness probe on OVH
 
 OVH's proactive DDoS mitigation raises an **intervention when the primary IP stops
