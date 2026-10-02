@@ -53,7 +53,7 @@
     # PasswordAuthentication were ever flipped back on.
     hashedPasswordFile =
       lib.mkIf config.sopsBase.javierPasswordHash
-        config.sops.secrets."users/javier_password_hash".path;
+        config.sops.secrets.${config.sopsBase.javierPasswordSecret}.path;
     hashedPassword = lib.mkIf (!config.sopsBase.javierPasswordHash) "!";
     extraGroups = [
       "wheel"

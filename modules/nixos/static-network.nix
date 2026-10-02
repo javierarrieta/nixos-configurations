@@ -125,12 +125,21 @@ in
 
     # switch-to-configuration does not re-trigger units whose OnlyBy/WantedBy
     # target is already active (e.g. network.target during a `nixos-rebuild
-    # switch`), so the network-runtime-config service defined above is NOT run
-    # on a switch -- only on a fresh boot. That left static-network hosts
-    # (notably k3s servers) without a default route after the nixpkgs 26.05
-    # switch, which made k3s crash with "unable to select an IP from default
-    # routes". Re-apply the runtime gateway/DNS here, on every activation
-    # (boot + switch), so the route is always present before services restart.
+    # switch`), so network-addresses-<iface>.service is NOT re-run on a switch.
+    # That is not only a route problem. If the address currently on the interface
+    # came from anything other than that unit -- a DHCP lease covering for a
+    # generation whose useDHCP=false named a device the kernel does not have, for
+    # instance -- then switching to a correct generation makes networkd drop the
+    # lease and nothing puts the static address back. The interface ends up with
+    # no address at all and the host is dark until someone reaches a console.
+    # Observed on titan 2026-10-02, five minutes after a healthy-looking deploy.
+    # Re-applying the address on every activation closes that window, and is a
+    # no-op when the address is already the right one.
+    #
+    # The route half exists for the same reason: hosts (notably k3s servers) lost
+    # their default route on the nixpkgs 26.05 switch and k3s crashed with
+    # "unable to select an IP from default routes". Gateway and DNS are re-applied
+    # here, on every activation (boot + switch), before services restart.
     system.activationScripts.network-runtime = lib.mkIf useRuntimeConfig {
       # sops-nix provisions /run/secrets via the `setupSecrets` activation
       # script. Without this dependency the network_env file may not exist yet
@@ -140,6 +149,7 @@ in
       text = ''
         if [ -f "${envFile}" ]; then
           . "${envFile}"
+          ${lib.optionalString (isPlaceholder config.staticNetwork.ipAddress) "${pkgs.iproute2}/bin/ip addr replace \"$IP_ADDRESS\"/${toString config.staticNetwork.prefixLength} dev ${iface}"}
           ${lib.optionalString (isPlaceholder config.staticNetwork.defaultGateway) "${pkgs.iproute2}/bin/ip route replace ${routeFlagsStr}default via \"$DEFAULT_GATEWAY\" dev ${iface}"}
           ${lib.optionalString (lib.any isPlaceholder config.staticNetwork.nameservers) "rm -f /etc/resolv.conf\nprintf \"nameserver %s\\nnameserver %s\\n\" \"$DNS1\" \"$DNS2\" > /etc/resolv.conf"}
         fi

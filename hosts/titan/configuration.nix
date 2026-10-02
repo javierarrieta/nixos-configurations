@@ -38,13 +38,25 @@ in
     passwordAuthentication = false;
   };
   sopsBase.enable = true;
-  # Neither of these belongs on an internet-facing host. javier's personal SSH private
-  # key would be a lateral-movement path paid for nothing (titan reaches the fleet over
-  # the mesh, not by impersonating a laptop), and a key-only box has no password to
-  # provision -- the account is locked in common/users.nix instead. Dropping them is also
-  # what lets Task 17 scope titan's own age key to titan's secrets alone.
+  # javier's personal SSH private key does not belong on an internet-facing host: it is
+  # a lateral-movement path paid for nothing (titan reaches the fleet over the mesh, not
+  # by impersonating a laptop). Dropping it is also what lets Task 17 scope titan's own
+  # age key to titan's secrets alone.
   sopsBase.javierSshKey = false;
-  sopsBase.javierPasswordHash = false;
+  # The password stays, but as titan's own hash in titan's own sops file. sshd is key-only
+  # here (ssh.passwordAuthentication above), so this password is unreachable over the
+  # network: it exists for the IP-KVM console and for sudo. Without it there is no console
+  # login at all -- root has no password and the account was locked, so the only way into
+  # a box that had lost its network was editing init=/bin/sh at the boot menu. That is not
+  # a recovery path worth relying on at 3am (learned 2026-10-02, the day it happened).
+  sopsBase.javierPasswordHash = true;
+  sopsBase.javierPasswordSecret = "users/javier_password_hash_titan";
+  sopsBase.javierPasswordSopsFile = ../../secrets/titan.yaml;
+
+  # common/users.nix turns the sudo password off fleet-wide. A box reachable from the
+  # internet should not hand root to whoever lands a shell as javier, so it comes back
+  # here. mkForce because the common module assigns it unconditionally.
+  security.sudo.wheelNeedsPassword = lib.mkForce true;
   nixSweep.enable = true;
 
   networking.hostName = vars.hostname;
@@ -59,10 +71,10 @@ in
     routeFlags = [ ];
   };
   networking.interfaces.${vars.networkInterface}.useDHCP = false;
-  # eth1 is present and physically down (confirmed in rescue mode). Declaring it
+  # eno2 is present and physically down (confirmed in rescue mode). Declaring it
   # keeps a DHCP client off a dead link and documents that the second NIC is
   # unused rather than overlooked.
-  networking.interfaces.eth1.useDHCP = false;
+  networking.interfaces.eno2.useDHCP = false;
 
   # These five live in secrets/titan.yaml, not secrets.yaml. SOPS encrypts a data key to
   # every recipient of a file, so any key that opens secrets.yaml opens all of it -- the
