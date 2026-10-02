@@ -2302,14 +2302,45 @@ sops -e /tmp/secrets.dec.yaml > secrets.yaml && rm /tmp/secrets.dec.yaml
       # An etcd snapshot is every Secret in the cluster in plaintext, so the
       # bucket is the most sensitive object in the design: the MinIO key is
       # scoped to exactly these two buckets and nothing else.
-      "--etcd-snapshot-s3"
-      "--etcd-snapshot-s3-folder=titan"
-      "--etcd-snapshot-bucket=titan-etcd"
-      "--etcd-snapshot-endpoint=https://s3.l.arrieta.eu:9000"
-      "--etcd-snapshot-region=us-east-1"
-      "--etcd-snapshot-retention=24"
-      "--etcd-snapshot-cron=0 * * * *"
+      #
+      # FLAG NAMES WERE WRONG IN THE FIRST DRAFT of this task. The S3 family is
+      # `--etcd-s3-*`, NOT `--etcd-snapshot-s3-*`; the cron flag is
+      # `--etcd-snapshot-schedule-cron`; the restore flag is
+      # `--cluster-reset-restore-path`, not `-url`. k3s exits on an unknown flag,
+      # so the old list would have killed k3s at startup, tripped the health gate
+      # and rolled the canary back. Verified against docs.k3s.io/cli/server on
+      # 2026-10-02; re-verify against the binary on the host before deploying:
+      #   k3s server --help 2>&1 | grep -E "etcd-s3|schedule-cron|cluster-reset"
+      #
+      # The endpoint has NO PORT. s3.l.arrieta.eu is a Traefik Ingress on 443
+      # (k8s-casa apply/50-apps/casa/minio.yaml: the Service port 9000 is the
+      # in-cluster port, never reachable from outside). Pinning :9000 would
+      # connect to the MetalLB VIP and hang.
+      "--etcd-s3"
+      "--etcd-s3-folder=titan"
+      "--etcd-s3-bucket=titan-etcd"
+      "--etcd-s3-endpoint=https://s3.l.arrieta.eu"
+      "--etcd-s3-region=us-east-1"
+      # PATH STYLE IS MANDATORY. The default 'auto' lookup would try
+      # titan-etcd.s3.l.arrieta.eu, which has no DNS record and no cert -- the
+      # Traefik Ingress serves one host. k8s-techdelivery hits the same wall and
+      # its boto3 config sets addressing_style=path for exactly this reason.
+      "--etcd-s3-bucket-lookup-type=path"
+      # S3 retention, NOT --etcd-snapshot-retention: the latter governs local
+      # snapshot files, which do not exist when snapshots go to S3. Confirmed on
+      # the host binary: `--etcd-s3-retention value (db) S3 retention limit`.
+      "--etcd-s3-retention=24"
+      # The embedded quotes are load-bearing. k3s.extraFlags is toString'd into a
+      # single ExecStart string, so an unquoted cron is word-split by systemd into
+      # `--etcd-snapshot-schedule-cron=0` plus three stray args and k3s exits.
+      # Verified by evaluating ExecStart: the quotes survive and systemd's parser
+      # keeps it as one argument.
+      "--etcd-snapshot-schedule-cron=\"0 * * * *\""
 ```
+
+Credentials come from the environment, not flags: `--etcd-s3-access-key` reads
+`AWS_ACCESS_KEY_ID` and `--etcd-s3-secret-key` reads `AWS_SECRET_ACCESS_KEY`, which is
+what the `EnvironmentFiles` wiring below supplies.
 
 and in `hosts/titan/configuration.nix`:
 
@@ -2326,7 +2357,7 @@ and in `hosts/titan/configuration.nix`:
 - [ ] **Step 3: Verify the flags and the credentials reach the service**
 
 ```bash
-nix eval --raw .#nixosConfigurations.titan.config.services.k3s.extraFlags | tr ' ' '\n' | grep etcd-snapshot
+nix eval --raw .#nixosConfigurations.titan.config.services.k3s.extraFlags | tr ' ' '\n' | grep -E "etcd-s3|schedule-cron"
 ssh -p 13491 nixos@titan.arrieta.eu 'systemctl show k3s -p EnvironmentFiles; journalctl -u k3s -g "snapshot" --no-pager | tail -5'
 ```
 Expected: seven `--etcd-snapshot-*` flags; the env file path; a log line showing a successful snapshot upload.
@@ -2372,7 +2403,7 @@ Then restore, and confirm the canary survived. The manual `k3s server` run needs
 ssh -p 13491 nixos@titan.arrieta.eu '
   systemctl stop k3s
   set -a; . /run/secrets/titan/minio_env; set +a
-  k3s server --cluster-reset --cluster-reset-restore-url=s3://titan-etcd/titan/pre-drill
+  k3s server --cluster-reset --cluster-reset-restore-path=s3://titan-etcd/titan/pre-drill
   systemctl start k3s
   kubectl --kubeconfig /etc/rancher/k3s/k3s.yaml -n drill get configmap canary -o jsonpath="{.data.written}"
 '
