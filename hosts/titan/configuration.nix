@@ -59,10 +59,10 @@ in
     routeFlags = [ ];
   };
   networking.interfaces.${vars.networkInterface}.useDHCP = false;
-  # eth1 is present and physically down (confirmed in rescue mode). Declaring it
+  # eno2 is present and physically down (confirmed in rescue mode). Declaring it
   # keeps a DHCP client off a dead link and documents that the second NIC is
   # unused rather than overlooked.
-  networking.interfaces.eth1.useDHCP = false;
+  networking.interfaces.eno2.useDHCP = false;
 
   # These five live in secrets/titan.yaml, not secrets.yaml. SOPS encrypts a data key to
   # every recipient of a file, so any key that opens secrets.yaml opens all of it -- the
