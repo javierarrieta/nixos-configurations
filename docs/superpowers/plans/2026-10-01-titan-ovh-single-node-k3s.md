@@ -67,7 +67,7 @@ Failure modes the spec implies that no single task's happy-path eval catches. Ea
 | Path | Change |
 |---|---|
 | `flake.nix` | `nixosConfigurations.titan` |
-| `.github/workflows/verify.yml` | `titan` matrix leg (added in Task 8, when the host becomes buildable). Until Task 12 its build step tolerates exactly one failure — the missing-sops-key manifest error — and nothing else. |
+| `.github/workflows/verify.yml` | `titan` matrix leg (added in Task 8). Blocking: titan's sops keys landed with Task 12 on 2026-10-02, so the toplevel builds in CI. |
 | `modules/nixos/ssh.nix` | `port`, `passwordAuthentication`, `listenAddresses` |
 | `modules/nixos/static-network.nix` | `routeFlags` threaded into all three route installs |
 | `modules/nixos/comin-health-gate.nix` | heal branch honours `routeFlags` |
@@ -1433,13 +1433,14 @@ Expected: `>=1` and `1`. If the second is `0`, Task 7's `requiresMountFor` strin
 
 - [ ] **Step 7: Register the host in CI — and only now build the toplevel.** Before this task titan could not build at all (systemd-boot sets `fileSystems."/boot"` and nixpkgs asserts a root alongside it); the layout above is what makes the matrix leg honest. In `.github/workflows/verify.yml`, after the `llm01` line of the matrix:
 
-> The build step carries a narrow escape hatch until Task 12: if the build fails with
-> `sops-install-secrets: manifest is not valid`, the step warns and exits 0. sops
-> encrypts values but leaves key names in plaintext, so sops-nix verifies every
-> `sops.secrets` key name against `secrets.yaml`'s key tree at **build** time, and
-> titan's five keys do not exist yet. The hatch is keyed on that exact error, not on
-> the host name, so any other titan build break (disko, a module) still goes red.
-> Task 12 Step 7 removes it.
+> Historical, kept because the reasoning still matters: between Task 8 and Task 12 the
+> build step carried a narrow escape hatch — if the build failed with
+> `sops-install-secrets: manifest is not valid`, it warned and exited 0. sops encrypts
+> values but leaves key names in plaintext, so sops-nix verifies every `sops.secrets`
+> key name against `secrets.yaml`'s key tree at **build** time, and titan's five keys
+> did not exist yet. The hatch was keyed on that exact error, not on the host name, so
+> any other titan build break still went red. Task 12 landed on 2026-10-02 and the hatch
+> was deleted in the same branch.
 
 ```yaml
           - { host: titan,        runner: ubuntu-24.04,   arch: x86_64 }
@@ -1818,9 +1819,15 @@ toolchain. k8s-* hosts keep python/k8s tools exactly as before."
 
 ## Task 12: SOPS secrets for `titan`
 
+> **DONE 2026-10-02**, pulled ahead of the merge at the operator's request so the branch
+> lands complete. All five keys were written with `sops --set` (never a decrypt-to-disk
+> round trip), which preserves the file's four age recipients — verified before and after.
+> The manifest derivation that CI failed on now builds locally; the CI escape hatch was
+> deleted in the same branch. Steps 1–7 below are the runbook as executed.
+
 Five secrets, all generated locally, none committed in plaintext. Spec §10 listed a `wireguard/titan_address` secret; the mesh address is not secret and lives in `vars.nix`, so it is dropped here and spec §10 should be amended to match.
 
-Until these five keys exist, `nix build .#nixosConfigurations.titan.config.system.build.toplevel` **fails** with `sops-install-secrets: manifest is not valid: … the key '<name>' cannot be found` — sops encrypts values but leaves key names in plaintext, so sops-nix can verify the key tree at build time and does. The CI build step tolerates exactly that error (Task 8 Step 7); the last step of this task removes the tolerance.
+Until these five keys exist, `nix build .#nixosConfigurations.titan.config.system.build.toplevel` **fails** with `sops-install-secrets: manifest is not valid: … the key '<name>' cannot be found` — sops encrypts values but leaves key names in plaintext, so sops-nix can verify the key tree at build time and does. The CI build step tolerated exactly that error (Task 8 Step 7); that tolerance is gone now that the keys exist.
 
 **Files:**
 - Modify: `secrets.yaml` (encrypted)
@@ -1951,10 +1958,13 @@ Expected: both empty (NXDOMAIN).
 # one per app. OVH's DNS API can create records under a wildcard name, so the
 # solver only needs the zone credential.
 #
-# ttl 300 matches local.arrieta.eu.tf: the mesh endpoint and the SSH hostname both
-# live here, and a moved host should converge in minutes, not at the default TTL.
+# The plain A is load-bearing twice over: it is the WireGuard endpoint every peer
+# dials (endpoint = titan.arrieta.eu:51820) and the SSH hostname.
+#
+# ttl 300 matches local.arrieta.eu.tf: a moved host should converge in minutes,
+# not at the default TTL.
 resource "ovh_domain_zone_record" "titan" {
-  zone      = var.ovh_domain
+  zone      = "arrieta.eu"
   subdomain = "titan"
   fieldtype = "A"
   ttl       = 300
@@ -1962,13 +1972,17 @@ resource "ovh_domain_zone_record" "titan" {
 }
 
 resource "ovh_domain_zone_record" "titan_wildcard" {
-  zone      = var.ovh_domain
+  zone      = "arrieta.eu"
   subdomain = "*.titan"
   fieldtype = "A"
   ttl       = 300
   target    = "<OVH_PUBLIC_IP>"
 }
 ```
+
+> Corrected 2026-10-02: an earlier draft used `zone = var.ovh_domain`. `public-dns-tf`
+> has no such variable — `variables.tf` defines only `host_map`, and every existing
+> record hardcodes `zone = "arrieta.eu"`. Follow the repo, not the draft.
 
 - [ ] **Step 3: Plan, review, apply**
 
