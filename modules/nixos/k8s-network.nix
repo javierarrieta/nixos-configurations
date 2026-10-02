@@ -25,7 +25,8 @@
   };
 
   config = lib.mkIf config.k8sNetwork.enable {
-    networking.firewall.enable = false;
+    # See k3s.nix: mkDefault so public-host.nix can win without mkForce.
+    networking.firewall.enable = lib.mkDefault false;
 
     systemd.services."network-addresses-${config.k8sNetwork.primaryInterface}".serviceConfig.EnvironmentFile =
       lib.mkForce config.sops.secrets."${config.k8sNetwork.hostName}/network_env".path;

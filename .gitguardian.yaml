@@ -1,0 +1,5 @@
+secret:
+  ignored_matches:
+  - match: e82bb8061d36ac1bba0e3de100e7999054429296a658f729f9837585a5fd291d
+    name: nix-lib-mkOption-generic-password-FP
+version: 2

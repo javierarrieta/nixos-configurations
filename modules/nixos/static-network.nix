@@ -15,6 +15,11 @@ let
   # DNS. It is provisioned early in activation, so it is already on disk by the
   # time activationScripts run.
   envFile = config.sops.secrets."${config.networking.hostName}/network_env".path;
+  routeFlagsStr =
+    if config.staticNetwork.routeFlags == [ ] then
+      ""
+    else
+      lib.concatStringsSep " " config.staticNetwork.routeFlags + " ";
 in
 {
   options = {
@@ -42,6 +47,23 @@ in
         type = lib.types.str;
         default = "eth0";
         description = "Network interface name";
+      };
+      routeFlags = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        example = [ "onlink" ];
+        description = ''
+          Extra flags appended to every `ip route replace` this module emits
+          (runtime service, activation script, route watchdog and the comin
+          health gate's heal branch).
+
+          OVH's primary IP is normally a /24 with an on-link gateway, so this
+          stays empty. It exists for the routed/failover shape, where the
+          gateway is off-link and the kernel refuses the route with
+          `Network is unreachable` unless the route is marked onlink -- a
+          failure that otherwise shows up as a host that silently loses its
+          default route on the first switch.
+        '';
       };
     };
   };
@@ -88,7 +110,7 @@ in
         ${lib.optionalString
           (isPlaceholder config.staticNetwork.ipAddress || isPlaceholder config.staticNetwork.defaultGateway)
           ''
-            ip route replace default via "$DEFAULT_GATEWAY" dev ${config.staticNetwork.interface}
+            ip route replace ${routeFlagsStr}default via "$DEFAULT_GATEWAY" dev ${config.staticNetwork.interface}
           ''
         }
         ${lib.optionalString (lib.any isPlaceholder config.staticNetwork.nameservers) ''
@@ -118,7 +140,7 @@ in
       text = ''
         if [ -f "${envFile}" ]; then
           . "${envFile}"
-          ${lib.optionalString (isPlaceholder config.staticNetwork.defaultGateway) "${pkgs.iproute2}/bin/ip route replace default via \"$DEFAULT_GATEWAY\" dev ${iface}"}
+          ${lib.optionalString (isPlaceholder config.staticNetwork.defaultGateway) "${pkgs.iproute2}/bin/ip route replace ${routeFlagsStr}default via \"$DEFAULT_GATEWAY\" dev ${iface}"}
           ${lib.optionalString (lib.any isPlaceholder config.staticNetwork.nameservers) "rm -f /etc/resolv.conf\nprintf \"nameserver %s\\nnameserver %s\\n\" \"$DNS1\" \"$DNS2\" > /etc/resolv.conf"}
         fi
       '';
@@ -141,7 +163,7 @@ in
         Type = "simple";
         Restart = "always";
         RestartSec = "10s";
-        ExecStart = "${pkgs.bash}/bin/bash -c 'while true; do ${pkgs.iproute2}/bin/ip route replace default via \"$DEFAULT_GATEWAY\" dev ${iface} 2>/dev/null; ${pkgs.coreutils}/bin/sleep 10; done'";
+        ExecStart = "${pkgs.bash}/bin/bash -c 'while true; do ${pkgs.iproute2}/bin/ip route replace ${routeFlagsStr}default via \"$DEFAULT_GATEWAY\" dev ${iface} 2>/dev/null; ${pkgs.coreutils}/bin/sleep 10; done'";
         EnvironmentFile = config.sops.secrets."${config.networking.hostName}/network_env".path;
       };
     };

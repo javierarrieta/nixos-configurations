@@ -216,6 +216,24 @@
         ];
       };
 
+      nixosConfigurations.titan = nixpkgs.lib.nixosSystem {
+        specialArgs = {
+          inherit unstable home-manager nix-sweep;
+        }
+        // (mkExtraArgs "x86_64-linux");
+        modules = [
+          {
+            nixpkgs.hostPlatform.system = "x86_64-linux";
+          }
+          ./hosts/titan
+          disko.nixosModules.disko
+          sops-nix.nixosModules.sops
+          home-manager.nixosModules.home-manager
+          comin.nixosModules.comin
+          nix-sweep.nixosModules.default
+        ];
+      };
+
       nixosConfigurations.ryzen7 = nixpkgs.lib.nixosSystem {
         specialArgs = {
           inherit unstable home-manager nix-sweep;

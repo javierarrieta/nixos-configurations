@@ -62,6 +62,16 @@ in
         default = "manual";
         description = "Comin deploy confirmer mode. manual requires 'comin confirmation accept' on each host before deploying.";
       };
+      hermesEnable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Whether to create the 'hermes' deployer account. Fleet hosts need it:
+          the hermes agent SSHes in to run comin confirmation accept. A host on
+          the public internet with confirmerMode = auto has no use for it and
+          should not carry a second SSH-login-capable account.
+        '';
+      };
       healthGate = {
         enable = lib.mkEnableOption "Post-deployment health gate (route/k3s/current-system check with rollback)";
         checks = lib.mkOption {
@@ -99,7 +109,7 @@ in
       branch = lib.mkOption {
         type = lib.types.str;
         default = "main";
-        description = "Git branch to track. Canaries (node05, llm01) use 'main'; the 10 fleet hosts use 'stable' (promoted manually).";
+        description = "Git branch to track. Canaries (node05, llm01, titan) use 'main'; the 10 fleet hosts use 'stable' (promoted manually).";
       };
       pendingMetric = {
         enable = lib.mkEnableOption "Emit comin_pending_confirmation textfile metric via node_exporter";
@@ -109,7 +119,7 @@ in
 
   config = lib.mkIf config.cominGitOps.enable {
     # Every comin host can serve as a rollout target for scripts/comin-approve.sh
-    hermesSsh.enable = true;
+    hermesSsh.enable = config.cominGitOps.hermesEnable;
 
     services.comin = {
       enable = true;
@@ -133,7 +143,12 @@ in
     # Harmless on hosts where the firewall is already disabled.
     services.comin.exporter = {
       listen_address = ""; # all interfaces (comin default, stated for clarity)
-      openFirewall = true;
+      # mkDefault, not a plain assignment: a host whose firewall is actually up
+      # must refuse this with a plain `false` (see public-host.nix, whose
+      # mesh-leak assertion refuses the build if 4243 ever reaches the global
+      # allowlist) rather than reaching for mkForce, which nothing downstream
+      # could correct. Harmless on the fleet, where the firewall is disabled.
+      openFirewall = lib.mkDefault true;
     };
 
     systemd.tmpfiles.rules = [
