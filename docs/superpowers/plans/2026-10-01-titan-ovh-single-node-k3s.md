@@ -2189,6 +2189,8 @@ first bootstrap, so titan must build locally and ship its closure."
 
 The mesh renumber (D15: `192.168.2.0/24` → `192.168.133.0/24`) and the hub move (D14) are one operation: every peer changes address and endpoint at once. The old hub on `techdelivery.es` stays up until every peer has handshaked with the new one, so the two meshes coexist during the move.
 
+**Update 2026-10-02 — the core is a triangle (spec §4.3).** Before any peer flips, OPNsense and `techdelivery.es` each *add* a link to `titan` and remove nothing: the three cores hold a direct link to each other, so the mesh survives `titan` for the one path worth saving (home↔VPS) and there is no standby hub, no shared keypair and no failover procedure. Roadwarriors move to `.129`/`.130`, **not** the `.101`/`.102` they had on the old flat `/24` — `public-host.nix` trusts only `192.168.133.0/25`, so the old numbers would have handed both laptops 6443 and 10250. Full runbook: private companion §5.
+
 **Files:**
 - Modify: `hosts/titan/configuration.nix` (fill `wireguard.peers`)
 - Modify: `../k8s-techdelivery` manifests that hardcode `192.168.2.x` (`node-exporter-llm01.yaml`, `chiclana-hass.yaml`, `gatus.yaml`) and the Prometheus scrape list
@@ -2196,7 +2198,7 @@ The mesh renumber (D15: `192.168.2.0/24` → `192.168.133.0/24`) and the hub mov
 
 **Interfaces:**
 - Consumes: `wireguard` module (Task 5), `titan.arrieta.eu` (Task 13), the peer table in the private companion doc.
-- Produces: the mesh at `192.168.133.0/24` with titan as hub.
+- Produces: the mesh at `192.168.133.0/24`, titan as hub for the leaves, and the three core boxes (`titan`, `techdelivery.es`, OPNsense) each holding a direct link to the other two.
 
 - [ ] **Step 1: Confirm what is left before touching anything.** Q5c and Q12 are **closed** — the old hub is `192.168.2.1`, the old mesh is `192.168.2.0/24`, and `192.168.133.0/24` is free at home, chiclana and on the OVH host network. **Q5d is now closed too** (2026-10-02): the home router is `OPNsense`, and the mesh returns by **route, not masquerade** — OPNsense must carry `192.168.133.0/24` into its WG peer, which its WireGuard plugin installs from the endpoint's Allowed IPs. Whether the old hub masquerades is still worth recording for the audit (Firewall → NAT → Outbound, or Routing → Static Routes), but it no longer gates the move, and any existing masquerade stays exactly where it is until the old hub is retired. See spec §11a.
 
