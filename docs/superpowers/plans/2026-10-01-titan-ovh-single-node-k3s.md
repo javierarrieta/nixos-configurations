@@ -2191,7 +2191,7 @@ The mesh renumber (D15: `192.168.2.0/24` → `192.168.133.0/24`) and the hub mov
 
 **Update 2026-10-02 — the core is a triangle (spec §4.3).** Before any peer flips, OPNsense and `techdelivery.es` each *add* a link to `titan` and remove nothing: the three cores hold a direct link to each other, so the mesh survives `titan` for the one path worth saving (home↔VPS) and there is no standby hub, no shared keypair and no failover procedure. Roadwarriors move to `.129`/`.130`, **not** the `.101`/`.102` they had on the old flat `/24` — `public-host.nix` trusts only `192.168.133.0/25`, so the old numbers would have handed both laptops 6443 and 10250. Full runbook: private companion §5.
 
-**Update 2026-10-02 — `chiclana` is not migrated.** Nobody can touch that box for a few months, so it stays on the old `192.168.2.0/24` mesh with the VPS as its hub. The old hub is therefore **scoped, not retired**: it keeps running with `chiclana` as its only member, and OPNsense must keep its old-mesh link alongside the new one or home loses `chiclana` the day it drops the old one.
+**Update 2026-10-02 — `chiclana` is not migrated.** Nobody can touch that box for a few months, so it stays on the old `192.168.2.0/24` mesh with the VPS as its hub. The old hub is therefore **scoped, not retired**: it keeps running with **`chiclana` and OPNsense** as its members. OPNsense carries both meshes indefinitely — routing home↔chiclana through the bridge instead (home → titan → VPS → chiclana) would make that path depend on `titan`, which is exactly the dependency the triangle exists to remove, and it would vanish at the moment it was wanted.
 
 **Files:**
 - Modify: `hosts/titan/configuration.nix` (fill `wireguard.peers`)
