@@ -111,7 +111,7 @@ in
   k3s = vars.k3s;
 
   # k8s-network forces the network_env EnvironmentFile onto both
-  # network-addresses-eth0 and k3s, which is what resolves the $IP_ADDRESS
+  # network-addresses-eno1 and k3s, which is what resolves the $IP_ADDRESS
   # placeholders for k3s' own node-ip detection.
   k8sNetwork = {
     enable = true;

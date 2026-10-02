@@ -1,6 +1,6 @@
 { config, pkgs }:
 let
-  networkInterface = "eth0";
+  networkInterface = "eno1";
 in
 {
   hostname = "titan";

@@ -44,7 +44,7 @@ Failure modes the spec implies that no single task's happy-path eval catches. Ea
 - **PV data lands on `/`.** If k3s starts before `/var/lib/rancher/k3s/storage` is mounted, k3s creates the directory on the root filesystem and PVs end up split across two devices with no error. Expected: k3s cannot start until the mount is up. (Task 7 ordering + Task 14 `findmnt` check.)
 - **Stage 1 cannot assemble mdraid + LVM.** The repo has no `mdraid`/`lvm_vg` precedent; a missing initrd module means a kernel panic on a box whose only console is OVH IP-KVM. Expected: `boot.initrd.services.lvm.enable` evaluates `true` and the generated initrd carries `mdadm` + `lvm`. (Task 8.)
 - **A silent 100 % Attic cache miss.** `attic-cache.nix` documents this failure class: a wrong URL or key substitutes nothing and logs nothing, so a 40-minute build looks normal. Expected: `atticCache.url` keeps its path component and the trusted key is untouched. (Task 1 assertion; module already asserts the URL shape.)
-- **flannel binds to `wg0` instead of `eth0`.** On a host where the tunnel is up at boot, flannel's interface auto-detection can pick `wg0`, and the pod network then runs over a link that leads to the home LAN instead of the local bridge — pods come up and nothing can reach them. Expected: `--flannel-iface=eth0` is always emitted, and `kubectl get node -o wide` shows the public address as `Internal-IP`. (Task 7 flag + Task 14 Step 4.)
+- **flannel binds to `wg0` instead of `eno1`.** On a host where the tunnel is up at boot, flannel's interface auto-detection can pick `wg0`, and the pod network then runs over a link that leads to the home LAN instead of the local bridge — pods come up and nothing can reach them. Expected: `--flannel-iface=eno1` is always emitted, and `kubectl get node -o wide` shows the public address as `Internal-IP`. (Task 7 flag + Task 14 Step 4.)
 - **The mesh is the only path to the backups.** rsyslog, Attic pulls and etcd snapshots all reach `192.168.0.42`/`.41` through `wg0`; a hub migration that breaks the tunnel silently stops backups and log shipping. Expected: post-migration verification proves each of the three paths, not just `wg show`. (Tasks 10, 15, 16.)
 
 ## File structure
@@ -112,7 +112,7 @@ Expected: `error: attribute 'titan' missing`.
 ```nix
 { config, pkgs }:
 let
-  networkInterface = "eth0";
+  networkInterface = "eno1";
 in
 {
   hostname = "titan";
@@ -274,7 +274,7 @@ nix eval .#nixosConfigurations.titan.config.staticNetwork.interface --raw; echo
 nix eval .#nixosConfigurations.titan.config.sops.secrets."titan/network_env".path
 nix flake show 2>/dev/null | grep titan
 ```
-Expected: `titan`, `eth0`, a `/run/secrets/...` path, and a `nixosConfigurations.titan` line.
+Expected: `titan`, `eno1`, a `/run/secrets/...` path, and a `nixosConfigurations.titan` line.
 
 Do **not** build the toplevel here, and do not add a placeholder `fileSystems."/"` to make it pass. `nix build .#nixosConfigurations.titan.config.system.build.toplevel` fails at this stage with `The 'fileSystems' option does not specify your root file system.` — that is systemd-boot's `/boot` entry with no root yet, and Task 8 removes the condition by giving the host a real layout. A fake root filesystem here would be a false hardware fact that disko and `fileSystems` then fight over at boot.
 
@@ -1182,7 +1182,7 @@ and in `hosts/titan/configuration.nix` add `../../modules/nixos/k3s.nix` and `..
   k3s = vars.k3s;
 
   # k8s-network forces the network_env EnvironmentFile onto both
-  # network-addresses-eth0 and k3s, which is what resolves the $IP_ADDRESS
+  # network-addresses-eno1 and k3s, which is what resolves the $IP_ADDRESS
   # placeholders for k3s' own node-ip detection.
   k8sNetwork = {
     enable = true;
@@ -1211,7 +1211,7 @@ nix eval .#nixosConfigurations.titan.config.services.k3s.serverAddr --raw; echo
 nix eval .#nixosConfigurations.titan.config.services.k3s.tokenFile
 nix eval .#nixosConfigurations.titan.config.systemd.services.k3s.after
 ```
-Expected: `--cluster-cidr=10.62.0.0/16`, `--service-cidr=10.63.0.0/16`, `--flannel-iface=eth0`, three `--kubelet-arg=` entries, no `--disable=`; empty string; the token path; a list containing `var-lib-rancher-k3s-storage.mount`.
+Expected: `--cluster-cidr=10.62.0.0/16`, `--service-cidr=10.63.0.0/16`, `--flannel-iface=eno1`, three `--kubelet-arg=` entries, no `--disable=`; empty string; the token path; a list containing `var-lib-rancher-k3s-storage.mount`.
 
 `--node-external-ip` is deliberately **not** set. `k8s-techdelivery`'s single node reports its public address as `Internal-IP` and runs fine, which proves k3s picks a sane address on a public-only host; Task 14 Step 4 verifies it on titan instead of assuming the flag is needed.
 

@@ -186,7 +186,7 @@ sudo install -m 0600 -o root -g root /path/to/keys.txt /var/lib/sops-nix/key.txt
 # default route mid-activation). Absolute paths for BOTH commands: a loop whose
 # `sleep` is missing from PATH becomes a 200-spawn/sec flood into rsyslog.
 sudo systemd-run --unit=routewatch --collect bash -c \
-  'while true; do /run/current-system/sw/bin/ip route replace default via <OVH_GATEWAY> dev eth0; /run/current-system/sw/bin/sleep 10; done'
+  'while true; do /run/current-system/sw/bin/ip route replace default via <OVH_GATEWAY> dev eno1; /run/current-system/sw/bin/sleep 10; done'
 sudo systemctl stop routewatch        # when settled
 
 # comin stuck after a health-gate suspend + daemon restart (comin issue #159):
