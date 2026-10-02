@@ -98,10 +98,50 @@ in
     address = "192.168.133.1/24";
     privateKeyFile = config.sops.secrets."wireguard/titan_private_key".path;
     forwardToLan = true;
-    # Peers are added by the hub migration (spec §11a). Empty here on purpose:
-    # an empty hub is a working hub, and shipping the hub before the peers are
-    # rewired is what keeps the old path alive during the move.
-    peers = [ ];
+    # Hub migration (spec §11a). One mesh, one set of addresses that never change:
+    # every peer is a plain client with a fixed /32 dialling wg.arrieta.eu, and
+    # whichever box answers that name is the hub. The techdelivery VPS is the
+    # standby hub at .5 and is deliberately absent below -- its keypair does not
+    # exist yet, and a placeholder here is a runtime wg-quick failure, not a
+    # build-time one. Add it when the key is generated.
+    #
+    # Roadwarriors sit at .129/.130, NOT the .101/.102 they had on the old flat
+    # /24. publicHost answers 6443/10250/9100/4243 only to wireguard.staticSubnet
+    # (192.168.133.0/25 = .0-.127), so .101 and .102 would have handed the two
+    # laptops control-plane access and made the static/roadwarrior split decorative.
+    peers = [
+      # OPNsense, home LAN gateway. The only peer that advertises a range beyond
+      # its own /32: this is how titan reaches 192.168.0.42 (MinIO) and the rest
+      # of the LAN. Its own /32 is what makes the return route on OPNsense
+      # necessary -- see the Q5d decision in spec §11a.
+      {
+        publicKey = "PZ00ZAz1DC5bMb7aYjKNsG4vd5xA1LizmsOJEo5TWAc=";
+        allowedIPs = [
+          "192.168.133.2/32"
+          "192.168.0.0/24"
+        ];
+      }
+      # chiclana (Home Assistant)
+      {
+        publicKey = "pMTNHoTVo/MZow0sFpBdIdP/HrSazz8mFVS+PvpnTzc=";
+        allowedIPs = [ "192.168.133.3/32" ];
+      }
+      # llm01
+      {
+        publicKey = "7IG/KId/M/bkm/pgiVWe4oOu1Do/4ccJRLuQJoui+ks=";
+        allowedIPs = [ "192.168.133.4/32" ];
+      }
+      # pixel7 (roadwarrior)
+      {
+        publicKey = "e7WsXBdlcjQP1GF8NjDsNzlKVtds55AA3ZaNltoQtno=";
+        allowedIPs = [ "192.168.133.129/32" ];
+      }
+      # macbookair (roadwarrior)
+      {
+        publicKey = "zhW9LX3U9R9Dt5IMxUMI/HlCzsOEFQbUWdslZHDra2g=";
+        allowedIPs = [ "192.168.133.130/32" ];
+      }
+    ];
   };
 
   # Inbound default-deny; the allowlist is the contract in spec §4.4.
