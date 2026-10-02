@@ -112,6 +112,13 @@ in
     # placeholder public key is a runtime wg-quick failure, not a build-time one.
     # It dials titan like everyone else, so it lands here with no endpoint.
     #
+    # llm01 is absent on purpose: its mesh peer is a leftover from when it had to
+    # be bridged to the VPS, and it now sits inside the home LAN. titan reaches it
+    # at 192.168.0.29 through the OPNsense peer's 192.168.0.0/24, so it needs no
+    # tunnel of its own. Retiring llm01's own wg0 is a Task 15 step, sequenced
+    # AFTER whatever monitored it over the mesh is repointed at the LAN address --
+    # doing it first is a self-inflicted outage of your own monitoring.
+    #
     # chiclana is absent too, and for longer: nobody can touch that box for a few
     # months, so it stays on the old 192.168.2.0/24 mesh via the VPS. That makes
     # the old hub permanent-but-scoped -- it keeps running with chiclana as its
@@ -133,11 +140,6 @@ in
           "192.168.133.2/32"
           "192.168.0.0/24"
         ];
-      }
-      # llm01
-      {
-        publicKey = "7IG/KId/M/bkm/pgiVWe4oOu1Do/4ccJRLuQJoui+ks=";
-        allowedIPs = [ "192.168.133.4/32" ];
       }
       # pixel7 (roadwarrior)
       {
