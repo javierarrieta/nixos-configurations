@@ -142,6 +142,44 @@ if bad:
 print("verified: all five present in secrets/titan.yaml, all five absent from secrets.yaml")
 PY
 
+# Presence is not enough. The values survive a round trip through sops JSON, jq, pyyaml
+# and sops YAML on the way here, and the one that bites is the trailing newline on the
+# OpenSSH private key -- lose it and ssh refuses the key with a confusing error, weeks
+# later. So compare every value byte-for-byte against the pre-split file.
+sops -d --input-type yaml --output-type json "$BACKUP" > "$WORK/orig.json"
+sops -d --output-type json secrets/titan.yaml > "$WORK/new-titan.json"
+sops -d --output-type json secrets.yaml > "$WORK/new-rest.json"
+python3 - "$WORK/orig.json" "$WORK/new-titan.json" "$WORK/new-rest.json" <<'PY'
+import json, sys
+orig = json.load(open(sys.argv[1]))
+merged = json.load(open(sys.argv[2]))
+
+def deep_merge(a, b):
+    for k, v in b.items():
+        if isinstance(v, dict) and isinstance(a.get(k), dict):
+            deep_merge(a[k], v)
+        else:
+            a[k] = v
+    return a
+
+deep_merge(merged, json.load(open(sys.argv[3])))
+if merged == orig:
+    print("verified: every value byte-for-byte identical to the pre-split file")
+else:
+    diffs = []
+    def walk(a, b, path=""):
+        for k in sorted(set(a) | set(b)):
+            p = f"{path}.{k}" if path else k
+            if k not in a or k not in b:
+                diffs.append(f"{p}: present in only one side")
+            elif isinstance(a[k], dict) and isinstance(b[k], dict):
+                walk(a[k], b[k], p)
+            elif a[k] != b[k]:
+                diffs.append(f"{p}: differs (len {len(str(a[k]))} vs {len(str(b[k]))})")
+    walk(orig, merged)
+    sys.exit("FAIL: values changed:\n  " + "\n  ".join(diffs))
+PY
+
 if ! is_encrypted secrets/titan.yaml || ! is_encrypted secrets.yaml; then
   echo "FAIL: a file is not encrypted" >&2
   exit 1
