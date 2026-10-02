@@ -27,6 +27,15 @@ let
   anywhereTCPRanges =
     fw.allowedTCPPortRanges ++ lib.concatLists (map (i: i.allowedTCPPortRanges) ifaces);
   inAnyOpenRange = p: lib.any (r: r.from <= p && p <= r.to) anywhereTCPRanges;
+
+  # Guard for meshTCPPortExtraSources. A typo here -- 0.0.0.0/0, a fat-fingered
+  # public range -- puts the k3s control plane on the internet, and because the
+  # rule is matched with -i wg0 it would still read back as a tunnel-only
+  # allowance. So anything outside RFC1918 is an eval failure, not a surprise.
+  isPrivateCIDR =
+    c:
+    builtins.match "(10\\.[0-9]+\\.[0-9]+\\.[0-9]+|172\\.(1[6-9]|2[0-9]|3[01])\\.[0-9]+\\.[0-9]+|192\\.168\\.[0-9]+\\.[0-9]+)(/[0-9]+)?" c
+    != null;
   leakedMeshPorts = lib.unique (
     (lib.intersectLists cfg.meshTCPPorts anywhereTCPPorts)
     ++ (builtins.filter inAnyOpenRange cfg.meshTCPPorts)
@@ -64,8 +73,21 @@ in
         ];
         description = ''
           Control plane and exporters. Accepted only from
-          wireguard.staticSubnet: 10250 is authenticated but RCE-shaped, and
-          roadwarriors must not reach any of it.
+          wireguard.staticSubnet (plus publicHost.meshTCPPortExtraSources):
+          10250 is authenticated but RCE-shaped, and roadwarriors must not reach
+          any of it.
+        '';
+      };
+
+      meshTCPPortExtraSources = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        example = [ "192.168.0.0/24" ];
+        description = ''
+          Extra source CIDRs accepted for meshTCPPorts, on top of
+          wireguard.staticSubnet. Still matched with -i wg0, so this widens only
+          what may arrive through the tunnel; it cannot expose these ports on the
+          public interface. Entries must be RFC1918.
         '';
       };
     };
@@ -93,6 +115,15 @@ in
         '';
       }
       {
+        assertion = builtins.all isPrivateCIDR cfg.meshTCPPortExtraSources;
+        message =
+          "publicHost.meshTCPPortExtraSources must be RFC1918 (10/8, "
+          + "172.16/12, 192.168/16); got "
+          + lib.concatStringsSep ", " cfg.meshTCPPortExtraSources
+          + ". These are control-plane ports and a public or 0.0.0.0/0 entry here "
+          + "is the exact mistake this module exists to prevent.";
+      }
+      {
         # `or false` because wireguard.nix is an import, not a dependency of this
         # module: without it `config.wireguard.enable` is an unknown option and
         # the eval dies with an option error instead of this message.
@@ -118,11 +149,13 @@ in
         # accepts in this chain. Key-only auth makes this hardening, not exposure.
         iptables -I nixos-fw -i cni0 -p tcp --dport ${toString cfg.sshPort} -j DROP
       ''
-      + lib.optionalString (cfg.meshTCPPorts != [ ]) ''
-        iptables -A nixos-fw -i wg0 -s ${config.wireguard.staticSubnet} -p tcp \
-          -m multiport --dports ${lib.concatStringsSep "," (map toString cfg.meshTCPPorts)} \
-          -j nixos-fw-accept
-      '';
+      + lib.optionalString (cfg.meshTCPPorts != [ ]) (
+        lib.concatMapStrings (src: ''
+          iptables -A nixos-fw -i wg0 -s ${src} -p tcp \
+            -m multiport --dports ${lib.concatStringsSep "," (map toString cfg.meshTCPPorts)} \
+            -j nixos-fw-accept
+        '') ([ config.wireguard.staticSubnet ] ++ cfg.meshTCPPortExtraSources)
+      );
     };
   };
 }
