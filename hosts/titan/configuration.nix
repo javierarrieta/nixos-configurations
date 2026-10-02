@@ -112,6 +112,12 @@ in
     # placeholder public key is a runtime wg-quick failure, not a build-time one.
     # It dials titan like everyone else, so it lands here with no endpoint.
     #
+    # chiclana is absent too, and for longer: nobody can touch that box for a few
+    # months, so it stays on the old 192.168.2.0/24 mesh via the VPS. That makes
+    # the old hub permanent-but-scoped -- it keeps running with chiclana as its
+    # only member -- and it means OPNsense must keep its old-mesh link as well as
+    # its new one, or home loses chiclana until the box is reachable again.
+    #
     # Roadwarriors sit at .129/.130, NOT the .101/.102 they had on the old flat
     # /24. publicHost answers 6443/10250/9100/4243 only to wireguard.staticSubnet
     # (192.168.133.0/25 = .0-.127), so .101 and .102 would have handed the two
@@ -127,11 +133,6 @@ in
           "192.168.133.2/32"
           "192.168.0.0/24"
         ];
-      }
-      # chiclana (Home Assistant)
-      {
-        publicKey = "pMTNHoTVo/MZow0sFpBdIdP/HrSazz8mFVS+PvpnTzc=";
-        allowedIPs = [ "192.168.133.3/32" ];
       }
       # llm01
       {
