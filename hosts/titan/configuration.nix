@@ -109,9 +109,10 @@ in
     # advertises the leaf /32s it forwards for. No shared keys, no standby hub, no
     # failover procedure: redundancy here is just a link that is still up.
     #
-    # The VPS peer is absent because its keypair does not exist yet, and a
-    # placeholder public key is a runtime wg-quick failure, not a build-time one.
-    # It dials titan like everyone else, so it lands here with no endpoint.
+    # The VPS peer is present now that its new-mesh keypair exists, and it dials
+    # titan like everyone else -- hence no endpoint. It is a hub on the OLD mesh and
+    # a client on this one at the same time, which is fine: different interfaces,
+    # different keys, different meshes.
     #
     # llm01 is absent on purpose: its mesh peer is a leftover from when it had to
     # be bridged to the VPS, and it now sits inside the home LAN. titan reaches it
@@ -177,6 +178,21 @@ in
       {
         publicKey = "zhW9LX3U9R9Dt5IMxUMI/HlCzsOEFQbUWdslZHDra2g=";
         allowedIPs = [ "192.168.133.130/32" ];
+      }
+      # techdelivery VPS -- the old hub, demoted to a plain client of this mesh while
+      # staying a hub on 192.168.2.0/24 for chiclana. Its own /32 only: it advertises
+      # nothing it routes for, so there is no overlap with the OPNsense peer's
+      # 192.168.0.0/24. Overlapping AllowedIPs across peers is the trap here -- the
+      # kernel picks a route arbitrarily and you get a green handshake with
+      # black-holed traffic.
+      #
+      # What this edge is FOR, since nothing on the VPS was found to need it: it is
+      # the leaf -> titan -> VPS path, so a flipped laptop can still reach
+      # VPS-internal addresses and (via the VPS bridge) chiclana. Point-to-point
+      # only -- the VPS does not forward to its own LAN unless that is asked for.
+      {
+        publicKey = "gmIG3/ixbRJhOTYYfbE+F7uXqfEfNMwLtSgUoy81BGQ=";
+        allowedIPs = [ "192.168.133.5/32" ];
       }
     ];
   };
