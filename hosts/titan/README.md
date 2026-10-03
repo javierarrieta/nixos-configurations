@@ -318,7 +318,7 @@ set -a; . /run/secrets/titan/minio_env; set +a
 k3s server --cluster-reset \
   --cluster-reset-restore-path=s3://titan-etcd/titan/pre-drill \
   --etcd-s3 --etcd-s3-endpoint=s3.l.arrieta.eu \
-  --etcd-s3-bucket=titan-etcd --etcd-s3-region=us-east-1 \
+  --etcd-s3-bucket=titan-etcd --etcd-s3-region=eu-west-1 \
   --etcd-s3-folder=titan --etcd-s3-bucket-lookup-type=path
 # it exits once the store is reset; then:
 systemctl start k3s
