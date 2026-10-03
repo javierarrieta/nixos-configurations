@@ -123,6 +123,17 @@ in
           cfg.role != "peer" || builtins.length (builtins.filter (p: p.endpoint != null) cfg.peers) == 1;
         message = "wireguard.role = \"peer\" needs exactly one peer with a non-null endpoint: the hub.";
       }
+      # Added 2026-10-03 after a paste error produced the same publicKey twice in
+      # titan's peer list. Nothing else catches that: Nix allows duplicate list items,
+      # the build passes, and the kernel ends up with two identical routes for one key
+      # and picks arbitrarily -- the same black-holed-traffic-with-a-green-handshake
+      # failure mode as overlapping AllowedIPs, which is documented right next to it in
+      # hosts/titan/configuration.nix. Cheap to assert, expensive to discover live.
+      {
+        assertion =
+          builtins.length (lib.unique (map (p: p.publicKey) cfg.peers)) == builtins.length cfg.peers;
+        message = "wireguard.peers contains the same publicKey twice. Two peers under one key means two routes to the same /32 and the kernel picks one arbitrarily -- a green handshake with black-holed traffic.";
+      }
     ];
 
     networking.wireguard.interfaces.wg0 = {
