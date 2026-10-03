@@ -28,15 +28,27 @@ let
     # Columns: Name Location Size Created. Only the s3:// rows matter -- k3s also keeps a
     # local copy under the snapshot dir, and a fresh LOCAL file says nothing about whether
     # the upload worked. That distinction is the entire point of this check.
-    newest=$(awk '$2 ~ /^s3:\/\// { print $4 }' "$out" | sort | tail -n1)
+    #
+    # `awk` is spelled as a store path on purpose. A systemd unit's PATH here is the
+    # service's `path` list (coreutils, findutils, gnugrep, gnused, systemd), NOT
+    # /run/current-system/sw/bin, and gawk is not in it. Bare `awk` failed with
+    # `command not found` on titan on every run since this module shipped -- the journal
+    # said so, and the check still reported the misleading "no s3:// rows" line because
+    # an empty `newest` was indistinguishable from an empty bucket. Found 2026-10-03 while
+    # chasing a completely different bug.
+    newest=$("${pkgs.gawk}/bin/awk" '$2 ~ /^s3:\/\// { print $4 }' "$out" | sort | tail -n1)
     age=-1
     if [ -n "''${newest:-}" ]; then
       if epoch=$(date -d "$newest" +%s 2>/dev/null); then
         age=$(( $(date +%s) - epoch ))
       fi
-    elif [ "$status" -eq 0 ]; then
-      # Distinct from a failed listing: the command worked and found nothing in the
-      # bucket, which means uploads are not landing rather than not being attempted.
+    elif [ "$status" -ne 0 ]; then
+      :	# already reported above; do not also claim the bucket is empty
+    elif [ ! -s "$out" ]; then
+      echo "etcd-snapshot list succeeded but produced no output at all" >&2
+    else
+      # Distinct from a failed listing: the command worked, printed rows, and none of
+      # them were s3:// -- uploads are not landing rather than not being attempted.
       echo "no s3:// rows in etcd-snapshot list output; snapshots are not reaching the bucket" >&2
     fi
 
