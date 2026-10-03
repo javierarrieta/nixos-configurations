@@ -17,8 +17,12 @@ let
     # passed in verbatim from the host's config so this check exercises exactly the same
     # values the server uses; if the server's flags are wrong, this goes red too.
     status=0
-    if ! ${pkgs.k3s}/bin/k3s etcd-snapshot list ${s3Args} >"$out" 2>/dev/null; then
+    err=$(mktemp)
+    if ! ${pkgs.k3s}/bin/k3s etcd-snapshot list ${s3Args} >"$out" 2>"$err"; then
       status=1
+      # Was `2>/dev/null`, which made a real failure indistinguishable from an empty
+      # bucket: the metric went to its -1 sentinel and the journal said nothing at all.
+      echo "etcd-snapshot list failed: $(tail -c 300 "$err" | tr '\n' ' ')" >&2
     fi
 
     # Columns: Name Location Size Created. Only the s3:// rows matter -- k3s also keeps a
@@ -30,6 +34,10 @@ let
       if epoch=$(date -d "$newest" +%s 2>/dev/null); then
         age=$(( $(date +%s) - epoch ))
       fi
+    elif [ "$status" -eq 0 ]; then
+      # Distinct from a failed listing: the command worked and found nothing in the
+      # bucket, which means uploads are not landing rather than not being attempted.
+      echo "no s3:// rows in etcd-snapshot list output; snapshots are not reaching the bucket" >&2
     fi
 
     # Written atomically: node_exporter reads whatever is in the directory and a
@@ -89,6 +97,21 @@ in
         assertion = builtins.elem "--etcd-s3" cfg.s3Flags;
         message = "k3sSnapshotMonitor.s3Flags must contain --etcd-s3, otherwise k3s lists local snapshots and the metric is meaningless.";
       }
+      # The failure this guards is the one found 2026-10-03 on titan: the credentials
+      # were declared, materialised and never reached the process, so every scheduled
+      # snapshot failed with Access Denied while the node stayed Ready. Asserting the
+      # env file is actually on the k3s unit turns that class of mistake into a build
+      # error instead of a silently stale backup.
+      (lib.optionals (config ? k3s) {
+        assertion = builtins.elem (toString cfg.envFile) config.k3s.environmentFiles;
+        message = ''
+          k3sSnapshotMonitor.envFile (''${toString cfg.envFile}) is not in k3s.environmentFiles,
+          so k3s cannot authenticate to the object store and scheduled etcd snapshots
+          will fail. Add it to k3s.environmentFiles -- NOT to
+          serviceConfig.EnvironmentFiles, which is not a systemd [Service] key and is
+          silently ignored.
+        '';
+      })
     ];
 
     # The NixOS node_exporter does not read the textfile dir unless told to; the fleet's

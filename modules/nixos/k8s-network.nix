@@ -30,8 +30,11 @@
 
     systemd.services."network-addresses-${config.k8sNetwork.primaryInterface}".serviceConfig.EnvironmentFile =
       lib.mkForce config.sops.secrets."${config.k8sNetwork.hostName}/network_env".path;
-    systemd.services.k3s.serviceConfig.EnvironmentFile =
-      lib.mkForce
-        config.sops.secrets."${config.k8sNetwork.hostName}/network_env".path;
+    # Contributes to the list k3s.nix joins into its single EnvironmentFile= directive.
+    # It used to mkForce that directive directly, which left a host no legal way to add
+    # a second environment file -- see the comment in k3s.nix.
+    k3s.environmentFiles = [
+      config.sops.secrets."${config.k8sNetwork.hostName}/network_env".path
+    ];
   };
 }
