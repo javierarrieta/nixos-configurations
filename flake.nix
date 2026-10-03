@@ -234,23 +234,6 @@
         ];
       };
 
-      nixosConfigurations.ryzen7 = nixpkgs.lib.nixosSystem {
-        specialArgs = {
-          inherit unstable home-manager nix-sweep;
-        }
-        // (mkExtraArgs "x86_64-linux");
-        modules = [
-          {
-            nixpkgs.hostPlatform.system = "x86_64-linux";
-          }
-          ./hosts/ryzen7
-          disko.nixosModules.disko
-          sops-nix.nixosModules.sops
-          home-manager.nixosModules.home-manager
-          nix-sweep.nixosModules.default
-        ];
-      };
-
       nixosConfigurations.wsl = nixpkgs.lib.nixosSystem {
         specialArgs = {
           inherit
