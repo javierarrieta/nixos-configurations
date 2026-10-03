@@ -1,6 +1,12 @@
 { config, pkgs }:
 let
   networkInterface = "eno1";
+  # titan is the WireGuard hub, so this is both wg0's own address (see
+  # `wireguard.address` in configuration.nix, which reads this same value) and the
+  # address every peer's routes point at. Named once because it has to agree in
+  # three places: the interface, the API server's serving-certificate SAN list, and
+  # any admin kubeconfig that reaches 6443 over the tunnel.
+  meshAddress = "192.168.133.1";
   # Flags needed by `k3s etcd-snapshot list` -- the CLI inherits nothing from the
   # k3s unit, so the monitor has to repeat them. Defined once, used by both the server
   # (extraFlags) and the age check (k3sSnapshotMonitor.s3Flags).
@@ -44,7 +50,7 @@ let
 in
 {
   hostname = "titan";
-  inherit networkInterface;
+  inherit networkInterface meshAddress;
   inherit snapshotS3Flags;
   # Placeholders on purpose: nixpkgs 26.05 parses addresses at eval time, so the
   # real values arrive at runtime from the SOPS `titan/network_env` secret.
@@ -78,6 +84,21 @@ in
       # pick it; the pod network then runs into a tunnel that leads to the home
       # LAN instead of the local bridge. Pin it to the public NIC (spec §6).
       "--flannel-iface=${networkInterface}"
+
+      # --- API server serving-certificate SANs ---
+      # The self-signed serving cert was minted on the first boot and covers
+      # 127.0.0.1, 10.63.0.1, ::1 and the public IP -- not the mesh address. So
+      # `kubectl` against https://192.168.133.1:6443 fails with
+      # "x509: certificate is valid for ..., not 192.168.133.1", and the only way
+      # an admin kubeconfig can connect is `insecure-skip-tls-verify: true`, which
+      # throws away the one thing WireGuard does not give us for free: proof of who
+      # is answering the port. A bypass everyone carries is also a bypass nobody
+      # notices when it would have caught something.
+      #
+      # The flag alone does NOT fix the running cluster: k3s writes SANs only when
+      # it generates serving-kube-apiserver.crt. Rotate it -- see "Rotating the API
+      # server serving certificate" in README.md -- and verify, do not assume.
+      "--tls-san=${meshAddress}"
 
       # --- embedded etcd (spec D1) ---
       # A lone k3s server does NOT get etcd: without this flag it runs on sqlite at

@@ -96,7 +96,7 @@ in
   wireguard = {
     enable = true;
     role = "hub";
-    address = "192.168.133.1/24";
+    address = "${vars.meshAddress}/24";
     privateKeyFile = config.sops.secrets."wireguard/titan_private_key".path;
     forwardToLan = true;
     # Hub migration (spec §11a). One mesh, one set of addresses that never change.
