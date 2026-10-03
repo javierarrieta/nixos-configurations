@@ -179,6 +179,23 @@ in
         publicKey = "zhW9LX3U9R9Dt5IMxUMI/HlCzsOEFQbUWdslZHDra2g=";
         allowedIPs = [ "192.168.133.130/32" ];
       }
+      # macbookpro (roadwarrior), added 2026-10-03. Same machine as the `macbookpro
+      # laptop` sops recipient -- i.e. the daily-driver admin box, not a phone.
+      # Mesh-only like the others: one /32, nothing routed beyond it, deliberately
+      # inside 192.168.133.128/25 so publicHost's staticSubnet (192.168.133.0/25 =
+      # .0-.127) keeps titan's 6443/10250/9100/4243 off it.
+      #
+      # OPEN QUESTION, left open on purpose: being the admin laptop, this is exactly the
+      # peer that will want the API server. Granting it is a one-liner --
+      # publicHost.meshTCPPortExtraSources = [ "192.168.133.131/32" ] -- but that option
+      # is a single multiport rule, so it opens 9100 and 4243 (unauthenticated metrics)
+      # and 10250 alongside 6443. Doing it properly means splitting meshTCPPorts into
+      # per-source port lists in public-host.nix. And reaching 6443 is not cluster admin
+      # anyway: the kubeconfig stays root:root 0600 on titan.
+      {
+        publicKey = "knrQmeNK2Jy94nqKYveB+f2vSVVX9UispvlbhQYTCgM=";
+        allowedIPs = [ "192.168.133.131/32" ];
+      }
       # techdelivery VPS -- the old hub, demoted to a plain client of this mesh while
       # staying a hub on 192.168.2.0/24 for chiclana. Its own /32 only: it advertises
       # nothing it routes for, so there is no overlap with the OPNsense peer's
