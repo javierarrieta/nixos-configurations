@@ -270,6 +270,23 @@ Re-run the `openssl` check and expect `192.168.133.1` in the list. Then delete
 `insecure-skip-tls-verify: true` from the admin kubeconfigs — that was the point.
 Leave it in and the next person has no way to tell whether the fix ever landed.
 
+## Operating the cluster from the box
+
+`k9s`, `kubectl` and `kubectx` are installed for javier. k3s writes the admin kubeconfig
+to `/etc/rancher/k3s/k3s.yaml` as `root:root 0600` and nothing here widens it -- on an
+internet-facing host that credential stays behind the break-glass password instead of
+becoming readable by every process javier runs.
+
+```bash
+sudo k3s kubectl get nodes                                  # k3s ships its own kubectl
+sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml k9s              # k9s has no root ~/.kube/config
+```
+
+Plain `sudo k9s` does not work: root has no `~/.kube/config`, and k9s does not look at
+k3s' path. If the sudo wrapper becomes annoying, the alternative is a tmpfiles rule
+making the file `0640 root:wheel` -- decide that consciously, because it takes the password
+out of the path to cluster-admin.
+
 ## Backups and the restore drill
 
 etcd is snapshotted every 6h by k3s itself into MinIO over the mesh

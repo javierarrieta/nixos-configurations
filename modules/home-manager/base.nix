@@ -8,11 +8,10 @@
 }:
 
 let
-  # Hosts that get host-common + shell + cli-tools only (cli-tools is imported
-  # unconditionally below, so "minimal" never means bare). The Pis are here to
-  # keep a slow ARM box from compiling a Rust toolchain on every deploy; titan is
-  # here because a 150 G root filesystem shared with etcd and container images has
-  # no business holding a Scala toolchain nobody will invoke on a headless server.
+  # Hosts that skip the python toolchain. The Pis are here because a slow ARM box
+  # must not compile a Rust/Scala/Python stack on every deploy; titan is here because
+  # a 150 G root filesystem shared with etcd and container images has no business
+  # holding a Scala toolchain nobody will invoke on a headless server.
   minimalHostnames = [
     "k8s-pi01"
     "k8s-pi02"
@@ -20,6 +19,17 @@ let
     "titan"
   ];
   isMinimalHost = lib.elem hostname minimalHostnames;
+  # The k8s CLI is a SEPARATE decision from the python toolchain. The Pis skip it for
+  # the same reason as python -- aarch64 build cost -- but titan must not: it is a k3s
+  # server, and on x86_64 kubectl/kubectx/k9s are cached downloads, not compiles.
+  # Folding titan into minimalHostnames had left it unable to k9s the cluster it runs.
+  # Found 2026-10-03.
+  armMinimalHostnames = [
+    "k8s-pi01"
+    "k8s-pi02"
+    "k8s-pi03"
+  ];
+  skipK8sTools = lib.elem hostname armMinimalHostnames;
   # k8s-* are infrastructure hosts, not dev machines: they keep the CLI
   # niceties and the k8s tooling, but not the language toolchains,
   # formatters and editor config that dev-tools brings. The prefix check
@@ -39,9 +49,11 @@ in
     ./cli-tools.nix
   ]
   ++ lib.optionals (!isMinimalHost) [
-    # Minimal hosts skip this: no heavy python/k8s tooling (avoids native
-    # aarch64 builds on the Pis, and tools nobody runs on a headless box)
+    # No heavy python tooling on minimal hosts (avoids native aarch64 builds on the
+    # Pis, and tools nobody runs on a headless box).
     ./python.nix
+  ]
+  ++ lib.optionals (!skipK8sTools) [
     ./k8s.nix
   ]
   ++ lib.optionals (!skipDevTools) [
