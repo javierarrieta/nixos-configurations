@@ -214,12 +214,7 @@ in
   # has no way back to a LAN source. It does now.
   publicHost.meshTCPPortExtraSources = [ "192.168.0.0/24" ];
 
-  # MinIO credentials for etcd snapshots, as an EnvironmentFiles-shaped secret:
-  # k3s reads --etcd-s3-access-key from $AWS_ACCESS_KEY_ID and --etcd-s3-secret-key
-  # from $AWS_SECRET_ACCESS_KEY, so the file is exactly two KEY=value lines and no
-  # flag carries a secret into the world-readable unit file.
-  #
-  # It lives in secrets/titan.yaml, NOT secrets.yaml: an etcd snapshot is every
+  # The secret itself. It lives in secrets/titan.yaml, NOT secrets.yaml: an etcd snapshot is every
   # Secret in the cluster in plaintext, so the key that writes it should be
   # decryptable by titan's own age key and by no other host (Task 17's split).
   sops.secrets."titan/minio_env" = {
@@ -228,9 +223,11 @@ in
     owner = "root";
   };
 
-  systemd.services.k3s.serviceConfig.EnvironmentFiles = [
-    config.sops.secrets."titan/minio_env".path
-  ];
+  # Credentials for the scheduled etcd snapshots. k3s reads --etcd-s3-access-key from
+  # $AWS_ACCESS_KEY_ID and --etcd-s3-secret-key from $AWS_SECRET_ACCESS_KEY, so the file
+  # is exactly two KEY=value lines and no flag carries a secret into the world-readable
+  # unit file. It is wired into the k3s unit via k3s.environmentFiles below -- see the
+  # note there for why serviceConfig.EnvironmentFiles (plural) is not an option.
 
   # Nothing else watches whether snapshots actually land. k3s swallows S3 failures
   # inside the server (Rancher #14144): the node stays Ready, k3s stays healthy, and
@@ -256,11 +253,23 @@ in
     path = "/etc/ssh/ssh_host_ed25519_key.pub";
   };
 
-  k3s = vars.k3s;
+  # environmentFiles is merged here rather than assigned separately because `k3s` is
+  # already defined wholesale from vars.nix.
+  #
+  # It MUST be k3s.environmentFiles, not systemd.services.k3s.serviceConfig.
+  # EnvironmentFiles (plural): systemd has no such [Service] key, silently ignores it,
+  # and k3s then authenticates to MinIO anonymously -- every scheduled snapshot fails
+  # with `Access Denied` while the node stays Ready and the build stays green. Found
+  # 2026-10-03; the restore drill had passed only because the manual `etcd-snapshot save`
+  # inherited credentials from the operator's shell, not from the unit.
+  k3s = vars.k3s // {
+    environmentFiles = [ config.sops.secrets."titan/minio_env".path ];
+  };
 
-  # k8s-network forces the network_env EnvironmentFile onto both
-  # network-addresses-eno1 and k3s, which is what resolves the $IP_ADDRESS
-  # placeholders for k3s' own node-ip detection.
+  # k8s-network contributes the network_env file to k3s.environmentFiles (and forces it
+  # onto network-addresses-eno1), which is what resolves the $IP_ADDRESS placeholders for
+  # k3s' own node-ip detection. k3s.nix joins the whole list into one EnvironmentFile=
+  # directive, so both files land on the unit.
   k8sNetwork = {
     enable = true;
     primaryInterface = vars.networkInterface;

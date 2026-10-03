@@ -327,9 +327,32 @@ migration itself is: stop k3s, move `state.db*` back, drop `--cluster-init`, swi
 
 ### Checking snapshots are landing
 
+A row is only proof if it points at the bucket. k3s keeps a local copy too, so a
+scheduled snapshot that failed to upload still shows up in the list:
+
 ```bash
-k3s etcd-snapshot list          # first one lands at the top of the next hour
+k3s etcd-snapshot list | grep 's3://'      # only these rows are backups
 ```
+
+If the scheduled rows are `file://` only, the server cannot authenticate. Check that the
+credentials actually reached the process -- a secret file existing and a flag being present
+in `ExecStart` are both consistent with the process having neither:
+
+```bash
+systemctl show k3s -p EnvironmentFile          # must list minio_env
+sudo tr '\0' '\n' < /proc/$(systemctl show k3s -p MainPID --value)/environ | grep -c AWS
+journalctl -u k3s --since '12:00' | grep -iE 'snapshot|s3'   # Access Denied = no creds
+```
+
+**This bit on 2026-10-03.** The credentials were declared as
+`systemd.services.k3s.serviceConfig.EnvironmentFiles` (plural). systemd has no such
+`[Service]` key, ignores it with a journal warning, and the unit starts anyway -- so k3s
+went to MinIO anonymously and every scheduled snapshot failed with `Access Denied` for
+hours while the node stayed `Ready`. `systemctl show -p EnvironmentFiles` reports the
+*property* name (plural, parsed from the singular directive), which is what made the wrong
+spelling look like it was working. The config now uses `k3s.environmentFiles`, which
+`k3s.nix` joins into one `EnvironmentFile=` directive, and `k3sSnapshotMonitor` asserts the
+env file is on that list so the mistake fails the build.
 
 If the list is empty, the usual cause is the bucket: MinIO answers
 `AccessDenied` -- not `NoSuchBucket` -- for a bucket that does not exist, so a

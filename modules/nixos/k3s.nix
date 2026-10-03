@@ -15,6 +15,11 @@
         ];
         description = "K3s role: server or agent";
       };
+      environmentFiles = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        description = "Environment files the k3s unit must load.";
+      };
       serverAddr = lib.mkOption {
         type = lib.types.str;
         default = "";
@@ -125,6 +130,23 @@
     # internet-facing host (titan) can keep the firewall on via public-host.nix
     # without lib.mkForce; every existing host leaves it at false.
     networking.firewall.enable = lib.mkDefault false;
+
+    # ONE directive, joined. systemd has no plural `EnvironmentFiles=` key in
+    # [Service] -- writing it is ignored with a journal warning, and the unit still
+    # starts, so the credentials simply never arrive. Found 2026-10-03 on titan: the
+    # S3 flags were in ExecStart, the secret file existed, the build passed, and every
+    # scheduled etcd snapshot failed with `Access Denied` because the process had no
+    # AWS_* in its environment. `systemctl show -p EnvironmentFiles` reports the
+    # *property* name (plural) parsed from the singular directive, which is what made
+    # the wrong spelling look correct.
+    #
+    # Composed here rather than assigned per-host because k8s-network.nix used
+    # lib.mkForce on this option; two mkForce definitions cannot merge, so a host
+    # adding a second file had no legal way to do it. Contributors append to
+    # k3s.environmentFiles instead.
+    systemd.services.k3s.serviceConfig.EnvironmentFile = lib.mkIf (config.k3s.environmentFiles != [ ]) (
+      lib.mkForce (lib.concatStringsSep " " config.k3s.environmentFiles)
+    );
 
     services.k3s = {
       enable = true;
