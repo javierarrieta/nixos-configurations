@@ -19,9 +19,18 @@
         type = lib.types.str;
         default = "";
         description = ''
-          K3s server address (required for agent role). Empty for a server that
-          initialises its own embedded etcd, which includes a single-node
-          cluster: upstream only emits --server when this is non-empty.
+          K3s server address. Empty omits --server entirely; non-empty emits
+          --server=<addr>, which for a server role means "join this cluster".
+
+          WARNING: empty serverAddr does NOT mean embedded etcd. A lone k3s server
+          without --cluster-init runs on sqlite, and a server pointed at itself
+          without an initialised etcd cluster will not form one. --cluster-init is
+          a separate flag and is NOT set by this module; hosts that need it must
+          put it in extraFlags. Found 2026-10-02 on titan, where the assumption
+          left the cluster on sqlite and every --etcd-s3 flag inert. (The home
+          fleet's k8s-server01 also lacks --cluster-init; its etcd was bootstrapped
+          out-of-band and persists only because the data directory does. Do not
+          "fix" a live etcd cluster by adding the flag.)
         '';
       };
       tokenFile = lib.mkOption {
@@ -31,7 +40,7 @@
           Path to the K3s token file. null omits --token-file entirely; the
           empty string does NOT (upstream tests for null, so "" emits a bare
           --token-file that eats the following argument). A single-node server
-          mints its own token and needs no file.
+          with --cluster-init mints its own token and needs no file.
         '';
       };
       disable = lib.mkOption {
