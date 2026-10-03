@@ -350,6 +350,58 @@ Expected: `before`, node `Ready`, no CrashLoopBackOff fleet-wide. Clean up with
 touches the datastore, so a bad key or a 404 leaves the live cluster untouched -- verified
 by three failed attempts followed by a successful one on the same running cluster.
 
+### Is the backup still running?
+
+A scheduled snapshot that stops working is invisible. k3s swallows S3 failures inside
+the server process (Rancher #14144): the node stays `Ready`, k3s stays healthy, the unit
+log stays quiet, and the bucket simply stops receiving objects. Every one of the six
+defects found on 2026-10-03 would have looked like a working backup.
+
+`k3sSnapshotMonitor` (module `modules/nixos/k3s-snapshot-monitor.nix`) runs
+`k3s etcd-snapshot list` every 15 minutes and publishes two gauges through
+node_exporter's textfile collector:
+
+| metric | meaning |
+|---|---|
+| `k3s_etcd_snapshot_age_seconds` | age of the newest **`s3://`** snapshot; local copies are ignored on purpose, because a fresh local file says nothing about the upload |
+| `k3s_etcd_snapshot_check_success` | `0` when the listing failed or no S3 object was found -- so a broken check is visible, not silently green |
+
+The check re-passes the S3 flags from `vars.nix` (`snapshotS3Flags`, shared with the
+server so they cannot drift), because the CLI inherits nothing from the unit.
+
+**Not yet scraped.** The metric is exposed on `titan:9100`, which is mesh-only, and no
+Prometheus currently has a route onto `192.168.133.0/24`. The natural scraper is the
+VPS cluster's Prometheus once the Task 15 triangle link exists -- it already scrapes
+chiclana over the old mesh, and `.5` falls inside the `/25` titan trusts. When that link
+is live, add to `k8s-techdelivery`:
+
+```yaml
+# apply/50-apps/monitoring/node-exporter-titan.yaml
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: node-exporter-titan
+  namespace: monitoring
+  labels: { prometheus: prometheus-k8s }
+spec:
+  staticConfigs:
+  - targets: [ 192.168.133.1:9100 ]
+    labels: { job: monitoring/node-exporter, host: titan }
+```
+
+```yaml
+# Snapshots are scheduled every 6h (00/06/12/18), so 8h means "one missed, one late".
+- alert: TitanEtcdSnapshotStale
+  expr: k3s_etcd_snapshot_age_seconds > 8*3600
+  for: 15m
+- alert: TitanEtcdSnapshotCheckFailed
+  expr: k3s_etcd_snapshot_check_success == 0
+  for: 30m
+```
+
+Until then the check runs and the textfile is written, but nothing reads it: the drill
+below is the only proof that backups land.
+
 ### Drill log
 
 | date | wall clock | result | notes |

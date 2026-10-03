@@ -1,10 +1,51 @@
 { config, pkgs }:
 let
   networkInterface = "eno1";
+  # Flags needed by `k3s etcd-snapshot list` -- the CLI inherits nothing from the
+  # k3s unit, so the monitor has to repeat them. Defined once, used by both the server
+  # (extraFlags) and the age check (k3sSnapshotMonitor.s3Flags).
+  snapshotS3Flags = [
+    # --- etcd snapshots to MinIO over the mesh (spec §13b, Task 16a) ---
+    # An etcd snapshot is every Secret in the cluster in plaintext, so the bucket
+    # is the most sensitive object in the design: the MinIO key is scoped to
+    # exactly titan-etcd and titan-pvc and nothing else.
+    #
+    # Every flag name below was verified against the host binary on 2026-10-02
+    # (`k3s server --help`). The first draft of this task invented a
+    # `--etcd-snapshot-s3-*` family that does not exist; k3s exits on an unknown
+    # flag, so that version would have killed k3s at startup and tripped the
+    # health gate. Re-verify after any k3s major bump.
+    "--etcd-s3"
+    # BARE HOST: NO SCHEME AND NO PORT. Two separate traps, both hit on
+    # 2026-10-03.
+    #   - No port: s3.l.arrieta.eu is a Traefik Ingress on 443; the Service's 9000
+    #     is an in-cluster port never reachable from outside (k8s-casa
+    #     apply/50-apps/casa/minio.yaml). Pinning :9000 hits the MetalLB VIP and
+    #     hangs until --etcd-s3-timeout.
+    #   - No scheme: minio-go rejects an endpoint carrying one, with
+    #     "Endpoint url cannot have fully qualified paths." k3s' own default is the
+    #     bare "s3.amazonaws.com". Rancher #14144 documents this failing SILENTLY
+    #     in the server -- the CLI at least tells you. TLS is on by default;
+    #     --etcd-s3-insecure is what disables it, not the scheme.
+    "--etcd-s3-endpoint=s3.l.arrieta.eu"
+    "--etcd-s3-bucket=titan-etcd"
+    # eu-west-1, NOT the us-east-1 the plan copied from k3s' AWS default. MinIO
+    # signs per-bucket and rejects a mismatch outright:
+    # "the authorization header is malformed; the region is wrong; expecting
+    # 'eu-west-1'". Fourth defect in this one line of the plan.
+    "--etcd-s3-region=eu-west-1"
+    "--etcd-s3-folder=titan"
+    # Path style is mandatory, not an optimisation: 'auto' lookup would resolve
+    # titan-etcd.s3.l.arrieta.eu, which has no DNS record and no cert because the
+    # Ingress serves exactly one host. k8s-techdelivery sets addressing_style=path
+    # against the same MinIO for the same reason.
+    "--etcd-s3-bucket-lookup-type=path"
+  ];
 in
 {
   hostname = "titan";
   inherit networkInterface;
+  inherit snapshotS3Flags;
   # Placeholders on purpose: nixpkgs 26.05 parses addresses at eval time, so the
   # real values arrive at runtime from the SOPS `titan/network_env` secret.
   ipAddress = "$IP_ADDRESS";
@@ -30,7 +71,9 @@ in
     taints = [ ];
     controlPlaneMetricsBindAddress = "0.0.0.0";
     requiresMountFor = [ "var-lib-rancher-k3s-storage.mount" ];
-    extraFlags = [
+    # The S3 connection flags are shared with the snapshot-age monitor below so the
+    # check cannot drift from what the server actually uses.
+    extraFlags = snapshotS3Flags ++ [
       # wg0 is up before k3s starts, and flannel's interface auto-detection will
       # pick it; the pod network then runs into a tunnel that leads to the home
       # LAN instead of the local bridge. Pin it to the public NIC (spec §6).
@@ -49,41 +92,6 @@ in
       # Done now, while the cluster is empty, rather than after workloads land.
       "--cluster-init"
 
-      # --- etcd snapshots to MinIO over the mesh (spec §13b, Task 16a) ---
-      # An etcd snapshot is every Secret in the cluster in plaintext, so the bucket
-      # is the most sensitive object in the design: the MinIO key is scoped to
-      # exactly titan-etcd and titan-pvc and nothing else.
-      #
-      # Every flag name below was verified against the host binary on 2026-10-02
-      # (`k3s server --help`). The first draft of this task invented a
-      # `--etcd-snapshot-s3-*` family that does not exist; k3s exits on an unknown
-      # flag, so that version would have killed k3s at startup and tripped the
-      # health gate. Re-verify after any k3s major bump.
-      "--etcd-s3"
-      # BARE HOST: NO SCHEME AND NO PORT. Two separate traps, both hit on
-      # 2026-10-03.
-      #   - No port: s3.l.arrieta.eu is a Traefik Ingress on 443; the Service's 9000
-      #     is an in-cluster port never reachable from outside (k8s-casa
-      #     apply/50-apps/casa/minio.yaml). Pinning :9000 hits the MetalLB VIP and
-      #     hangs until --etcd-s3-timeout.
-      #   - No scheme: minio-go rejects an endpoint carrying one, with
-      #     "Endpoint url cannot have fully qualified paths." k3s' own default is the
-      #     bare "s3.amazonaws.com". Rancher #14144 documents this failing SILENTLY
-      #     in the server -- the CLI at least tells you. TLS is on by default;
-      #     --etcd-s3-insecure is what disables it, not the scheme.
-      "--etcd-s3-endpoint=s3.l.arrieta.eu"
-      "--etcd-s3-bucket=titan-etcd"
-      # eu-west-1, NOT the us-east-1 the plan copied from k3s' AWS default. MinIO
-      # signs per-bucket and rejects a mismatch outright:
-      # "the authorization header is malformed; the region is wrong; expecting
-      # 'eu-west-1'". Fourth defect in this one line of the plan.
-      "--etcd-s3-region=eu-west-1"
-      "--etcd-s3-folder=titan"
-      # Path style is mandatory, not an optimisation: 'auto' lookup would resolve
-      # titan-etcd.s3.l.arrieta.eu, which has no DNS record and no cert because the
-      # Ingress serves exactly one host. k8s-techdelivery sets addressing_style=path
-      # against the same MinIO for the same reason.
-      "--etcd-s3-bucket-lookup-type=path"
       # S3 retention, NOT --etcd-snapshot-retention: that one counts local snapshot
       # files, which do not exist when snapshots go to S3. Wrong flag here means the
       # bucket silently grows forever.

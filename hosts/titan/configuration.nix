@@ -23,6 +23,7 @@ in
     ../../modules/nixos/k3s.nix
     ../../modules/nixos/k8s-network.nix
     ../../modules/nixos/prometheus.nix
+    ../../modules/nixos/k3s-snapshot-monitor.nix
     ../../modules/nixos/rsyslog.nix
     ../../modules/nixos/comin.nix
     ../../modules/nixos/comin-health-gate.nix
@@ -214,6 +215,17 @@ in
   systemd.services.k3s.serviceConfig.EnvironmentFiles = [
     config.sops.secrets."titan/minio_env".path
   ];
+
+  # Nothing else watches whether snapshots actually land. k3s swallows S3 failures
+  # inside the server (Rancher #14144): the node stays Ready, k3s stays healthy, and
+  # the bucket quietly stops receiving objects. This publishes the age of the newest
+  # object in the bucket so a stale backup becomes a metric instead of a rumour.
+  # Scraping it needs a Prometheus that can reach titan over the mesh -- see README.
+  k3sSnapshotMonitor = {
+    enable = true;
+    envFile = config.sops.secrets."titan/minio_env".path;
+    s3Flags = vars.snapshotS3Flags;
+  };
 
   sops.secrets."ssh_keys/titan_host_private" = {
     sopsFile = ../../secrets/titan.yaml;
