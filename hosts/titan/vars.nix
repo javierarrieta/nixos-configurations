@@ -60,11 +60,18 @@ in
       # flag, so that version would have killed k3s at startup and tripped the
       # health gate. Re-verify after any k3s major bump.
       "--etcd-s3"
-      # NO PORT. s3.l.arrieta.eu is a Traefik Ingress on 443; the Service's 9000 is
-      # an in-cluster port that is never reachable from outside (k8s-casa
-      # apply/50-apps/casa/minio.yaml). Pinning :9000 connects to the MetalLB VIP
-      # and hangs until --etcd-s3-timeout.
-      "--etcd-s3-endpoint=https://s3.l.arrieta.eu"
+      # BARE HOST: NO SCHEME AND NO PORT. Two separate traps, both hit on
+      # 2026-10-03.
+      #   - No port: s3.l.arrieta.eu is a Traefik Ingress on 443; the Service's 9000
+      #     is an in-cluster port never reachable from outside (k8s-casa
+      #     apply/50-apps/casa/minio.yaml). Pinning :9000 hits the MetalLB VIP and
+      #     hangs until --etcd-s3-timeout.
+      #   - No scheme: minio-go rejects an endpoint carrying one, with
+      #     "Endpoint url cannot have fully qualified paths." k3s' own default is the
+      #     bare "s3.amazonaws.com". Rancher #14144 documents this failing SILENTLY
+      #     in the server -- the CLI at least tells you. TLS is on by default;
+      #     --etcd-s3-insecure is what disables it, not the scheme.
+      "--etcd-s3-endpoint=s3.l.arrieta.eu"
       "--etcd-s3-bucket=titan-etcd"
       "--etcd-s3-region=us-east-1"
       "--etcd-s3-folder=titan"

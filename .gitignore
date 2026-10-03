@@ -1,4 +1,6 @@
 .decrypted*
+# Linked git worktrees (see using-git-worktrees). Never commit a worktree tree.
+.worktrees/
 result
 .DS_Store
 .superpowers/

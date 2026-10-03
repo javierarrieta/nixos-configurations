@@ -306,7 +306,8 @@ kubectl --kubeconfig $K -n drill delete configmap canary   # make it really gone
 
 Then restore. **The manual `k3s server` invocation does not inherit the unit's
 flags.** The plan's version only sourced the credentials, which is not enough:
-`--etcd-s3-endpoint`, `--etcd-s3-bucket` and especially
+`--etcd-s3-endpoint` (which must be the BARE HOST -- minio-go rejects a scheme with
+"Endpoint url cannot have fully qualified paths"), `--etcd-s3-bucket` and especially
 `--etcd-s3-bucket-lookup-type=path` have no environment variable behind them, so
 without them k3s reaches for `s3.amazonaws.com` and the restore fails against a
 stopped cluster. Repeat them explicitly:
@@ -316,7 +317,7 @@ systemctl stop k3s
 set -a; . /run/secrets/titan/minio_env; set +a
 k3s server --cluster-reset \
   --cluster-reset-restore-path=s3://titan-etcd/titan/pre-drill \
-  --etcd-s3 --etcd-s3-endpoint=https://s3.l.arrieta.eu \
+  --etcd-s3 --etcd-s3-endpoint=s3.l.arrieta.eu \
   --etcd-s3-bucket=titan-etcd --etcd-s3-region=us-east-1 \
   --etcd-s3-folder=titan --etcd-s3-bucket-lookup-type=path
 # it exits once the store is reset; then:
