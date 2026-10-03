@@ -299,40 +299,62 @@ reaction to something else being on fire.
 K=/etc/rancher/k3s/k3s.yaml
 kubectl --kubeconfig $K create ns drill
 kubectl --kubeconfig $K -n drill create configmap canary --from-literal=written=before
-k3s etcd-snapshot save --name pre-drill
-k3s etcd-snapshot list                       # note the exact stored name
+k3s etcd-snapshot save --name pre-drill $S3FLAGS
+# k3s RENAMES it: --name pre-drill became pre-drill-titan-1791014355, i.e.
+# <name>-<node>-<unix-ts>. Never restore from the name you typed; capture the real one:
+SNAP=$(k3s etcd-snapshot list $S3FLAGS | awk '/pre-drill/ {print $1; exit}')
+echo "will restore: $SNAP"
 kubectl --kubeconfig $K -n drill delete configmap canary   # make it really gone
 ```
 
-Then restore. **The manual `k3s server` invocation does not inherit the unit's
-flags.** The plan's version only sourced the credentials, which is not enough:
-`--etcd-s3-endpoint` (which must be the BARE HOST -- minio-go rejects a scheme with
-"Endpoint url cannot have fully qualified paths"), `--etcd-s3-bucket` and especially
-`--etcd-s3-bucket-lookup-type=path` have no environment variable behind them, so
-without them k3s reaches for `s3.amazonaws.com` and the restore fails against a
-stopped cluster. Repeat them explicitly:
+`list` needs the same `$S3FLAGS` as `save`, or it shows only local snapshots. Note it
+also keeps a **local copy** under `/var/lib/rancher/k3s/server/db/snapshots/` (capped by
+the default local retention of 5), so each snapshot appears twice.
+
+Define the flags once -- both `save` and the restore need them:
+
+```bash
+S3FLAGS="--etcd-s3 --etcd-s3-endpoint=s3.l.arrieta.eu --etcd-s3-bucket=titan-etcd \
+--etcd-s3-region=eu-west-1 --etcd-s3-folder=titan --etcd-s3-bucket-lookup-type=path"
+set -a; . /run/secrets/titan/minio_env; set +a
+```
+
+Then restore. **The manual `k3s server` invocation inherits nothing from the unit**, so
+every flag has to be repeated -- and two of them are not S3 flags at all:
+
+- **`--cluster-init`**, or the manual server comes up on sqlite and "restores" a datastore
+  that does not exist.
+- **`--cluster-reset-restore-path` takes a BARE SNAPSHOT NAME, not an `s3://` URL.**
+  `pkg/etcd/etcd.go` passes it verbatim to `Download()`, and `pkg/etcd/s3/s3.go` computes
+  the key as `path.Join(folder, snapshotName)`. So the `s3://bucket/folder/name` form the
+  k3s docs show produces the key `titan/s3:/titan-etcd/titan/...` and fails with
+  `The specified key does not exist` -- after the bucket check passes, which makes it look
+  like a permissions problem. It is not: the object is fine, the key was nonsense.
 
 ```bash
 systemctl stop k3s
-set -a; . /run/secrets/titan/minio_env; set +a
-k3s server --cluster-reset \
-  --cluster-reset-restore-path=s3://titan-etcd/titan/pre-drill \
-  --etcd-s3 --etcd-s3-endpoint=s3.l.arrieta.eu \
-  --etcd-s3-bucket=titan-etcd --etcd-s3-region=eu-west-1 \
-  --etcd-s3-folder=titan --etcd-s3-bucket-lookup-type=path
+k3s server --cluster-init --cluster-reset \
+  --cluster-reset-restore-path=$SNAP \
+  $S3FLAGS
 # it exits once the store is reset; then:
 systemctl start k3s
-kubectl --kubeconfig $K -n drill get configmap canary -o jsonpath='{.data.written}'
+sleep 20
+kubectl --kubeconfig $K -n drill get configmap canary -o jsonpath='{.data.written}'; echo
+kubectl --kubeconfig $K get nodes
 ```
 
-Expected: `before`, node `Ready`, no CrashLoopBackOff fleet-wide.
+Expected: `before`, node `Ready`, no CrashLoopBackOff fleet-wide. Clean up with
+`kubectl --kubeconfig $K delete ns drill`.
+
+**A failed restore attempt is safe to retry.** k3s downloads the snapshot *before* it
+touches the datastore, so a bad key or a 404 leaves the live cluster untouched -- verified
+by three failed attempts followed by a successful one on the same running cluster.
 
 ### Drill log
 
-_None yet -- v1 is not done until this section has a dated entry._
-
 | date | wall clock | result | notes |
 |---|---|---|---|
+| 2026-10-03 | snapshot 07:59:15 UTC, restore verified ~08:05 UTC | **PASS** -- canary `written=before` came back, `titan Ready` (`control-plane,etcd`) | First drill, run against the freshly-migrated embedded-etcd datastore. Snapshot `pre-drill-titan-1791014355` (6.7 MB) at `s3://titan-etcd/titan/`. **Six defects in the plan's S3 configuration were found this way**, all of which deployed cleanly and left k3s healthy: wrong flag family (`--etcd-snapshot-s3-*`), in-cluster `:9000` port, `https://` scheme in the endpoint, `us-east-1` instead of MinIO's `eu-west-1`, missing `--cluster-init` on the restore, and the `s3://` restore path form from the k3s docs. The last two only surface during a restore, which is exactly why the drill is the exit criterion and not a formality. |
 
 ## ICMP is not a liveness probe on OVH
 
