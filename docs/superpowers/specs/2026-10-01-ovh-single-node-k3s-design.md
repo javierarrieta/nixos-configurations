@@ -647,6 +647,7 @@ Four things to get right:
 ## 15. Verification plan
 
 - **Backup restore drill (v1 exit criterion):** restore an etcd snapshot and a PV into a scratch cluster and confirm the workloads come back (§13b). Record the exact working commands in `hosts/titan/README.md`.
+  **Status 2026-10-03: etcd half DONE** -- snapshot to MinIO, canary deleted, datastore reset from the bucket, canary restored, node `Ready`; dated in the README drill log. **PV half deferred to Task 16b** (no PVCs exist yet, and `k8s-titan` has no GitOps tree). The drill was run in place on the live node rather than into a scratch cluster; that is the weaker form, and it is the form that still caught six configuration defects -- a scratch cluster would have caught the same ones plus the ones specific to a cold start.
 - `nix fmt` / `nixfmt .`
 - `nix eval .#nixosConfigurations.titan.config.system.build.toplevel --show-trace`
 - `nix flake check`

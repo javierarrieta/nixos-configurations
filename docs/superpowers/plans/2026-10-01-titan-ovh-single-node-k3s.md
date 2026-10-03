@@ -2285,6 +2285,24 @@ nc -zvw3 192.168.133.1 6443;  echo "must succeed"
 > `k8s-server01` also lacks `--cluster-init`; its etcd was bootstrapped out-of-band
 > and survives only because the data directory does. Do not "fix" a live cluster.
 
+> **STATUS 2026-10-03: etcd snapshots + restore drill DONE and proven.** Snapshot
+> `pre-drill-titan-1791014355` (6.7 MB) landed in `s3://titan-etcd/titan/`, the canary
+> configmap was deleted, the datastore was reset from the bucket, and the canary came back
+> with `written=before` on a `Ready` node. Dated entry in `hosts/titan/README.md`.
+>
+> **Six defects in this task's S3 configuration were found only by running it.** Every one
+> deployed cleanly and left k3s healthy: wrong flag family (`--etcd-snapshot-s3-*` vs
+> `--etcd-s3-*`), the in-cluster `:9000` port instead of the Traefik front door, an
+> `https://` scheme minio-go rejects, `us-east-1` where MinIO is `eu-west-1`, a missing
+> `--cluster-init` on the manual restore, and the `s3://bucket/folder/name` restore path
+> from the k3s docs -- which k3s string-joins into the key rather than parsing. The last
+> two are restore-only failures: a config that had never been drilled would have revealed
+> them during an actual disaster.
+>
+> **Still open (Task 16b):** restic PV backup. Deferred deliberately -- the cluster has no
+> PVCs and `k8s-titan` has no GitOps tree yet. The drill above restored etcd state on the
+> live node, not into a scratch cluster, and did not cover PV data.
+
 Spec §13b and Q15: etcd snapshots go to S3 with k3s' native mechanism, PV data goes to restic, both land in MinIO over the mesh. The restore drill is the v1 exit criterion — a backup nobody has restored is a rumour.
 
 **Files:**
