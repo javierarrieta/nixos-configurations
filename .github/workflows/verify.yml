@@ -7,7 +7,7 @@ on:
     branches: [ main, stable ]
 
 # With a matrix this wide, a pushed branch that gets amended while a run is in
-# flight would otherwise keep burning eleven runners per push. Cancelling the
+# flight would otherwise keep burning fourteen runners per push. Cancelling the
 # superseded run is always safe: the cache is content-addressed and idempotent,
 # so a half-finished push costs nothing to redo.
 concurrency:
@@ -112,10 +112,8 @@ jobs:
     # rather than deployable configs, and an sd-image build is the heaviest
     # thing in the tree on a 14 GB runner disk.
     #
-    # ryzen7 is still a live config in flake.nix with its own
-    # hardware-configuration.nix, so it is built and cached here. If it is
-    # genuinely decommissioned, dropping it from this list (and the flake) is
-    # the cheaper follow-up.
+    # ryzen7 was a leg here until 2026-10-03, when the box was rebuilt as Windows
+    # and its config left the flake.
     strategy:
       fail-fast: false
       matrix:
@@ -133,7 +131,6 @@ jobs:
           - { host: k8s-server03, runner: ubuntu-24.04,   arch: x86_64 }
           - { host: llm01,        runner: ubuntu-24.04,   arch: x86_64 }
           - { host: titan,        runner: ubuntu-24.04,   arch: x86_64 }
-          - { host: ryzen7,       runner: ubuntu-24.04,   arch: x86_64 }
           - { host: wsl,          runner: ubuntu-24.04,   arch: x86_64 }
           - { host: k8s-pi01,     runner: ubuntu-24.04-arm, arch: aarch64 }
           - { host: k8s-pi02,     runner: ubuntu-24.04-arm, arch: aarch64 }

@@ -2,7 +2,11 @@
 
 ## Infrastructure Overview
 
-### Host Inventory (17 hosts)
+### Host Inventory
+
+Counts here name the machines in each category; the flake additionally defines
+`k8s-node05` (canary worker), `wsl`, and the three `*-minimal` Raspberry Pi bootstrap
+images. `ryzen7` was removed on 2026-10-03 -- the box was rebuilt as Windows.
 
 **K3s Servers (3):**
 - `k8s-server01`, `k8s-server02`, `k8s-server03` - Control plane nodes with etcd
@@ -13,9 +17,8 @@
 **Raspberry Pi Nodes (3):**
 - `k8s-pi01`, `k8s-pi02`, `k8s-pi03` - ARM64 worker nodes
 
-**Special Purpose (2):**
+**Special Purpose (1):**
 - `llm01` - LLM inference server (AMD Strix Halo iGPU, ROCm, halogen-flash-server)
-- `ryzen7` - Workstation (AMD CPU, development machine)
 
 **Standalone Cluster (1):**
 - `titan` - OVH baremetal, its own single-node k3s cluster and the WireGuard hub.

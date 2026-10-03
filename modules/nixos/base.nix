@@ -9,15 +9,15 @@
     ./dbus-broker-timeout.nix
     # Imported unconditionally, NOT inside the `base.enable` gate below: the
     # binary cache is wanted on every host, including ones that do not opt into
-    # the rest of base.nix. ryzen7 imports this file without ever setting
-    # base.enable = true, so gating the cache on that flag would silently leave
-    # that host off the cache.
+    # the rest of base.nix. The old ryzen7 workstation imported this file without
+    # ever setting base.enable = true, so gating the cache on that flag would
+    # silently leave such a host off the cache.
     ./attic-cache.nix
 
     # base.journald.systemMaxUse is declared unconditionally (options always
     # are) but only emitted under base.enable, so a host that imports this file
-    # without enabling it -- ryzen7 -- could set a ceiling that nothing ever
-    # writes. Fail the eval instead of ignoring it silently.
+    # without enabling it -- as ryzen7 used to -- could set a ceiling that nothing
+    # ever writes. Fail the eval instead of ignoring it silently.
     (
       { config, lib, ... }:
       lib.mkIf (!config.base.enable) {
