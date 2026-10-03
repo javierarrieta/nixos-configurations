@@ -2331,7 +2331,7 @@ sops -e /tmp/secrets.dec.yaml > secrets.yaml && rm /tmp/secrets.dec.yaml
       "--etcd-s3-folder=titan"
       "--etcd-s3-bucket=titan-etcd"
       "--etcd-s3-endpoint=s3.l.arrieta.eu"
-      "--etcd-s3-region=us-east-1"
+      "--etcd-s3-region=eu-west-1"
       # PATH STYLE IS MANDATORY. The default 'auto' lookup would try
       # titan-etcd.s3.l.arrieta.eu, which has no DNS record and no cert -- the
       # Traefik Ingress serves one host. k8s-techdelivery hits the same wall and

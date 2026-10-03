@@ -73,7 +73,11 @@ in
       #     --etcd-s3-insecure is what disables it, not the scheme.
       "--etcd-s3-endpoint=s3.l.arrieta.eu"
       "--etcd-s3-bucket=titan-etcd"
-      "--etcd-s3-region=us-east-1"
+      # eu-west-1, NOT the us-east-1 the plan copied from k3s' AWS default. MinIO
+      # signs per-bucket and rejects a mismatch outright:
+      # "the authorization header is malformed; the region is wrong; expecting
+      # 'eu-west-1'". Fourth defect in this one line of the plan.
+      "--etcd-s3-region=eu-west-1"
       "--etcd-s3-folder=titan"
       # Path style is mandatory, not an optimisation: 'auto' lookup would resolve
       # titan-etcd.s3.l.arrieta.eu, which has no DNS record and no cert because the
