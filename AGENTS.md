@@ -1193,6 +1193,17 @@ Rules for agents:
   Do not merge locally and push either — that bypasses the PR record.
 - Force-pushing to update an **open feature branch** is fine and expected
   (e.g. amending after review). The restriction is on `main` itself.
+- **Check the PR is still open before pushing to its branch.** This bit twice on
+  2026-10-03: a follow-up commit was pushed to a branch whose PR had already been
+  squash-merged, so the fix sat on a dead branch while `main` kept the bug — and
+  nothing complained. Before any push to a PR branch:
+  ```bash
+  gh pr view <n> --json state,mergedAt --jq '.state'   # must be OPEN
+  ```
+  If it is `MERGED`, branch a fresh PR off `origin/main` and cherry-pick. Note that
+  after a squash merge `git log origin/main..<branch>` still lists the original
+  commits as unmerged even though their content is in `main` — verify **content**
+  (`git show origin/main:<file> | grep ...`), not commit reachability.
 - Branch off `main`, not off another open feature branch — otherwise the PR
   inherits that branch's commits and looks like it contains unrelated work.
 - `stable` is promoted from `main` by a human merge. Agents do not push
