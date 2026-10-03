@@ -225,6 +225,51 @@ sudo mdadm --detail /dev/md/titan
 sudo lvdisplay vg0
 ```
 
+## Rotating the API server serving certificate
+
+`--tls-san=192.168.133.1` is declarative in `vars.nix`, but k3s writes SANs into
+`serving-kube-apiserver.crt` only when it generates that file. A rebuild that adds
+the flag leaves the live certificate untouched, so the mesh path keeps failing
+`x509: certificate is valid for ..., not 192.168.133.1` and every admin kubeconfig
+keeps needing `insecure-skip-tls-verify`. Apply, then rotate, then verify — do not
+assume the rebuild did it.
+
+Check what is actually in the certificate, from the mesh side:
+
+```bash
+openssl s_client -connect 192.168.133.1:6443 -servername 10.63.0.1 </dev/null 2>/dev/null \
+  | openssl x509 -noout -ext subjectAltName
+```
+
+Rotation stops the control plane, and on a single-node cluster that means the whole
+cluster: Flux pauses, pods keep running but nothing reconciles. Expect a minute.
+The CAs are NOT rotated (`rotate-ca` is a different command), so kubeconfigs that
+embed a client certificate — including the ones already copied off this host — keep
+working; only the serving certificate changes.
+
+```bash
+systemctl stop k3s
+# The k3s CLI inherits nothing from the unit, so the flag has to be repeated here
+# or the rotated cert comes back with the old SAN list. Same trap as
+# `k3s etcd-snapshot list` above.
+k3s certificate rotate --tls-san=192.168.133.1
+systemctl start k3s
+```
+
+If the installed k3s rejects the flag on that subcommand, the narrower equivalent is
+to let startup regenerate just that one file:
+
+```bash
+systemctl stop k3s
+mv /var/lib/rancher/k3s/server/tls/serving-kube-apiserver.crt{,.bak}
+mv /var/lib/rancher/k3s/server/tls/serving-kube-apiserver.key{,.bak}
+systemctl start k3s
+```
+
+Re-run the `openssl` check and expect `192.168.133.1` in the list. Then delete
+`insecure-skip-tls-verify: true` from the admin kubeconfigs — that was the point.
+Leave it in and the next person has no way to tell whether the fix ever landed.
+
 ## Backups and the restore drill
 
 etcd is snapshotted every 6h by k3s itself into MinIO over the mesh
