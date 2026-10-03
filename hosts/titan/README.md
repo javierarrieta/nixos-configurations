@@ -351,8 +351,22 @@ went to MinIO anonymously and every scheduled snapshot failed with `Access Denie
 hours while the node stayed `Ready`. `systemctl show -p EnvironmentFiles` reports the
 *property* name (plural, parsed from the singular directive), which is what made the wrong
 spelling look like it was working. The config now uses `k3s.environmentFiles`, which
-`k3s.nix` joins into one `EnvironmentFile=` directive, and `k3sSnapshotMonitor` asserts the
-env file is on that list so the mistake fails the build.
+`k3s.nix` renders as **one `EnvironmentFile=` directive per file**, and
+`k3sSnapshotMonitor` asserts the env file is on that list so the mistake fails the build.
+
+The first fix for this space-joined both paths into a single `EnvironmentFile=a b`. That
+does not work either: systemd takes the whole value as one filename, fails to load it, and
+the unit dies with `Result: resources` -- it took k3s down on deploy. Proved in isolation:
+
+```bash
+systemd-run -p "EnvironmentFile=/a /b" true   # fails: unavailable resources
+systemd-run -p EnvironmentFile=/a true        # succeeds
+```
+
+So check the generated unit, not the option value:
+`grep '^EnvironmentFile' /run/current-system/etc/systemd/system/k3s.service` should show
+one line per file. Evaluating the option and building the system both passed with the
+broken join, so neither is proof of anything here.
 
 If the list is empty, the usual cause is the bucket: MinIO answers
 `AccessDenied` -- not `NoSuchBucket` -- for a bucket that does not exist, so a
