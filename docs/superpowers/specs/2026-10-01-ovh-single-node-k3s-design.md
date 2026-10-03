@@ -567,6 +567,24 @@ Three things this repo taught me that change the plan:
 
 | what | how | destination | why this way |
 |---|---|---|---|
+> **Datastore decision revisited and confirmed (2026-10-02).** After the sqlite
+> discovery above, single-node was re-examined: on one node raft buys **no redundancy**,
+> sqlite has fewer failure modes, and `--cluster-reset` exists only because etcd does.
+> The honest case for etcd is exactly one thing, and it is large: k3s' native
+> snapshot-to-S3 with built-in retention is the only backup path here that is already
+> correct and cannot be forgotten. Disk endurance was measured, not assumed --
+> `pidstat -d` showed zero block writes across every process at idle, so the
+> datastore is nowhere near an endurance concern on Intel DC NVMe (~1-3 DWPD =
+> hundreds of GB/day of headroom). **etcd stays.** If the SMART log ever comes back
+> with `media_errors` or `available_spare` near threshold, the conclusion changes:
+> titan should be stateless and the data belongs on the home cluster.
+>
+> Write hygiene applied alongside it: `node-status-update-frequency=2m` (default 10s
+> is ~8,600 fsyncs/day of information nobody consumes) paired with
+> `node-monitor-grace-period=5m`, and snapshots at 6h rather than hourly. The pairing
+> is load-bearing: grace period below the renew interval makes the controller evict
+> every workload off the only node.
+
 | k3s datastore (embedded etcd) | **k3s's own snapshot-to-S3** — no sidecar, no CronJob | `s3.l.arrieta.eu` (MinIO at `192.168.0.42`, reachable only over WG), bucket `titan-etcd` | k3s already speaks S3 for etcd snapshots; a CronJob would be a second, worse copy of a mechanism the control plane has built in |
 | `local-path` PVs on `lv-pvc` | restic CronJob against `/var/lib/rancher/k3s/storage` | same MinIO, bucket `titan-pvc` | etcd does not contain volume data; this is the only stream that carries the irreplaceable bytes |
 

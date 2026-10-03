@@ -76,12 +76,22 @@ in
       # S3 retention, NOT --etcd-snapshot-retention: that one counts local snapshot
       # files, which do not exist when snapshots go to S3. Wrong flag here means the
       # bucket silently grows forever.
+      # 24 snapshots at the 6h cadence below = 6 days of recovery points.
       "--etcd-s3-retention=24"
+      # Every 6h, not hourly. Measured on 2026-10-02: pidstat showed zero block
+      # writes across every process at idle, so the datastore is nowhere near a
+      # disk-endurance problem -- but an hourly full copy of the DB, uploaded over a
+      # 17 ms tunnel, is still work that buys nothing past the 4th snapshot.
       # The embedded quotes are load-bearing. k3s.extraFlags is toString'd into one
       # ExecStart string, so an unquoted cron is word-split by systemd into
       # `--etcd-snapshot-schedule-cron=0` plus three stray args and k3s refuses to
       # start. Verified by evaluating the generated ExecStart.
-      "--etcd-snapshot-schedule-cron=\"0 * * * *\""
+      "--etcd-snapshot-schedule-cron=\"0 */6 * * *\""
+      # Paired with node-status-update-frequency below; do not change one without
+      # the other. Grace period MUST exceed the kubelet's lease renew interval or
+      # kube-controller-manager declares the node NotReady and, after the 5m
+      # NoExecute taint, evicts the workloads off the only node in the cluster.
+      "--kube-controller-manager-arg=node-monitor-grace-period=5m"
     ];
     kubeletArgs = [
       # The 150 G root filesystem is small enough that a fat image cache starves
@@ -89,6 +99,12 @@ in
       "image-gc-high-threshold=80"
       "image-gc-low-threshold=70"
       "eviction-hard=nodefs.available<10%"
+      # Kubelet renews its node lease and posts node status on this interval
+      # (default 10s). On a single-node cluster with no autoscaler and no other
+      # node to reschedule onto, that is ~8,600 fsyncs a day into the datastore
+      # for information nobody consumes faster than once a minute. MUST be paired
+      # with --kube-controller-manager-arg=node-monitor-grace-period above.
+      "node-status-update-frequency=2m"
     ];
   };
 }

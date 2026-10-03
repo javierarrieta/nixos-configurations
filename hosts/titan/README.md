@@ -227,10 +227,17 @@ sudo lvdisplay vg0
 
 ## Backups and the restore drill
 
-etcd is snapshotted hourly by k3s itself into MinIO over the mesh
-(`titan-etcd` bucket, `titan/` folder, 24 kept). Flags live in `vars.nix`;
+etcd is snapshotted every 6h by k3s itself into MinIO over the mesh
+(`titan-etcd` bucket, `titan/` folder, 24 kept = 6 days of recovery points). Flags live in `vars.nix`;
 credentials are the `titan/minio_env` sops secret, delivered to the unit as
 `EnvironmentFiles` so no secret appears in the world-readable unit file.
+Two kubelet/controller-manager knobs are coupled and must move together:
+`node-status-update-frequency=2m` (kubelet lease + status interval, default 10s) and
+`node-monitor-grace-period=5m` (kube-controller-manager). If the grace period is
+shorter than the renew interval, the controller declares the node NotReady and after
+the 5m NoExecute taint **evicts everything off the only node in the cluster**. Changing
+one without the other is the trap.
+
 PV data has **no backup yet** -- the cluster has no PVCs, so restic is deferred
 (Task 16b) until there is data worth backing up and a `k8s-titan` GitOps tree to
 put the CronJob in.
