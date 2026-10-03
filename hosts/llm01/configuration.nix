@@ -64,26 +64,14 @@
   coderHost.allowedApiSources = [ "192.168.0.0/24" ];
 
   # SOPS host-specific secrets (base secrets are provided by sops-base module)
-  sops.secrets."wireguard/private_key" = {
-    mode = "0600";
-    owner = "root";
-  };
-  sops.secrets."wireguard/address" = {
-    mode = "0644";
-    owner = "root";
-  };
-  sops.secrets."wireguard/publicKey" = {
-    mode = "0644";
-    owner = "root";
-  };
-  sops.secrets."wireguard/endpoint" = {
-    mode = "0644";
-    owner = "root";
-  };
-  sops.secrets."wireguard/allowedIPs" = {
-    mode = "0644";
-    owner = "root";
-  };
+  #
+  # Five `wireguard/*` secrets used to be declared here and materialised on every
+  # deploy. Nothing ever read them: llm01 has no `networking.wireguard` interface, no
+  # /etc/wireguard, and no wireguard unit -- confirmed on the host. They were the tail
+  # of an older design that bridged llm01 to the VPS hub; llm01 lives inside the home
+  # LAN (192.168.0.29) and is not a member of the new 192.168.133.0/24 mesh either.
+  # The private key itself is still in secrets.yaml; deleting it from the file is a
+  # separate, riskier step because it means re-encrypting the whole secrets file.
   sops.secrets."ssh_keys/llm01_host_private" = {
     mode = "0600";
     owner = "root";
