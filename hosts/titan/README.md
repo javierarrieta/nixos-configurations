@@ -369,11 +369,19 @@ node_exporter's textfile collector:
 The check re-passes the S3 flags from `vars.nix` (`snapshotS3Flags`, shared with the
 server so they cannot drift), because the CLI inherits nothing from the unit.
 
-**Not yet scraped.** The metric is exposed on `titan:9100`, which is mesh-only, and no
-Prometheus currently has a route onto `192.168.133.0/24`. The natural scraper is the
-VPS cluster's Prometheus once the Task 15 triangle link exists -- it already scrapes
-chiclana over the old mesh, and `.5` falls inside the `/25` titan trusts. When that link
-is live, add to `k8s-techdelivery`:
+**Not yet scraped.** The metric is exposed on `titan:9100`, which is mesh-only. The
+scraper is **k8s-casa**, the central Prometheus, and the path does not need Task 15:
+OPNsense routes LAN to the new mesh (route, not masquerade), so a casa target reaches
+`192.168.133.1` with source `192.168.0.29` after pod masquerade -- exactly the source
+`publicHost.meshTCPPortExtraSources` whitelists on `wg0`. Verify from the llm01 host
+(not a podman container: bridge-sourced traffic is `10.88.0.0/16`, which OPNsense's
+`LAN net -> WG_MESH` rule excludes):
+
+```bash
+curl -m 5 -s http://192.168.133.1:9100/metrics | head -3
+```
+
+If that answers, add to `k8s-casa`:
 
 ```yaml
 # apply/50-apps/monitoring/node-exporter-titan.yaml
