@@ -299,13 +299,6 @@ in
     owner = "root";
   };
 
-  # Same as the fleet's k3s hosts: without these, pod traffic crossing a bridge
-  # bypasses netfilter and NetworkPolicy silently does nothing.
-  boot.kernel.sysctl = {
-    "net.bridge.bridge-nf-call-iptables" = 1;
-    "net.bridge.bridge-nf-call-ip6tables" = 1;
-  };
-
   # Observability and backups over the mesh (spec Q9). Every target below is a
   # home LAN address reachable only through wg0, so none of them may depend on
   # the home resolver being right.

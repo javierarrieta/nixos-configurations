@@ -131,6 +131,32 @@
     # without lib.mkForce; every existing host leaves it at false.
     networking.firewall.enable = lib.mkDefault false;
 
+    # Required for NetworkPolicy to actually be enforced, not merely accepted.
+    #
+    # K3s' embedded flannel puts pods on a vxlan bridge (cni0), and bridged
+    # traffic bypasses netfilter unless these are on. Without them a
+    # NetworkPolicy is accepted by the API, reported as applied, and does
+    # nothing -- strictly worse than having no policy, because the manifest reads
+    # like a fix. K3s' network policy controller (kube-router's netpol library)
+    # is on by default and only turned off by --disable-network-policy, which no
+    # host in this fleet passes, so policies are live.
+    #
+    # Set here rather than per-host because every k3s host needs it and only
+    # k8s-node04, k8s-node05 and titan had it -- the other ten ran with
+    # unenforced policies. k3s.nix is the one module all thirteen include;
+    # k8s-network.nix is not included by the Raspberry Pi workers.
+    #
+    # net.ipv4.ip_forward belongs to the same class: the flannel CNI sets it at
+    # runtime, so the cluster survives a missing value, but nothing persisted it
+    # and a reboot left it 0 until the CNI next ran.
+    #
+    # mkDefault so a host can still opt out without lib.mkForce.
+    boot.kernel.sysctl = {
+      "net.bridge.bridge-nf-call-iptables" = lib.mkDefault 1;
+      "net.bridge.bridge-nf-call-ip6tables" = lib.mkDefault 1;
+      "net.ipv4.ip_forward" = lib.mkDefault 1;
+    };
+
     # One `EnvironmentFile=` directive PER FILE. Two traps, both found on titan the
     # hard way on 2026-10-03:
     #
