@@ -148,11 +148,34 @@ activate() { # re-run activation for the CURRENT generation; echo output on fail
   return 1
 }
 
+# comin runs switch-to-configuration on its own schedule, and this script rewrites
+# /var/lib/sops-nix/key.txt with a non-atomic cp. A deploy landing mid-write reads a
+# half-written key and fails to decrypt, which looks exactly like a bad key. This bit the
+# host on 2026-10-05: comin's retried switches failed while an earlier version of this
+# script was swapping keys underneath them. So comin is stopped for the duration and put
+# back exactly as it was found.
+COMIN_WAS_ACTIVE=0
+stop_comin() {
+  if systemctl is-active --quiet comin 2>/dev/null; then
+    COMIN_WAS_ACTIVE=1
+    systemctl stop comin 2>/dev/null || true
+    say "    comin stopped for the duration of the swap"
+  fi
+}
+start_comin() {
+  [ "$COMIN_WAS_ACTIVE" = "1" ] || return 0
+  COMIN_WAS_ACTIVE=0
+  systemctl start comin 2>/dev/null || true
+}
+
 cleanup() {
   rc=$?
   # Only reachable if the candidate was installed and something then failed. The old key is
   # put back and activation re-run, so a failed run cannot leave titan unable to decrypt its
-  # own secrets.
+  # own secrets. Caveat found the hard way: after a recipient rotation the old key is a
+  # recipient of nothing, so this restores a key that opens no file -- the rollback is not a
+  # safety net in exactly the situation where a rotation went wrong. Phase A is the real
+  # protection: the working key stays in the file until the new one has activated on its own.
   if [ "$rc" -ne 0 ] && [ "$INSTALLED" = "1" ] && [ -n "$BACKUP" ]; then
     say "restoring the previous key and re-activating"
     # plain cp here, not put_key: put_key dies on a mismatch, and dying inside cleanup would
@@ -162,6 +185,7 @@ cleanup() {
       activate >/dev/null 2>&1 || say "WARN: rollback activation failed; check /run/secrets by hand"
     fi
   fi
+  start_comin
   for f in "$WORK"/*; do [ -f "$f" ] && wipe "$f"; done
   rmdir "$SOPS_HOME" 2>/dev/null || true
   rmdir "$WORK" 2>/dev/null || true
@@ -216,6 +240,7 @@ else
 fi
 
 # --- 2. back up what is installed now -------------------------------------------------
+stop_comin
 if [ -f "$KEY_DEST" ]; then
   BACKUP="$WORK/previous-key.txt"
   cp "$KEY_DEST" "$BACKUP"
@@ -278,5 +303,6 @@ elif [ -n "$BACKUP" ]; then
   say "previous admin key destroyed"
 fi
 wipe "$KEY_FILE"
+start_comin
 say "OK: titan now decrypts secrets/titan.yaml and nothing wider."
 say "Next: confirm from the fleet side that comin is unsuspended and a deploy still lands."

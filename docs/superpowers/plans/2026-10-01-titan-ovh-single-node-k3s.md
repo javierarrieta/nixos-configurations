@@ -2544,7 +2544,7 @@ already exists; this task replaces it.
   each of the five becomes
   `sops.secrets."titan/network_env" = { sopsFile = ../../secrets/titan.yaml; ... }`.
 
-- [ ] **Step 6 — Swap the key on the host.** Scripted: `scripts/titan-age-key-swap.sh`, runbook in `hosts/titan/README.md` under "titan's own sops age key". It ships the key into `/run` (tmpfs, never the root disk), installs it `root:root 0600` at `sops.age.keyFile`, and re-runs activation for the **current** generation via `/run/current-system/bin/switch-to-configuration switch` -- no rebuild needed, sops-nix decrypts during activation.
+- [x] **Step 6 — Swap the key on the host.** Done 2026-10-05 on titan: `4/6 both keys installed, activation healthy` -> `5/6 titan's key alone, activation healthy, all 7 secrets present` -> `OK`. Scripted: `scripts/titan-age-key-swap.sh`, runbook in `hosts/titan/README.md` under "titan's own sops age key". It ships the key into `/run` (tmpfs, never the root disk), installs it `root:root 0600` at `sops.age.keyFile`, and re-runs activation for the **current** generation via `/run/current-system/bin/switch-to-configuration switch` -- no rebuild needed, sops-nix decrypts during activation.
 
   Correction to the original wording: it said to `shred -u` the admin key **first**. That is backwards -- destroying the only working key before the replacement is proven leaves a box that cannot decrypt anything and no way back but the boot menu. The script backs the old key up, installs, proves, and only then shreds.
 
@@ -2554,7 +2554,11 @@ already exists; this task replaces it.
 
   Also: the expected-secret list was wrong for two of seven entries. `neededForUsers = true` puts the break-glass hash in `/run/secrets-for-users/`, not `/run/secrets/`, and the ssh host keys declare explicit paths under `/etc/ssh`. A hand-maintained list of materialised paths is a drift hazard, so the script now carries absolute paths plus the `nix eval` one-liner that regenerates them.
 
-- [ ] **Step 7 — Prove the narrowing, not just the happy path.** The script will not report success unless the installed key decrypts `secrets/titan.yaml` **and fails** on `secrets.yaml`, and all seven secrets materialised under `/run/secrets` afterwards.
+  **Fourth correction -- the premise of this whole task was wrong, and one command settled it.** Everything above assumed titan held the **repo-wide admin key**. It did not: `sudo age-keygen -y /var/lib/sops-nix/key.txt` printed `age1vrsm5d9...`, the titan-scoped key from Step 2. Step 6 had effectively been done earlier and never recorded here, so the plan and the README both described a blast radius that did not exist. The rotation was still worth doing -- retiring a key whose private half had lived in a container is the point -- but the framing was wrong for three days. Lesson: when a plan and a host disagree about current state, the host is the source of truth, and `age-keygen -y` on the installed key costs nothing.
+
+  Related, and the reason comin was looping: once #87 retired `age1vrsm5d9...`, the key installed on titan became a recipient of nothing, so every activation failed until the swap landed. "Restore the old key" is not a rollback path after a recipient rotation. The script now also stops `comin` around the swap: a concurrent `switch-to-configuration` reading the key file mid-`cp` fails to decrypt in a way indistinguishable from a bad key.
+
+- [x] **Step 7 — Prove the narrowing, not just the happy path.** Proven on the host by the script's own checks (`3/6 candidate cannot decrypt secrets.yaml`, `5/6 titan's key alone, activation healthy, all 7 secrets present`). The script will not report success unless the installed key decrypts `secrets/titan.yaml` **and fails** on `secrets.yaml`, and all seven secrets materialised afterwards.
 
   **Trap found while testing this: `SOPS_AGE_KEY_FILE` is not exclusive.** sops also loads `~/.config/sops/age/keys.txt` and any agent identities, and uses whichever key fits. The first local run of the script declared "titan's key also decrypts `secrets.yaml`" -- true only because an admin key sat in the default path. So every sops call runs under `env -i` with an empty `HOME`, and the offline test matrix in `hosts/titan/README.md`'s section covers it. The same trap applies to the hand version of this check:
 
