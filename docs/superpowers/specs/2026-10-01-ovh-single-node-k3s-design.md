@@ -73,7 +73,7 @@ git diff --cached | grep -noE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' \
 - The k3s control plane config itself.
 
 **Out of scope (referenced only)**
-- The Kubernetes manifests for the workloads, cert-manager, Traefik tuning, external-dns. Those live in a Flux/kustomize repo shaped like `k8s-techdelivery`; §13 lists what that repo must provide.
+- The Kubernetes manifests for the workloads, cert-manager, Traefik tuning, external-dns. Those live in **`../k8s-titan`** (Flux + sops, bootstrapped 2026-10-03); §13 lists what that repo must provide, and it now provides all of it plus Reflector to distribute the certificate. Nothing in this repo should ever grow a Kubernetes manifest.
 - DNS zone creation for `titan.arrieta.eu` (sub-delegation or A records — §16 Q2).
 - Backups of the cluster's PVs (follow-up; `k8s-techdelivery/apply/30-backup` is the pattern).
 
@@ -519,6 +519,14 @@ Add the leg to `verify.yml`. Note the workflow's Attic-push step and the substit
 ## 13. Cluster-side deliverables (different repo, listed so they are not forgotten)
 
 **Repo decided (Q16, 2026-10-01): a new GitOps tree mirroring `k8s-techdelivery`** — Flux + sops-encrypted k8s Secrets. It is the closest sibling (k3s, `local-path`, bundled Traefik, OVH DNS-01), so the manifests port almost unchanged; `k8s-casa`'s layout does not.
+
+**Built as `../k8s-titan` (2026-10-03).** The names came out as specified below --
+`groupName: acme.titan.arrieta.eu`, `ClusterIssuer le-prod-titan`, the wildcard
+`Certificate` -- with one addition this spec did not anticipate: **Reflector** (emberstack)
+mirrors the `titan-tls` Secret out of the `certificates` namespace into whichever
+namespaces consume it, the allow-list living on the `Certificate`'s `secretTemplate`
+annotations. That is the answer to "how does an Ingress in another namespace get the
+cert", and it belongs to the cluster tree, not to NixOS.
 
 - cert-manager + `cert-manager-webhook-ovh` with its own `groupName` (e.g. `acme.titan.arrieta.eu`) and a `ClusterIssuer le-prod-titan` using OVH API creds that can write `arrieta.eu` DNS.
 - `Certificate` for `titan.arrieta.eu` + `*.titan.arrieta.eu`.

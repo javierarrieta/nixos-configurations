@@ -2193,6 +2193,27 @@ The mesh renumber (D15: `192.168.2.0/24` → `192.168.133.0/24`) and the hub mov
 
 **Update 2026-10-02 — `chiclana` is not migrated.** Nobody can touch that box for a few months, so it stays on the old `192.168.2.0/24` mesh with the VPS as its hub. The old hub is therefore **scoped, not retired**: it keeps running with **`chiclana` and OPNsense** as its members. OPNsense carries both meshes indefinitely — routing home↔chiclana through the bridge instead (home → titan → VPS → chiclana) would make that path depend on `titan`, which is exactly the dependency the triangle exists to remove, and it would vanish at the moment it was wanted.
 
+> **STATUS 2026-10-05: migrated. Steps 3–5 done, Step 6 not re-proven, Step 7 closed as
+> rescoped, Step 8 done.**
+> The hub is live on `titan` with five peers declared in `hosts/titan/configuration.nix`
+> (OPNsense `.2`, pixel7 `.129`, macbookair `.130`, macbookpro `.131`, the
+> `techdelivery.es` VPS `.5`), and the OPNsense peer advertises `192.168.0.0/24` -- that
+> route is what makes titan's MinIO and Attic paths work at all.
+> `k8s-techdelivery` is repointed: the `node-exporter-llm01` scrape was chiclana's
+> address wearing llm01's name and is fixed at `1efe975`, while `chiclana-hass.yaml` and
+> `gatus.yaml` keep `192.168.2.3` **on purpose** -- chiclana never left the old mesh.
+> Step 7 ("retire the old hub") is not pending, it is rescoped: the old hub stays up as
+> chiclana's hub for as long as that box is unreachable. llm01's dead `wireguard/*`
+> hygiene is finished on both sides -- the `sops.secrets` entries went in #69 and the
+> keypair itself left `secrets.yaml` in #83.
+>
+> **Step 6 is the one gap.** "6443 reachable from a static peer, refused from a
+> roadwarrior" is enforced by construction -- `public-host.nix` matches the mesh ports on
+> `wireguard.staticSubnet` and refuses to build if a mesh port ever reaches the global
+> allowlist -- but nobody has re-run the live probe since the roadwarriors moved to
+> `.129/.130/.131`. One `nc -zvw3 192.168.133.1 6443` from macbookpro (`.131`, must
+> fail) and from a static peer (must succeed) closes it.
+
 **Files:**
 - Modify: `hosts/titan/configuration.nix` (fill `wireguard.peers`)
 - Modify: `../k8s-techdelivery` manifests that hardcode `192.168.2.x` (`node-exporter-llm01.yaml`, `chiclana-hass.yaml`, `gatus.yaml`) and the Prometheus scrape list
@@ -2299,9 +2320,14 @@ nc -zvw3 192.168.133.1 6443;  echo "must succeed"
 > two are restore-only failures: a config that had never been drilled would have revealed
 > them during an actual disaster.
 >
-> **Still open (Task 16b):** restic PV backup. Deferred deliberately -- the cluster has no
-> PVCs and `k8s-titan` has no GitOps tree yet. The drill above restored etcd state on the
-> live node, not into a scratch cluster, and did not cover PV data.
+> **Task 16b (restic PV backup) moved to `../k8s-titan` (2026-10-05).** It was deferred
+> here on two premises -- no PVCs, and no GitOps tree -- and the second one is now false:
+> the tree exists, and it is not this repo. What landed there is CloudNativePG's own
+> `ScheduledBackup` to S3 for the shared Postgres, which is a better mechanism for that
+> data than a restic CronJob over `/var/lib/rancher/k3s/storage`. A generic restic PV
+> backup is still open and is `k8s-titan`'s call, not a gap in this plan. The drill above
+> restored etcd state on the live node, not into a scratch cluster, and did not cover PV
+> data.
 
 Spec §13b and Q15: etcd snapshots go to S3 with k3s' native mechanism, PV data goes to restic, both land in MinIO over the mesh. The restore drill is the v1 exit criterion — a backup nobody has restored is a rumour.
 
@@ -2527,14 +2553,18 @@ already exists; this task replaces it.
 
 ## Exit criteria
 
-v1 is done when all of these are true and each has a command behind it in the task that owns it:
+v1 is done when all of these are true and each has a command behind it in the task that owns it.
 
-- `nix build .#nixosConfigurations.titan.config.system.build.toplevel` succeeds with **no** escape hatch in its CI step (that tolerance is removed at the end of Task 12), and `titan` is in the `verify.yml` matrix.
-- All twelve existing hosts evaluate with unchanged `firewall.enable`, `services.openssh.*`, `services.k3s.extraFlags`, `rsyslogd.extraConfig`, and home-manager package counts.
-- titan runs: mdraid + LVM mounted, `lv-pvc` under `/var/lib/rancher/k3s/storage`, k3s `Ready`, Traefik + ServiceLB serving 80/443 with a `*.titan.arrieta.eu` certificate.
-- Public probes: 13491/80/443/51820 reachable, 6443/9100/10250 unreachable from the internet, 6443 reachable from a static mesh peer and unreachable from a roadwarrior.
-- Mesh at `192.168.133.0/24` with titan as hub, old hub retired, Prometheus scraping titan and rsyslog arriving at `192.168.0.41`.
-- etcd snapshot and restic backup both landing, and one restore drill logged with a date.
-- titan's `/var/lib/sops-nix/key.txt` decrypts `secrets/titan.yaml` and **fails** on
-  `secrets.yaml` (Task 17 Step 7), and titan holds no copy of javier's personal SSH key.
-- No credentials and no concrete public IPv4/IPv6 anywhere in the public repo (spec §0 greps clean).
+**Status 2026-10-05.** Two of these were never this repo's to satisfy -- the plan says so
+in its own header: the certificate and the PV backup belong to the cluster tree, which now
+exists as `../k8s-titan`. Everything this repo owns is done except the host half of
+Task 17.
+
+- ✅ `nix build .#nixosConfigurations.titan.config.system.build.toplevel` succeeds with **no** escape hatch in its CI step (removed at the end of Task 12), and `titan` is in the `verify.yml` matrix.
+- ✅ All twelve existing hosts evaluate with unchanged `firewall.enable`, `services.openssh.*`, `services.k3s.extraFlags`, `rsyslogd.extraConfig`, and home-manager package counts -- re-proved by the matrix on every push to `main`.
+- ◐ titan runs: mdraid + LVM mounted, `lv-pvc` under `/var/lib/rancher/k3s/storage`, k3s `Ready`. **The `*.titan.arrieta.eu` certificate is `../k8s-titan`'s**, and it is built there: cert-manager + the OVH DNS-01 webhook, `ClusterIssuer le-prod-titan`, a `titan-wildcard` `Certificate` producing `titan-tls`, and Reflector mirroring that Secret into the consuming namespaces. The host side is done -- 80/443 open, wildcard DNS live.
+- ✅ Public probes, re-verified 2026-10-05 from a host on the internet and off the mesh: 13491/80/443 connect; 22/6443/9100/10250/4243/10257/10259 all **time out**, which is the DROP rather than a listener refusing. The mesh-side half is enforced by construction (`public-host.nix` matches the mesh ports on `wireguard.staticSubnet`, with a CI assertion that fails the build if one ever leaks to the global allowlist) but **not re-probed since the roadwarriors moved** -- see Task 15 Step 6.
+- ✅ Mesh at `192.168.133.0/24` with titan as hub, home Prometheus scraping titan (k8s-casa #177), rsyslog arriving at `192.168.0.41`. "Old hub retired" is **rescoped, not pending** -- it stays up as chiclana's hub (Task 15 update).
+- ✅ etcd snapshots landing in MinIO, and one restore drill logged with a date (2026-10-03, `hosts/titan/README.md`). restic PV backup → `../k8s-titan` (Task 16b).
+- ◐ titan holds no copy of javier's personal SSH key (`sopsBase.javierSshKey = false`, proven by evaluation). **The key narrowing is still open**: Task 17 Steps 6–7 need root on the host -- put titan's own key in `/var/lib/sops-nix/key.txt` and prove `sops -d secrets.yaml` **fails** there. Until then titan carries a repo-wide admin key, and `secrets.yaml` is in its blast radius.
+- ✅ No credentials and no concrete public IPv4/IPv6 anywhere in the public repo (spec §0 greps clean).
