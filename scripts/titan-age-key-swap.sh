@@ -29,7 +29,13 @@ set -eu
 
 # titan's own host key, from .sops.yaml under the ^secrets/titan\.yaml$ rule. Override
 # only if the key was regenerated.
-TITAN_RECIPIENT="age1vrsm5d9a4gd7wugem8lskq93n5hc7yxvdms77a76xcrqu7eunylscvh48e"
+#
+# This one was minted ON titan with `age-keygen` into tmpfs, so its private half never left
+# the box. The predecessor (age1vrsm5d9…) was minted on a Coder workspace on 2026-10-02 and
+# was retired by re-encrypting secrets/titan.yaml before it was ever installed -- which is
+# why check 2 below is the real gate: it fails for a key .sops.yaml lists but the file was
+# never re-encrypted to.
+TITAN_RECIPIENT="age1xff5th53qfnj7p7xjg3t27dxhl4kwhwu2c0tj8r8uruz8lq9tf7q22f35f"
 
 # Mirrors the sops.secrets entries in hosts/titan/configuration.nix (plus the one
 # sops-base.nix adds for the break-glass password). If a secret is added there, add it
@@ -70,17 +76,19 @@ die() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 [ -n "$KEY_FILE" ] || die "--key-file is required (a file holding one AGE-SECRET-KEY line)"
 [ -f "$KEY_FILE" ] || die "no such key file: $KEY_FILE"
 
-# Locate the repo checkout that holds the two sops files. Comin's checkout is the one that
-# is always there on a deployed titan; /etc/nixos is what nixos-anywhere leaves behind.
+# Locate a checkout holding the two sops files. Comin's is a BARE repo -- no working tree,
+# so /var/lib/comin/repository has never contained these files (found the hard way on the
+# host). /etc/nixos is what nixos-anywhere leaves behind and may or may not still be there.
+# In practice: clone the repo somewhere and pass --repo.
 if [ -z "$REPO" ]; then
-  for cand in /var/lib/comin/repository /etc/nixos; do
+  for cand in /etc/nixos /root/nixos-configurations; do
     if [ -f "$cand/secrets.yaml" ] && [ -f "$cand/secrets/titan.yaml" ]; then
       REPO="$cand"
       break
     fi
   done
 fi
-[ -n "$REPO" ] || die "could not find a checkout with secrets.yaml and secrets/titan.yaml; pass --repo"
+[ -n "$REPO" ] || die "no checkout with secrets.yaml and secrets/titan.yaml (comin's is a bare repo). Clone the repo and pass --repo, e.g. --repo /root/nixos-configurations"
 [ -f "$REPO/secrets.yaml" ] || die "$REPO/secrets.yaml missing"
 [ -f "$REPO/secrets/titan.yaml" ] || die "$REPO/secrets/titan.yaml missing"
 
