@@ -129,5 +129,31 @@ else fail_ "installed key differs (or is missing)"; fi
 if [ "$(stat -c '%a' "$WORK/installed" 2>/dev/null)" = "600" ]; then pass_ "installed key is 0600"
 else fail_ "installed key mode is $(stat -c '%a' "$WORK/installed" 2>/dev/null)"; fi
 
+# --- the fallback really is gone at the end, and --keep-backup really keeps it -----------
+mkdir -p "$WORK/sub"
+seed() { # seed a pre-existing key at the dest, as the host would have the admin key
+  cat "$WORK/admin.key" > "$WORK/sub/dest"
+}
+seed
+# the script shreds --key-file on success, so hand it a copy and compare against the original
+cp "$WORK/titan.key" "$WORK/titan.a"
+sh "$S" --key-file "$WORK/titan.a" --key-dest "$WORK/sub/dest" --repo "$FIX" \
+   --no-activate --recipient "$TITAN_PUB" >/dev/null 2>&1
+if cmp -s "$WORK/titan.key" "$WORK/sub/dest"; then
+  pass_ "pre-existing admin key replaced by titan's key alone (no union left behind)"
+else
+  fail_ "final key file is not titan's key alone"
+fi
+
+seed
+cp "$WORK/titan.key" "$WORK/titan.b"
+sh "$S" --key-file "$WORK/titan.b" --key-dest "$WORK/sub/dest" --repo "$FIX" \
+   --no-activate --recipient "$TITAN_PUB" --keep-backup >/dev/null 2>&1
+if [ -f "$WORK/sub/dest.backup" ] && cmp -s "$WORK/admin.key" "$WORK/sub/dest.backup"; then
+  pass_ "--keep-backup leaves the old key outside the sandbox workdir"
+else
+  fail_ "--keep-backup did not preserve the old key (cleanup shredded it?)"
+fi
+
 echo "---- $pass passed, $fail failed, $skip skipped"
 [ "$fail" = "0" ]
