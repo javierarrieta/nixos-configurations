@@ -225,6 +225,49 @@ sudo mdadm --detail /dev/md/titan
 sudo lvdisplay vg0
 ```
 
+## titan's own sops age key (Task 17 Steps 6–7)
+
+Until this is done, titan holds the **repo-wide admin key** in `/var/lib/sops-nix/key.txt`:
+a popped titan decrypts all of `secrets.yaml` — every host key, every join token, every
+object-store credential. The file split is already merged (`secrets/titan.yaml`, the
+`.sops.yaml` rule, and all seven `titan` secrets pointing at it), so what remains is one
+host-side swap and one proof.
+
+```bash
+# from a machine holding titan-key.txt (the Coder workspace). Key into tmpfs only.
+ssh -p 13491 nixos@titan.arrieta.eu \
+  'sudo sh -c "umask 077; cat > /run/titan-key.in"' < ~/.config/sops/age/titan-key.txt
+ssh -p 13491 nixos@titan.arrieta.eu \
+  'sudo sh -c "umask 077; cat > /run/titan-age-key-swap.sh"' < scripts/titan-age-key-swap.sh
+ssh -p 13491 nixos@titan.arrieta.eu \
+  'sudo sh /run/titan-age-key-swap.sh --key-file /run/titan-key.in'
+```
+
+`/run` is tmpfs, so the key never reaches the root disk, and the script shreds what it is
+given. It refuses to finish until it has proved, on the host:
+
+1. the candidate's public half is `age1vrsm5d9…` — titan's recipient in `.sops.yaml`;
+2. it decrypts `secrets/titan.yaml`;
+3. it **cannot** decrypt `secrets.yaml` — the check that catches an admin key handed in by
+   mistake, which would install cleanly and change nothing at all;
+4. after re-running activation for the current generation, all seven secrets exist under
+   `/run/secrets` and are non-empty.
+
+Only then does it destroy the backup of the admin key; any failure restores it and
+re-activates.
+
+**Why the script runs `sops` with an empty `HOME`.** `SOPS_AGE_KEY_FILE` is not exclusive:
+sops also loads `~/.config/sops/age/keys.txt` and any agent identities and uses whichever
+key fits. The first local run of this script reported "titan's key also decrypts
+secrets.yaml" — true only because an admin key was sitting in the default path. Check 3 is
+worthless without an empty `HOME`, and on titan it also stops a leftover key in root's home
+from faking a green proof.
+
+Rollback: the script keeps the previous key until every check passes. If the swap lands and
+something later fails to decrypt, run the same three commands with the old key, or take
+the `## Break-glass ladder` path. Afterwards, confirm from the fleet side that
+`comin status --json` shows unsuspended and one deploy still lands.
+
 ## Rotating the API server serving certificate
 
 `--tls-san=192.168.133.1` is declarative in `vars.nix`, but k3s writes SANs into
@@ -560,4 +603,5 @@ Second residual risk, until Task 17 lands: titan's age key is the **repo-wide ad
 key**, so a popped titan can decrypt all of `secrets.yaml` — every host's SSH host
 key, the k3s tokens, the object-store credentials. The firewalls limit exposure, not
 blast radius. Task 17 replaces it with a titan-only key that decrypts only
-`secrets/titan.yaml`.
+`secrets/titan.yaml` — the swap and its proof are scripted in
+`scripts/titan-age-key-swap.sh`, see `## titan's own sops age key`.

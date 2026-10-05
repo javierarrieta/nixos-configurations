@@ -2534,20 +2534,24 @@ already exists; this task replaces it.
   each of the five becomes
   `sops.secrets."titan/network_env" = { sopsFile = ../../secrets/titan.yaml; ... }`.
 
-- [ ] **Step 6 — Swap the key on the host.** Copy the titan private key to
-  `/var/lib/sops-nix/key.txt` (root:root, 0600) **after** `shred -u` the admin key that
-  Task 14 left there. Then deploy and confirm all remaining secrets materialise:
-  `ssh -p 13491 nixos@titan.arrieta.eu 'ls -l /run/secrets/titan /run/secrets/ssh_keys'`.
+- [ ] **Step 6 — Swap the key on the host.** Scripted: `scripts/titan-age-key-swap.sh`, runbook in `hosts/titan/README.md` under "titan's own sops age key". It ships the key into `/run` (tmpfs, never the root disk), installs it `root:root 0600` at `sops.age.keyFile`, and re-runs activation for the **current** generation via `/run/current-system/bin/switch-to-configuration switch` -- no rebuild needed, sops-nix decrypts during activation.
 
-- [ ] **Step 7 — Prove the narrowing, not just the happy path.** From titan:
+  Correction to the original wording: it said to `shred -u` the admin key **first**. That is backwards -- destroying the only working key before the replacement is proven leaves a box that cannot decrypt anything and no way back but the boot menu. The script backs the old key up, installs, proves, and only then shreds.
+
+- [ ] **Step 7 — Prove the narrowing, not just the happy path.** The script will not report success unless the installed key decrypts `secrets/titan.yaml` **and fails** on `secrets.yaml`, and all seven secrets materialised under `/run/secrets` afterwards.
+
+  **Trap found while testing this: `SOPS_AGE_KEY_FILE` is not exclusive.** sops also loads `~/.config/sops/age/keys.txt` and any agent identities, and uses whichever key fits. The first local run of the script declared "titan's key also decrypts `secrets.yaml`" -- true only because an admin key sat in the default path. So every sops call runs under `env -i` with an empty `HOME`, and the offline test matrix in `hosts/titan/README.md`'s section covers it. The same trap applies to the hand version of this check:
+
   ```bash
-  sudo sops -d /etc/nixos/secrets.yaml >/dev/null; echo "exit=$?"
+  sudo env -i PATH=$PATH HOME=/tmp/empty SOPS_AGE_KEY_FILE=/var/lib/sops-nix/key.txt \
+    sops -d /var/lib/comin/repository/secrets.yaml >/dev/null; echo "exit=$?"
   ```
-  This must **fail** with `Failed to get the data key ... group 0: FAILED`. A green
-  decrypt here means the split did not happen and Step 6 only moved bytes around.
 
-- [ ] **Step 8 — Commit** `secrets/titan.yaml`, `.sops.yaml`, and the module changes, and
-  record the titan public key in the private companion doc.
+  This must **fail** with `Failed to get the data key ... group 0: FAILED`. A green decrypt here means the split did not happen and Step 6 only moved bytes around.
+
+  Offline, the script is tested against the real repo files with `--no-activate` and a sandbox `--key-dest`: titan's key accepted; an admin key, the k8s key, a stray age key and a junk file all refused; and the narrowing check exercised on its own by overriding `--recipient` to an admin key so it passes the identity check and must then fail the `secrets.yaml` check.
+
+- [x] **Step 8 — Commit** `secrets/titan.yaml`, `.sops.yaml`, and the module changes (landed in #55 and follow-ups), and record the titan public key in the private companion doc (§6).
 
 ---
 
