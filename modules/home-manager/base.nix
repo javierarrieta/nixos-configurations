@@ -43,6 +43,30 @@ in
 {
   home.stateVersion = lib.mkDefault "25.11";
 
+  # Deliberately left unconfigured: `i18n.glibcLocales`.
+  #
+  # Home Manager's modules/config/i18n.nix is enabled unconditionally on Linux
+  # (`mkIf stdenv.hostPlatform.isLinux`) and exports
+  # `LOCALE_ARCHIVE_2_27 = ${i18n.glibcLocales}/lib/locale/locale-archive`. With
+  # nothing setting `i18n.*` here, that means the standalone-HM Linux hosts --
+  # coder-workspace and vps -- each carry the full 842-locale archive, 222 MiB,
+  # referenced by hm-session-vars.{sh,fish} and environment.d. llm01 pays
+  # nothing: HM runs there as a NixOS module and modules/nixos/base.nix sets
+  # `i18n.defaultLocale`, so NixOS already has the same glibcLocales in
+  # environment.systemPackages. The darwin hosts skip the module (isLinux gate).
+  #
+  # Shrinking it is the option the HM docs suggest and it does work --
+  # `pkgs.glibcLocales.override { allLocales = false; locales = [ "en_IE.UTF-8/UTF-8" ]; }`
+  # is 5.4 MiB and en_IE.UTF-8 resolves correctly through it -- but the override
+  # is not on cache.nixos.org and its drv compiles glibc in order to run
+  # localedef: a 2.8 GiB build-input closure dominated by gcc-wrapper, which the
+  # workspace image does not share (its /bin/gcc is a different store path). So
+  # it costs 2.8 GiB of download plus a local build to save 217 MiB, and it puts
+  # back the local-build path that PR #91 removed. Measured 2026-10-05.
+  #
+  # If disk ever matters, blank the variable instead of shrinking the package --
+  # but note HM's archive is the only locale data the workspace image ships, so
+  # LANG=en_IE.UTF-8 would silently degrade to C.
   imports = [
     ./host-common.nix
     ./shell.nix
