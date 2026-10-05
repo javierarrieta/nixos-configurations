@@ -70,8 +70,15 @@
   # /etc/wireguard, and no wireguard unit -- confirmed on the host. They were the tail
   # of an older design that bridged llm01 to the VPS hub; llm01 lives inside the home
   # LAN (192.168.0.29) and is not a member of the new 192.168.133.0/24 mesh either.
-  # The private key itself is still in secrets.yaml; deleting it from the file is a
-  # separate, riskier step because it means re-encrypting the whole secrets file.
+  # The values themselves were deleted from secrets.yaml on 2026-10-05 (recipients
+  # unchanged, 4 before and after), so nothing is left to materialise or leak.
+  #
+  # One loose end, and it is not in this repo: the public key in that block is the same
+  # string the operator companion doc records as the old hub's own wg0 identity on the
+  # VPS. Either the block was a copy of the hub's identity rather than an llm01 keypair,
+  # or the doc mislabels it. If it was the hub's, the key is still live in
+  # /etc/wireguard there and the real fix is rotation -- deleting it from a sops file
+  # revokes nothing. The old hub also still carries the dead `192.168.2.4` peer entry.
   sops.secrets."ssh_keys/llm01_host_private" = {
     mode = "0600";
     owner = "root";
