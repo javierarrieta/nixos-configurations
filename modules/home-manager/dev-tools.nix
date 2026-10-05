@@ -60,9 +60,20 @@ let
     # into ~/.pi/agent/{npm,git} on startup; the array is replaced wholesale on
     # every switch, so a runtime `pi install` does not survive a rebuild -- add
     # it here instead.
+    #
+    # pi-web-access >= 0.36.0 and pi-subagents >= 0.76.0 are the first releases
+    # that declare `typebox` under peerDependencies instead of dependencies.
+    # The older pins (0.31.0 / 0.71.0) install a physical copy of typebox, which
+    # pi rejects with an extension warning at every startup: a bundled copy can
+    # bypass pi's extension module mapping and duplicate its runtime classes.
+    # Do not downgrade past these.
     packages = [
-      "npm:pi-web-access@0.31.0"
-      "npm:pi-subagents@0.71.0"
+      "npm:pi-web-access@0.36.0"
+      "npm:pi-subagents@0.76.0"
+      # Installed on the coder workspace with `pi install` and in use there; it
+      # has to be declared because the wholesale array replacement above would
+      # otherwise drop it on the next switch.
+      "npm:@penumbral-labs/pi-copy-code@0.4.0"
       # superpowers v6.4.1
       "git:github.com/obra/superpowers@5bf4e78011075bcfc0dc295f0724994cd123ee71"
     ];
@@ -107,6 +118,14 @@ let
   # reproduce. The name list is explicit rather than a directory glob so a skill
   # added upstream cannot silently join the agent's routing table on a flake
   # update.
+  #
+  # pi scans ~/.agents/skills as well as ~/.pi/agent/skills (Agent Skills
+  # layout), and a name collision keeps the first hit and warns on every start.
+  # The ~/.agents/skills copies were byte-identical to these except for
+  # cocoindex, where they were an older upstream revision, so they were dead
+  # weight that only produced 28 startup warnings; they were removed on
+  # 2026-10-05 and must stay removed. Re-run `ls ~/.agents` if the warnings come
+  # back -- an old `skills` CLI install on another host recreates them there.
   #
   # One layout rule for every entry: <input>/skills/<name>. For the flake inputs
   # `input` is the upstream repo root; for cocoindex it is a repo-root mirror
@@ -166,6 +185,10 @@ let
       names = [ "cocoindex" ];
     }
   ];
+
+  # Every name pi owns. Used both to build home.file and by the activation
+  # pruner below, which treats anything outside this list as drift.
+  piSkillNames = lib.flatten (map (s: s.names) piVendoredSkills);
 
   piSkillFiles = builtins.listToAttrs (
     lib.flatten (
@@ -276,6 +299,53 @@ in
 
           _merge_pi_json "${piSettingsFile}" "$_pi_agent_dir/settings.json"
           _merge_pi_json "${piModelsFile}" "$_pi_agent_dir/models.json"
+
+          # Unmanaged skills must not be present. A SKILL.md backed by no flake
+          # input joins the model's routing table silently, and cannot be
+          # reproduced or reviewed from this repo -- that is how 21 supipowers
+          # copies and 2 frontmatter-less ones ended up in ~/.pi/agent/skills,
+          # the latter failing every start with "description is required".
+          # Prune the dir down to the declared set; a hand-written skill has to
+          # go into piVendoredSkills to survive a switch.
+          #
+          # Runs in a subshell with cd so the glob yields bare names: a Nix
+          # indented string interpolates dollar-brace, so the usual bash
+          # parameter expansion to strip a directory prefix is not available.
+          _pi_skill_names=" ${lib.concatStringsSep " " piSkillNames} "
+          if [ -d "$_pi_agent_dir/skills" ]; then
+            (
+              cd "$_pi_agent_dir/skills" || exit 0
+              for _n in *; do
+                [ -e "$_n" ] || continue
+                case "$_pi_skill_names" in *" $_n "*) continue ;; esac
+                echo "piAgentConfig: removing unmanaged skill $_pi_agent_dir/skills/$_n" >&2
+                rm -rf "$_n"
+              done
+            )
+          fi
+
+          # Same for the legacy `skills` CLI layout: pi scans ~/.agents/skills
+          # too, so any copy of a name we own there is a collision warning on
+          # every start and dead weight besides -- pi keeps the ~/.pi copy.
+          _pi_legacy="${config.home.homeDirectory}/.agents"
+          if [ -d "$_pi_legacy/skills" ]; then
+            (
+              cd "$_pi_legacy/skills" || exit 0
+              for _n in *; do
+                [ -e "$_n" ] || continue
+                case "$_pi_skill_names" in
+                  *" $_n "*)
+                    echo "piAgentConfig: removing legacy copy $_pi_legacy/skills/$_n" >&2
+                    rm -rf "$_n"
+                    ;;
+                esac
+              done
+            )
+          fi
+          if [ -e "$_pi_legacy/.skill-lock.json" ]; then
+            echo "piAgentConfig: removing legacy $_pi_legacy/.skill-lock.json" >&2
+            rm -f "$_pi_legacy/.skill-lock.json"
+          fi
         '';
   };
 
