@@ -486,6 +486,25 @@
         ];
       };
 
+      # The `home-manager` CLI that `hm-apply` runs (see
+      # modules/home-manager/shell.nix). Taken from this flake's nixpkgs input and
+      # deliberately NOT from the `home-manager` flake input: the upstream flake's
+      # own package has no cache.nixos.org substitute, so the first `hm-apply` on a
+      # fresh machine compiles it and drags the whole stdenv -- gcc, gmp, gettext,
+      # groff, patchelf, coreutils -- into the closure. nixpkgs' copy is Hydra-built
+      # and downloads in ~1 MiB. The CLI is only a driver: the modules it evaluates
+      # come from the pinned `home-manager` input via `homeConfigurations`.
+      #
+      # Trade-off worth knowing: nixpkgs vendors an older home-manager than this
+      # flake pins, so the driver is months older than the modules it runs. That is
+      # fine -- the only contract between them is
+      # `homeConfigurations.<name>.activationPackage`, stable for years -- but if a
+      # future `hm-apply` fails in a way that smells like a CLI/module mismatch,
+      # this is the first suspect. Escape hatch: `nix run nixpkgs#home-manager`
+      # (unpinned, still cached).
+      packages.x86_64-linux.hm-cli = nixpkgs.legacyPackages.x86_64-linux.home-manager;
+      packages.aarch64-darwin.hm-cli = nixpkgs.legacyPackages.aarch64-darwin.home-manager;
+
       packages.x86_64-linux.sd-image-k8s-pi01 =
         (self.nixosConfigurations.k8s-pi01.extendModules {
 
