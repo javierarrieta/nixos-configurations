@@ -227,34 +227,56 @@ sudo lvdisplay vg0
 
 ## titan's own sops age key (Task 17 Steps 6–7)
 
-Until this is done, titan holds the **repo-wide admin key** in `/var/lib/sops-nix/key.txt`:
-a popped titan decrypts all of `secrets.yaml` — every host key, every join token, every
-object-store credential. The file split is already merged (`secrets/titan.yaml`, the
-`.sops.yaml` rule, and all seven `titan` secrets pointing at it), so what remains is one
-host-side swap and one proof.
+The point: titan must hold a key that opens `secrets/titan.yaml` and **nothing wider**.
+While it holds the repo-wide admin key in `/var/lib/sops-nix/key.txt`, a popped titan
+decrypts all of `secrets.yaml` — every host key, every join token, every object-store
+credential. The file split is already merged (`secrets/titan.yaml`, the `.sops.yaml` rule,
+all seven `titan` secrets pointing at it); what remains is one host-side swap and one proof.
+
+**Mint the key on titan**, so its private half never leaves the box that uses it. The first
+candidate for this key was minted on a Coder workspace instead and had to be shipped over;
+it was retired by re-encrypting before it was ever installed, so nothing came of it.
 
 ```bash
-# from a machine holding titan-key.txt (the Coder workspace). Key into tmpfs only.
-ssh -p 13491 nixos@titan.arrieta.eu \
-  'sudo sh -c "umask 077; cat > /run/titan-key.in"' < ~/.config/sops/age/titan-key.txt
-ssh -p 13491 nixos@titan.arrieta.eu \
-  'sudo sh -c "umask 077; cat > /run/titan-age-key-swap.sh"' < scripts/titan-age-key-swap.sh
-ssh -p 13491 nixos@titan.arrieta.eu \
-  'sudo sh /run/titan-age-key-swap.sh --key-file /run/titan-key.in'
+# 1. on titan — mint into tmpfs, then print ONLY the public half
+sudo sh -c 'umask 077; age-keygen -o /run/titan-key.in'
+sudo age-keygen -y /run/titan-key.in
+
+# 2. on a workstation holding an admin key — put that age1… in .sops.yaml under the
+#    ^secrets/titan\.yaml$ rule (replacing the old titan line), then re-encrypt:
+sops updatekeys secrets/titan.yaml -y
+#    verify 5 recipients, unchanged plaintext, secrets.yaml untouched; PR both files.
+
+# 3. back on titan — the script needs a working tree, and comin's checkout is a BARE repo
+#    with no files in it, so clone one. /run is tmpfs, so it leaves nothing on the disk.
+sudo git clone --depth 1 https://github.com/javierarrieta/nixos-configurations /run/nixcfg
+sudo sh /run/nixcfg/scripts/titan-age-key-swap.sh \
+  --key-file /run/titan-key.in \
+  --repo /run/nixcfg
 ```
+
+`--repo` is mandatory: the auto-detect cannot work, since neither comin's bare repo nor a
+fresh clone has a fixed location. A persistent checkout (`/root/nixos-configurations`) works
+just as well — it holds only encrypted secrets.
+
+Step 2 before step 3, deliberately: the admin key titan already holds stays a recipient
+throughout, so there is no window where titan cannot decrypt its own secrets.
 
 `/run` is tmpfs, so the key never reaches the root disk, and the script shreds what it is
 given. It refuses to finish until it has proved, on the host:
 
-1. the candidate's public half is `age1vrsm5d9…` — titan's recipient in `.sops.yaml`;
-2. it decrypts `secrets/titan.yaml`;
+1. the candidate's public half is titan's recipient (`TITAN_RECIPIENT` in the script; pass
+   `--recipient` after a regeneration);
+2. it decrypts `secrets/titan.yaml` — which is also what catches a `.sops.yaml` listing a
+   key the file was never actually re-encrypted to;
 3. it **cannot** decrypt `secrets.yaml` — the check that catches an admin key handed in by
    mistake, which would install cleanly and change nothing at all;
 4. after re-running activation for the current generation, all seven secrets exist under
    `/run/secrets` and are non-empty.
 
 Only then does it destroy the backup of the admin key; any failure restores it and
-re-activates.
+re-activates, so a non-zero exit means the host is exactly as it was. The refusals are
+exercised offline by `scripts/titan-age-key-swap-tests.sh` (10 cases, no real keys needed).
 
 **Why the script runs `sops` with an empty `HOME`.** `SOPS_AGE_KEY_FILE` is not exclusive:
 sops also loads `~/.config/sops/age/keys.txt` and any agent identities and uses whichever
@@ -264,8 +286,8 @@ worthless without an empty `HOME`, and on titan it also stops a leftover key in 
 from faking a green proof.
 
 Rollback: the script keeps the previous key until every check passes. If the swap lands and
-something later fails to decrypt, run the same three commands with the old key, or take
-the `## Break-glass ladder` path. Afterwards, confirm from the fleet side that
+something later fails to decrypt, re-run the three steps with the old key, or take the
+`## Break-glass ladder` path. Afterwards, confirm from the fleet side that
 `comin status --json` shows unsuspended and one deploy still lands.
 
 ## Rotating the API server serving certificate

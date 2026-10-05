@@ -2512,6 +2512,16 @@ already exists; this task replaces it.
   Regenerating is cheap: run `age-keygen` again and replace the recipient in `.sops.yaml`
   before Step 4 runs — after Step 4 the file must be re-encrypted with `sops updatekeys`.
 
+  **That is what happened.** The key above was minted in a Coder container, which meant its
+  private half had to be *shipped to titan* to be useful — and it sat in that container for
+  three days meanwhile. On 2026-10-05 it was retired, uninstalled, in favour of a key minted
+  **on titan itself** into tmpfs, so the private half never left the box that uses it:
+  `age1xff5th53qfnj7p7xjg3t27dxhl4kwhwu2c0tj8r8uruz8lq9tf7q22f35f`. Re-pointing `.sops.yaml`
+  and running `sops updatekeys secrets/titan.yaml -y` dropped the old recipient (5
+  recipients before, 5 after, plaintext byte-identical), and the container's copy of the
+  dead key was shredded. Lesson: mint a host's key **on that host** — the transfer step is
+  where keys get copied, printed, and left behind.
+
 - [x] **Step 3 — Recipient rules.** `.sops.yaml` now has a `^secrets/titan\.yaml$` rule
   whose `key_groups` are the four admin recipients **plus the titan public key**, listed
   first. Correction to the reasoning written here earlier: the generic `secrets\.ya?ml$`
