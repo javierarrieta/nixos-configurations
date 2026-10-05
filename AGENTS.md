@@ -24,6 +24,7 @@ images. `ryzen7` was removed on 2026-10-03 -- the box was rebuilt as Windows.
 - `titan` - OVH baremetal, its own single-node k3s cluster and the WireGuard hub.
   Public-facing: SSH on 13491 key-only, default-deny firewall. Not in the home
   bind zone, so `scripts/comin-approve.sh` addresses it by FQDN on a custom port.
+  Its **cluster manifests are not here** -- see "Where cluster manifests live".
 
 ### Module Architecture
 
@@ -421,6 +422,22 @@ dmesg -T | grep -iE "medium error|unrecovered read|Buffer I/O"
 ---
 
 ## Kubernetes (k3s) Configuration
+
+### Where cluster manifests live
+
+This repo configures **machines**. Kubernetes objects do not belong in it:
+
+| What | Repo |
+|---|---|
+| `titan` cluster: cert-manager + OVH DNS-01 webhook, Reflector, the `*.titan.arrieta.eu` certificate, CloudNativePG, every workload | **`../k8s-titan`** (Flux + sops) |
+| Home cluster (`k8s-casa`) manifests, including the central Prometheus scrape list that watches these hosts | `k8s-casa` |
+| The `techdelivery.es` cluster | `k8s-techdelivery` -- precedent for the OVH DNS-01 pattern, and nothing else for `titan` |
+
+What stays here is the host that the cluster runs on: `modules/nixos/k3s.nix`,
+`k8s-network.nix`, the firewall that fences 6443/10250 to the mesh, the etcd snapshot
+flags, and the mesh that makes the home MinIO reachable from `titan`. If a task says
+"the cert", "the ingress" or "the scrape" for `titan`, look in the cluster repo before
+touching a `.nix`.
 
 ### Unified k3s Module
 

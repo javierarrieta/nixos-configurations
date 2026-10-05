@@ -287,6 +287,11 @@ k3s' path. If the sudo wrapper becomes annoying, the alternative is a tmpfiles r
 making the file `0640 root:wheel` -- decide that consciously, because it takes the password
 out of the path to cluster-admin.
 
+**Nothing that runs in this cluster is defined in this repo.** Ingress, the
+`*.titan.arrieta.eu` certificate (cert-manager + the OVH DNS-01 webhook, mirrored to
+consuming namespaces by Reflector), the Postgres operator and every workload live in
+`../k8s-titan`. Editing a `.nix` here to change cluster behaviour is the wrong door.
+
 ## Backups and the restore drill
 
 etcd is snapshotted every 6h by k3s itself into MinIO over the mesh
@@ -300,9 +305,11 @@ shorter than the renew interval, the controller declares the node NotReady and a
 the 5m NoExecute taint **evicts everything off the only node in the cluster**. Changing
 one without the other is the trap.
 
-PV data has **no backup yet** -- the cluster has no PVCs, so restic is deferred
-(Task 16b) until there is data worth backing up and a `k8s-titan` GitOps tree to
-put the CronJob in.
+PV data has **no generic backup yet**. The cluster tree is `../k8s-titan`, and what it
+backs up so far is the shared Postgres through CloudNativePG's own `ScheduledBackup` to
+S3 -- a better mechanism for that data than a restic CronJob over
+`/var/lib/rancher/k3s/storage`. A restic PV job (plan Task 16b) is open **there**, not
+here.
 
 ### The datastore must be etcd, and it was not (2026-10-02)
 
