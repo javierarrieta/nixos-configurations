@@ -259,8 +259,19 @@ sudo sh /run/nixcfg/scripts/titan-age-key-swap.sh \
 fresh clone has a fixed location. A persistent checkout (`/root/nixos-configurations`) works
 just as well — it holds only encrypted secrets.
 
-Step 2 before step 3, deliberately: the admin key titan already holds stays a recipient
-throughout, so there is no window where titan cannot decrypt its own secrets.
+Ordering, all three parts of it:
+
+- **Step 2 before step 3.** The admin key titan already holds stays a recipient throughout,
+  so there is no window where titan cannot decrypt its own secrets.
+- **The rotation commit must be deployed to titan before the swap.** Activation re-runs the
+  *current* generation, and that generation carries a store copy of `secrets/titan.yaml`
+  baked in when it was built. A freshly rotated repo file and that embedded copy differ, so
+  a perfectly good new key opens the repo copy and fails on the one activation reads:
+  `sops-install-secrets: failed to decrypt '/nix/store/…-titan.yaml': Error getting data
+  key: 0 successful groups required, got 0`. Check `3b` refuses on this now. Titan is a
+  canary, so `comin` deploys it on its own — wait for the commit, then swap.
+- **Nothing is lost if you get it wrong.** A failed activation restores the previous key and
+  re-activates; a non-zero exit means the host is exactly as it was.
 
 `/run` is tmpfs, so the key never reaches the root disk, and the script shreds what it is
 given. It refuses to finish until it has proved, on the host:
@@ -271,7 +282,9 @@ given. It refuses to finish until it has proved, on the host:
    key the file was never actually re-encrypted to;
 3. it **cannot** decrypt `secrets.yaml` — the check that catches an admin key handed in by
    mistake, which would install cleanly and change nothing at all;
-4. after re-running activation for the current generation, all seven secrets exist under
+4. the generation about to be re-activated embeds a `titan.yaml` this key can open (the
+   ordering trap above);
+5. after re-running activation for the current generation, all seven secrets exist under
    `/run/secrets` and are non-empty.
 
 Only then does it destroy the backup of the admin key; any failure restores it and
