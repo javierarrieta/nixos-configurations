@@ -227,15 +227,24 @@ sudo lvdisplay vg0
 
 ## titan's own sops age key (Task 17 Steps 6–7)
 
-The point: titan must hold a key that opens `secrets/titan.yaml` and **nothing wider**.
-While it holds the repo-wide admin key in `/var/lib/sops-nix/key.txt`, a popped titan
-decrypts all of `secrets.yaml` — every host key, every join token, every object-store
-credential. The file split is already merged (`secrets/titan.yaml`, the `.sops.yaml` rule,
-all seven `titan` secrets pointing at it); what remains is one host-side swap and one proof.
+The point: titan holds a key that opens `secrets/titan.yaml` and **nothing wider**. A popped
+titan then yields its own host keys, its own join token and its own object-store credentials
+— not every host's SSH host key, k3s token and bucket credential in `secrets.yaml`.
 
-**Mint the key on titan**, so its private half never leaves the box that uses it. The first
-candidate for this key was minted on a Coder workspace instead and had to be shipped over;
-it was retired by re-encrypting before it was ever installed, so nothing came of it.
+**This section documents a rotation, not an introduction.** Titan was already running a
+titan-scoped key (`age1vrsm5d9…`) when this was written up; the plan had Step 6 unchecked and
+this README claimed titan held the repo-wide admin key. Both were wrong, and the host settled
+it in one command:
+
+```fish
+sudo age-keygen -y /var/lib/sops-nix/key.txt    # the recipient titan actually holds
+```
+
+Read the host, not the plan. The rotation was still worth doing: `age1vrsm5d9…` was minted
+inside a Coder container and its private half lived there, so using it meant shipping it
+around. The current key (`age1xff5t…`) was minted **on titan**, into tmpfs, and never left.
+
+**Mint the key on titan**, so its private half never leaves the box that uses it.
 
 ```bash
 # 1. on titan — mint into tmpfs, then print ONLY the public half
@@ -258,6 +267,10 @@ sudo sh /run/nixcfg/scripts/titan-age-key-swap.sh \
 `--repo` is mandatory: the auto-detect cannot work, since neither comin's bare repo nor a
 fresh clone has a fixed location. A persistent checkout (`/root/nixos-configurations`) works
 just as well — it holds only encrypted secrets.
+
+The script stops `comin` for the duration and restarts it if it was running. A concurrent
+`switch-to-configuration` that reads the key file mid-`cp` fails to decrypt in a way that is
+indistinguishable from a bad key, and that cost a full debugging cycle on 2026-10-05.
 
 Ordering, all three parts of it:
 
@@ -641,9 +654,12 @@ exotic one. Check, in order:
 Residual accepted risk: a single node has no redundancy, so an intervention is a
 full outage. Mitigated by the health gate and the rollback entry, not by failover.
 
-Second residual risk, until Task 17 lands: titan's age key is the **repo-wide admin
-key**, so a popped titan can decrypt all of `secrets.yaml` — every host's SSH host
-key, the k3s tokens, the object-store credentials. The firewalls limit exposure, not
-blast radius. Task 17 replaces it with a titan-only key that decrypts only
-`secrets/titan.yaml` — the swap and its proof are scripted in
-`scripts/titan-age-key-swap.sh`, see `## titan's own sops age key`.
+Closed 2026-10-05: titan's age key is **titan-scoped** — it decrypts `secrets/titan.yaml`
+and fails on `secrets.yaml`, which is the property `scripts/titan-age-key-swap.sh` refuses
+to report without. See `## titan's own sops age key` for the rotation and its proof.
+
+One caveat that cost a debugging cycle: after a recipient rotation, the previous key on the
+host is a recipient of *nothing*, so "restore the old key" stops being a safety net. The
+additive flow survives this because phase A installs both keys and activation succeeds on
+whichever line still opens the file — but a rollback to a retired key is a rollback to a box
+that cannot decrypt anything on its next activation.
