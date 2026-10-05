@@ -165,6 +165,29 @@ if run_sops "$KEY_FILE" -d "$REPO/secrets.yaml" > "$WORK/fleet.out" 2>/dev/null;
 fi
 say "3/5 candidate cannot decrypt secrets.yaml (this is the narrowing)"
 
+# --- 3b. does the generation we are about to re-activate embed the rotated file? ----------
+# Activation re-runs the CURRENT generation, and that generation carries a store copy of
+# secrets/titan.yaml baked in when it was built. After a recipient rotation the repo file
+# and the embedded copy differ: the new key opens the repo copy (check 2) but not the one
+# activation will read. That is how a correct key still died with "0 successful groups
+# required, got 0" on the host -- the swap has to come after the rotation commit is deployed.
+say "    checking the deployed generation's own copy of titan.yaml"
+if command -v nix-store >/dev/null 2>&1; then
+  GEN_TITAN=$(nix-store -q --requisites /run/current-system 2>/dev/null \
+              | grep -- '-titan\.yaml$' | head -1)
+  if [ -n "$GEN_TITAN" ]; then
+    if run_sops "$KEY_FILE" -d "$GEN_TITAN" >/dev/null 2>&1; then
+      say "    deployed generation embeds a titan.yaml this key opens"
+    else
+      die "the deployed generation still embeds the pre-rotation $GEN_TITAN, which this key cannot open. Deploy the commit that re-encrypted secrets/titan.yaml first, then swap the key."
+    fi
+  else
+    say "    (no titan.yaml found in the current system closure; skipping that check)"
+  fi
+else
+  say "    (nix-store unavailable; skipping that check)"
+fi
+
 # --- 2. back up what is installed now -------------------------------------------------
 if [ -f "$KEY_DEST" ]; then
   BACKUP="$WORK/previous-key.txt"
