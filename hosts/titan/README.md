@@ -283,13 +283,20 @@ given. It refuses to finish until it has proved, on the host:
 3. it **cannot** decrypt `secrets.yaml` — the check that catches an admin key handed in by
    mistake, which would install cleanly and change nothing at all;
 4. the generation about to be re-activated embeds a `titan.yaml` this key can open (the
-   ordering trap above);
-5. after re-running activation for the current generation, all seven secrets exist under
-   `/run/secrets` and are non-empty.
+   ordering trap above) — tested in isolation, because with both keys installed activation
+   would succeed on the admin key's effort alone and prove nothing;
+5. activation is healthy with **old + new installed together**, so the host is never one
+   unproven key away from its own secrets;
+6. activation is healthy with **the new key alone**, and every materialised secret path is
+   present — including `/run/secrets-for-users/…` (the `neededForUsers` tmpfs) and the
+   host keys under `/etc/ssh`, which are not under `/run/secrets` at all.
 
-Only then does it destroy the backup of the admin key; any failure restores it and
-re-activates, so a non-zero exit means the host is exactly as it was. The refusals are
-exercised offline by `scripts/titan-age-key-swap-tests.sh` (10 cases, no real keys needed).
+Only then does it destroy the backup of the admin key. `--keep-backup` moves it to
+`$KEY_DEST.backup` instead of shredding it. A failure at any point restores the previous
+key and re-activates, so a non-zero exit means the host is exactly as it was — and by step 6
+the key being restored is one already proven on this host minutes earlier, not a hope. The
+refusals are exercised offline by `scripts/titan-age-key-swap-tests.sh` (12 cases, no real
+keys needed).
 
 **Why the script runs `sops` with an empty `HOME`.** `SOPS_AGE_KEY_FILE` is not exclusive:
 sops also loads `~/.config/sops/age/keys.txt` and any agent identities and uses whichever

@@ -1,30 +1,33 @@
 #!/bin/sh
-# Task 17 Steps 6-7: replace the admin age key titan was bootstrapped with by titan's own
-# host key, then PROVE the narrowing instead of assuming it.
+# titan-age-key-swap.sh -- replace titan's repo-wide admin sops age key with titan's own,
+# without ever leaving the host unable to decrypt its own secrets.
 #
-# WHY A SCRIPT AND NOT THREE COMMANDS IN A RUNBOOK. The failure is silent and asymmetric:
-# install a key that is not titan's -- an admin key, or the k8s key, or the wrong file
-# entirely -- and every secret still materialises, k3s stays Ready, comin stays green, and
-# the split Task 17 exists for simply never happened. So this script refuses to finish
-# until it has proved two things from the host: the installed key opens
-# secrets/titan.yaml, and it CANNOT open secrets.yaml.
+# Why this is a script and not three commands in a runbook: the dangerous failure is
+# silent. Install the wrong key and titan still boots, still decrypts, still deploys -- and
+# the narrowing Task 17 exists for simply never happened. So the script refuses to report
+# success until it has proved each thing it claims.
 #
-# Runs as root ON titan. The key arrives as a root-readable file, never as an argument:
-# argv is world-readable through /proc, and the bootstrap already learned that keys passed
-# as shell arguments get mangled (AGENTS.md, titan bring-up lesson 4).
+# The flow is ADDITIVE on purpose. The old key is never removed until the new one has been
+# activated alongside it and proven in isolation, so there is no moment where the host's
+# only path to its own secrets is a key that has not worked yet. An earlier version
+# installed the new key first and rolled back on failure; on the host the rollback itself
+# failed, which is the hole this design closes.
 #
-#   # 1. ship the key and the script into tmpfs (never onto the root disk)
-#   ssh -p 13491 nixos@titan.arrieta.eu \
-#     'sudo sh -c "umask 077; cat > /run/titan-key.in"' < ~/.config/sops/age/titan-key.txt
-#   ssh -p 13491 nixos@titan.arrieta.eu \
-#     'sudo sh -c "umask 077; cat > /run/titan-age-key-swap.sh"' < scripts/titan-age-key-swap.sh
-#   # 2. run it
-#   ssh -p 13491 nixos@titan.arrieta.eu \
-#     'sudo sh /run/titan-age-key-swap.sh --key-file /run/titan-key.in'
+#   1. prove the candidate is titan's key and nothing wider (nothing installed yet)
+#   2. install old + candidate together, activate -- must be healthy, admin key guarantees it
+#   3. install candidate alone, activate -- the real narrowing test, with the old key one cp away
+#   4. verify every secret path, then destroy the backup
+#
+# Usage (on titan, as root):
+#   titan-age-key-swap.sh --key-file /run/titan-key.in --repo /run/nixcfg
+#
+# The key goes in a file, never an argv (AGENTS: keys passed as shell arguments get
+# mangled), and into /run so it never touches the root disk. The script shreds it at the
+# end, including on the paths where it refuses.
 #
 # Flags exist so the whole thing can be exercised off the host: --key-dest and --no-activate
-# turn it into a pure verification run against a sandbox path, which is how the "is this
-# really titan's key" discriminator got tested (see hosts/titan/README.md).
+# turn it into a pure verification run against a sandbox path, which is how the refusals got
+# tested (scripts/titan-age-key-swap-tests.sh).
 set -eu
 
 # titan's own host key, from .sops.yaml under the ^secrets/titan\.yaml$ rule. Override
@@ -32,22 +35,29 @@ set -eu
 #
 # This one was minted ON titan with `age-keygen` into tmpfs, so its private half never left
 # the box. The predecessor (age1vrsm5d9…) was minted on a Coder workspace on 2026-10-02 and
-# was retired by re-encrypting secrets/titan.yaml before it was ever installed -- which is
-# why check 2 below is the real gate: it fails for a key .sops.yaml lists but the file was
-# never re-encrypted to.
+# was retired by re-encrypting secrets/titan.yaml before it was ever installed.
 TITAN_RECIPIENT="age1xff5th53qfnj7p7xjg3t27dxhl4kwhwu2c0tj8r8uruz8lq9tf7q22f35f"
 
-# Mirrors the sops.secrets entries in hosts/titan/configuration.nix (plus the one
-# sops-base.nix adds for the break-glass password). If a secret is added there, add it
-# here: an unlisted secret is an unverified secret.
+# Every secret the deployed titan must end up with, as absolute paths. These are the
+# *materialised* paths, which are not all under /run/secrets:
+#
+#   - neededForUsers secrets go to /run/secrets-for-users (sops-nix mounts a separate
+#     tmpfs there so the hash exists before users are created)
+#   - the ssh host keys declare an explicit path under /etc/ssh
+#
+# Regenerate after any change to hosts/titan/configuration.nix or sops-base.nix with:
+#   nix eval --raw --impure --expr \
+#     'let c = (builtins.getFlake (toString ./.)).nixosConfigurations.titan.config;
+#      in builtins.concatStringsSep "\n"
+#         (builtins.map (n: c.sops.secrets.${n}.path) (builtins.attrNames c.sops.secrets))'
 EXPECTED_SECRETS="
-titan/network_env
-titan/minio_env
-wireguard/titan_private_key
-ssh_keys/titan_host_private
-ssh_keys/titan_host_public
-k3s_token_titan
-users/javier_password_hash_titan
+/run/secrets/titan/network_env
+/run/secrets/titan/minio_env
+/run/secrets/wireguard/titan_private_key
+/run/secrets/k3s_token_titan
+/run/secrets-for-users/users/javier_password_hash_titan
+/etc/ssh/ssh_host_ed25519_key
+/etc/ssh/ssh_host_ed25519_key.pub
 "
 
 KEY_FILE=""
@@ -55,14 +65,12 @@ KEY_DEST="/var/lib/sops-nix/key.txt"
 REPO=""
 ACTIVATE=1
 KEEP_BACKUP=0
-SECRETS_DIR="/run/secrets"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --key-file)   KEY_FILE="$2"; shift 2 ;;
     --key-dest)   KEY_DEST="$2"; shift 2 ;;
     --repo)       REPO="$2"; shift 2 ;;
-    --secrets-dir) SECRETS_DIR="$2"; shift 2 ;;
     --recipient)  TITAN_RECIPIENT="$2"; shift 2 ;;
     --no-activate) ACTIVATE=0; shift ;;
     --keep-backup) KEEP_BACKUP=1; shift ;;
@@ -88,7 +96,7 @@ if [ -z "$REPO" ]; then
     fi
   done
 fi
-[ -n "$REPO" ] || die "no checkout with secrets.yaml and secrets/titan.yaml (comin's is a bare repo). Clone the repo and pass --repo, e.g. --repo /root/nixos-configurations"
+[ -n "$REPO" ] || die "no checkout with secrets.yaml and secrets/titan.yaml (comin's is a bare repo). Clone the repo and pass --repo, e.g. --repo /run/nixcfg"
 [ -f "$REPO/secrets.yaml" ] || die "$REPO/secrets.yaml missing"
 [ -f "$REPO/secrets/titan.yaml" ] || die "$REPO/secrets/titan.yaml missing"
 
@@ -123,17 +131,35 @@ wipe() {
   shred -u "$1" 2>/dev/null || { rm -f "$1" && say "WARN: deleted without shredding: $1 (shred unavailable)"; }
 }
 
+put_key() { # install one file as the sops key, root:root 0600, verified byte-identical
+  install -m 0600 -o root -g root "$1" "$KEY_DEST" 2>/dev/null \
+    || { cp "$1" "$KEY_DEST" && chmod 0600 "$KEY_DEST"; }
+  [ "$(sha256sum "$1" | cut -d' ' -f1)" = "$(sha256sum "$KEY_DEST" | cut -d' ' -f1)" ] \
+    || die "key did not land intact at $KEY_DEST"
+}
+
+activate() { # re-run activation for the CURRENT generation; echo output on failure
+  # No rebuild: switch-to-configuration on the current generation re-runs the activation
+  # scripts, and sops-nix decrypts during activation. Note the path is bin/, not sw/bin/.
+  [ -x /run/current-system/bin/switch-to-configuration ] \
+    || die "/run/current-system/bin/switch-to-configuration missing"
+  local_out=$(/run/current-system/bin/switch-to-configuration switch 2>&1) && return 0
+  printf '%s\n' "$local_out" | sed 's/^/    /'
+  return 1
+}
+
 cleanup() {
   rc=$?
-  # If we installed a key and never reached the proof, put the old one back and re-run
-  # activation, so a failed run cannot leave titan unable to decrypt its own secrets.
+  # Only reachable if the candidate was installed and something then failed. The old key is
+  # put back and activation re-run, so a failed run cannot leave titan unable to decrypt its
+  # own secrets.
   if [ "$rc" -ne 0 ] && [ "$INSTALLED" = "1" ] && [ -n "$BACKUP" ]; then
     say "restoring the previous key and re-activating"
-    install -m 0600 -o root -g root "$BACKUP" "$KEY_DEST" 2>/dev/null \
-      || cp "$BACKUP" "$KEY_DEST"
-    if [ "$ACTIVATE" = "1" ] && [ -x /run/current-system/bin/switch-to-configuration ]; then
-      /run/current-system/bin/switch-to-configuration switch >/dev/null 2>&1 \
-        || say "WARN: rollback activation failed; check /run/secrets by hand"
+    # plain cp here, not put_key: put_key dies on a mismatch, and dying inside cleanup would
+    # abandon the restore halfway through
+    cp "$BACKUP" "$KEY_DEST" 2>/dev/null && chmod 0600 "$KEY_DEST"
+    if [ "$ACTIVATE" = "1" ]; then
+      activate >/dev/null 2>&1 || say "WARN: rollback activation failed; check /run/secrets by hand"
     fi
   fi
   for f in "$WORK"/*; do [ -f "$f" ] && wipe "$f"; done
@@ -143,34 +169,35 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-# --- 1. is this actually titan's key? -------------------------------------------------
-# Three independent checks, because the interesting mistake is "right kind of file, wrong
-# key". The recipient equality is the direct answer; the decrypt pair is the behaviour that
+# --- 1. is this actually titan's key? ---------------------------------------------------
+# The recipient equality is the direct answer; the decrypt pair is the behaviour that
 # actually matters, and it is also the proof Step 7 asks for.
 CAND_PUB=$(age-keygen -y "$KEY_FILE" 2>/dev/null) \
   || die "not a valid age secret key: $KEY_FILE"
 [ "$CAND_PUB" = "$TITAN_RECIPIENT" ] \
   || die "key is $CAND_PUB, expected $TITAN_RECIPIENT (titan's host key per .sops.yaml)"
-say "1/5 recipient matches titan's host key: $CAND_PUB"
+say "1/6 recipient matches titan's host key: $CAND_PUB"
 
 run_sops "$KEY_FILE" -d "$REPO/secrets/titan.yaml" > "$WORK/titan.out" \
   || die "candidate cannot decrypt $REPO/secrets/titan.yaml -- it is not a recipient"
 [ -s "$WORK/titan.out" ] || die "secrets/titan.yaml decrypted to nothing"
-say "2/5 candidate decrypts secrets/titan.yaml"
+say "2/6 candidate decrypts secrets/titan.yaml"
 
 if run_sops "$KEY_FILE" -d "$REPO/secrets.yaml" > "$WORK/fleet.out" 2>/dev/null; then
   # This is the check that catches an admin key handed in by mistake. Every admin recipient
   # opens both files, so a green run here means the swap would accomplish nothing.
   die "candidate ALSO decrypts secrets.yaml -- that is an admin key, not titan's. Aborting: installing it would leave the blast radius exactly as wide as it is now."
 fi
-say "3/5 candidate cannot decrypt secrets.yaml (this is the narrowing)"
+say "3/6 candidate cannot decrypt secrets.yaml (this is the narrowing)"
 
-# --- 3b. does the generation we are about to re-activate embed the rotated file? ----------
+# --- 1b. does the generation we are about to re-activate embed the rotated file? ----------
 # Activation re-runs the CURRENT generation, and that generation carries a store copy of
 # secrets/titan.yaml baked in when it was built. After a recipient rotation the repo file
 # and the embedded copy differ: the new key opens the repo copy (check 2) but not the one
 # activation will read. That is how a correct key still died with "0 successful groups
 # required, got 0" on the host -- the swap has to come after the rotation commit is deployed.
+# With both keys installed this check would pass on the admin key's effort alone, which is
+# exactly why it runs here, in isolation, before anything is written.
 say "    checking the deployed generation's own copy of titan.yaml"
 if command -v nix-store >/dev/null 2>&1; then
   GEN_TITAN=$(nix-store -q --requisites /run/current-system 2>/dev/null \
@@ -192,41 +219,59 @@ fi
 if [ -f "$KEY_DEST" ]; then
   BACKUP="$WORK/previous-key.txt"
   cp "$KEY_DEST" "$BACKUP"
-  say "backed up $(printf '%s' "$KEY_DEST") (sha256 $(sha256sum "$KEY_DEST" | cut -c1-16)…)"
+  say "backed up $KEY_DEST (sha256 $(sha256sum "$KEY_DEST" | cut -c1-16)…)"
 else
   say "no key at $KEY_DEST yet (fresh host?)"
 fi
 
-# --- 3. install -----------------------------------------------------------------------
-install -m 0600 -o root -g root "$KEY_FILE" "$KEY_DEST" 2>/dev/null \
-  || { cp "$KEY_FILE" "$KEY_DEST" && chmod 0600 "$KEY_DEST"; }
-INSTALLED=1
-[ "$(sha256sum "$KEY_FILE" | cut -d' ' -f1)" = "$(sha256sum "$KEY_DEST" | cut -d' ' -f1)" ] \
-  || die "key did not land intact at $KEY_DEST"
-say "4/5 installed at $KEY_DEST (root:root 0600)"
+# --- 3. install old + candidate together, and activate ----------------------------------
+# The point of this phase is that the host cannot be made worse by it: whatever the old key
+# could open, the union still opens. It proves sops-nix accepts a multi-identity key file
+# and that activation is healthy with both, before the fallback is removed.
+if [ -n "$BACKUP" ]; then
+  cat "$BACKUP" "$KEY_FILE" > "$WORK/both.txt"
+  put_key "$WORK/both.txt"
+  INSTALLED=1
+  if [ "$ACTIVATE" = "1" ]; then
+    say "    activating with both keys..."
+    activate || die "activation failed with both keys installed -- the old key is still in the file, so nothing has been lost, but investigate before going further"
+  fi
+  say "4/6 both keys installed, activation healthy"
+else
+  put_key "$KEY_FILE"
+  INSTALLED=1
+  if [ "$ACTIVATE" = "1" ]; then
+    activate || die "activation failed with the candidate key"
+  fi
+  say "4/6 no previous key to keep, candidate installed, activation healthy"
+fi
 
-# --- 4. re-activate and check every secret materialised ---------------------------------
-# No rebuild: switch-to-configuration on the CURRENT generation re-runs the activation
-# scripts, and sops-nix decrypts during activation. Note the path is bin/, not sw/bin/.
+# --- 4. now remove the fallback: candidate alone -----------------------------------------
+# This is the narrowing test. If it fails, cleanup restores the old key -- which at this
+# point is a key already proven to work on this host minutes ago, not a hope.
+put_key "$KEY_FILE"
 if [ "$ACTIVATE" = "1" ]; then
-  [ -x /run/current-system/bin/switch-to-configuration ] \
-    || die "/run/current-system/bin/switch-to-configuration missing"
-  say "re-running activation for the current generation..."
-  /run/current-system/bin/switch-to-configuration switch >/dev/null \
-    || die "activation failed with the new key"
+  say "    activating with titan's key alone..."
+  activate || die "activation failed with titan's key alone (old key restored)"
   MISSING=""
-  for name in $EXPECTED_SECRETS; do
-    [ -s "$SECRETS_DIR/$name" ] || MISSING="$MISSING $name"
+  for p in $EXPECTED_SECRETS; do
+    [ -s "$p" ] || MISSING="$MISSING $p"
   done
   [ -z "$MISSING" ] || die "these secrets did not materialise: $MISSING"
-  say "5/5 all $(printf '%s\n' $EXPECTED_SECRETS | wc -w) secrets materialised under $SECRETS_DIR"
+  say "5/6 titan's key alone, activation healthy, all $(printf '%s\n' "$EXPECTED_SECRETS" | wc -w) secrets present"
 else
-  say "5/5 activation skipped (--no-activate); secrets not re-checked"
+  put_key "$KEY_FILE"
+  say "5/6 activation skipped (--no-activate); secrets not re-checked"
 fi
 
 # --- 5. only now is the old admin key destroyed -----------------------------------------
 if [ "$KEEP_BACKUP" = "1" ]; then
-  say "--keep-backup: previous key left at $BACKUP -- shred it once you are satisfied"
+  # Move it out of $WORK first: cleanup shreds everything in $WORK, so leaving it there
+  # would make this flag a lie.
+  KEEP="$KEY_DEST.backup"
+  mv "$BACKUP" "$KEEP" && chmod 0600 "$KEEP"
+  BACKUP=""
+  say "--keep-backup: previous key moved to $KEEP -- shred it once you are satisfied"
 elif [ -n "$BACKUP" ]; then
   wipe "$BACKUP"
   BACKUP=""
