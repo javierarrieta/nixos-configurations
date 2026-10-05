@@ -22,8 +22,8 @@ in
     lib.mkIf (!configOnly) (
       with pkgs;
       [
-        starship
-        zoxide
+        # starship and zoxide are deliberately not listed: programs.starship and
+        # programs.zoxide below install them on every host, configOnly or not.
         fishPlugins.tide
         fishPlugins.fzf
         ncdu
@@ -42,6 +42,17 @@ in
     "${userOptions.userHome}/.cargo/bin"
   ];
 
+  # configOnly contract: HM renders dotfiles, the machine's own image owns the
+  # binaries (see ../coder-workspaces image.nix, which ships fish, git, tmux,
+  # starship, zoxide, atuin, fzf, zsh and man-db on /bin). Only some HM modules
+  # can honour that. `programs.git.package` and `programs.tmux.package` are
+  # nullable and HM falls back to the bare `git` name when null, so those two are
+  # nulled below. The rest cannot be: `programs.fish`, `programs.starship`,
+  # `programs.zoxide`, `programs.atuin` and `programs.fzf` add `cfg.package`
+  # unconditionally under `enable`, and the init they generate embeds the store
+  # path -- config.fish literally contains
+  # `/nix/store/<hash>-zoxide/bin/zoxide init fish | source` -- so dropping the
+  # package would break the very config that references it.
   programs.fish = {
     enable = true;
     package = if configOnly then pkgs.fish else unstablePkgs.fish;
@@ -142,7 +153,11 @@ in
       # The suffix is a fish subshell, (date +%Y%m%d), expanded at run time so the
       # backup is stamped with the date the conflict occurred. home.backupFileExtension
       # is not a standalone-mode option, so the suffix comes from the CLI flag.
-      "hm-apply" = "nix run home-manager -- switch -b (date +%Y%m%d) --flake ${flakeRef}#${hostname}";
+      # The CLI comes from ${flakeRef}#hm-cli (nixpkgs' Hydra-built home-manager)
+      # rather than the `home-manager` flake registry entry, which is built from
+      # source and pulls a full stdenv into the closure just to run `switch`.
+      "hm-apply" =
+        "nix run ${flakeRef}#hm-cli -- switch -b (date +%Y%m%d) --flake ${flakeRef}#${hostname}";
       "hm-gc" = "nix-store -gc";
       "sshe" = "ssh -o \"UserKnownHostsFile=/dev/null\"";
       "kssh" = "kitten ssh";
@@ -303,6 +318,10 @@ in
 
   programs.git = {
     enable = true;
+    # See the configOnly contract above: the image provides /bin/git, HM writes
+    # ~/.config/git/config. Nulling this drops git's 374 MiB closure from the
+    # home generation; HM emits the bare `git` name in its output when null.
+    package = if configOnly then null else pkgs.git;
     settings = {
       user = {
         email = "${userOptions.gitEmail}";
@@ -329,6 +348,9 @@ in
 
   programs.tmux = {
     enable = true;
+    # Image provides /bin/tmux on configOnly hosts (see the contract above).
+    # Saves nothing -- tmux's closure is ~0.1 MiB -- but keeps the contract whole.
+    package = if configOnly then null else pkgs.tmux;
     # Enable focus events so tmux knows when you switch panes
     focusEvents = true;
 
