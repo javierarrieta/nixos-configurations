@@ -150,6 +150,24 @@
     # runtime, so the cluster survives a missing value, but nothing persisted it
     # and a reboot left it 0 until the CNI next ran.
     #
+    # br_netfilter is what makes the two net.bridge keys below exist at all;
+    # without the module loaded the write has nowhere to land.
+    #
+    # The failure is time-dependent, which is what makes it easy to miss. On a
+    # running node flannel and kube-proxy have already loaded the module, so
+    # `nixos-rebuild switch` applies the sysctls cleanly -- confirmed on
+    # k8s-node04 on 2026-10-06, where the key read 1 straight after activation
+    # with no reboot involved. But systemd-sysctl runs in early boot, before k3s
+    # has started, and a failed sysctl write is a non-fatal warning: the build
+    # stays green, the node comes up Ready, and the keys are simply absent. So
+    # the setting would survive an activation and silently vanish on the next
+    # reboot -- reintroducing exactly the defect #82 was written to remove, at a
+    # random later date, on whichever node rebooted first.
+    #
+    # systemd-modules-load.service runs before systemd-sysctl.service, so this
+    # is what makes the sysctls survive a reboot rather than only an activation.
+    boot.kernelModules = [ "br_netfilter" ];
+
     # mkDefault so a host can still opt out without lib.mkForce.
     boot.kernel.sysctl = {
       "net.bridge.bridge-nf-call-iptables" = lib.mkDefault 1;
