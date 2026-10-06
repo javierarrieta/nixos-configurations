@@ -89,35 +89,50 @@ in
 
   programs.home-manager.enable = true;
 
+  # Do not use `exit` in here, and do not add another activation entry that
+  # does. Home Manager concatenates every home.activation entry into ONE flat
+  # `set -eu` script, so `exit 0` in an entry aborts every entry ordered after
+  # it while the switch still exits 0 and prints success. This cost five weeks
+  # of silently skipped activation: with max_keep=2 and HM keeping two
+  # generations, the "nothing to clean up" branch was always taken, so from
+  # 1173272 until now every `hm-apply` stopped here and never reached
+  # installPackages, onFilesChange, piAgentConfig (the pi settings merge) or
+  # reloadSystemd -- which is why a declared pi pin bump never landed.
+  # Best-effort cleanup, so a failure here must not fail the switch either.
   home.activation.cleanupOldGenerations = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-    max_keep=2
-    profile_dir="${hmProfileDir}"
-    current_link="$profile_dir/home-manager"
+    _cleanup_old_generations() {
+      local max_keep=2
+      local profile_dir="${hmProfileDir}"
+      local current_link="$profile_dir/home-manager"
 
-    if [[ ! -L "$current_link" ]]; then
-      echo "cleanup-old-generations: current link not found at $current_link"
-      exit 0
-    fi
+      if [[ ! -L "$current_link" ]]; then
+        echo "cleanup-old-generations: current link not found at $current_link"
+        return 0
+      fi
 
-    echo "cleanup-old-generations: Cleaning up old Home Manager generations in $profile_dir (keeping $max_keep)"
+      echo "cleanup-old-generations: Cleaning up old Home Manager generations in $profile_dir (keeping $max_keep)"
 
-    # Count total generations
-    total=$(find "$profile_dir" -maxdepth 1 -name 'home-manager-*-link' -type l | wc -l)
-    if [[ "$total" -le "$max_keep" ]]; then
-      echo "cleanup-old-generations: Only $total generation(s), nothing to clean up"
-      exit 0
-    fi
+      # Count total generations
+      local total
+      total=$(find "$profile_dir" -maxdepth 1 -name 'home-manager-*-link' -type l | wc -l)
+      if [[ "$total" -le "$max_keep" ]]; then
+        echo "cleanup-old-generations: Only $total generation(s), nothing to clean up"
+        return 0
+      fi
 
-    # Remove old generations (all except current and the most recent N)
-    # Sort by mtime (newest first), skip the current one, delete the rest
-    find "$profile_dir" -maxdepth 1 -name 'home-manager-*-link' -type l \
-      -not -newer "$current_link" \
-      -not -samefile "$current_link" \
-      -type l | sort -r | tail -n +$((max_keep + 1)) | while read -r link; do
-        echo "cleanup-old-generations: Removing old generation: $(basename "$link")"
-        rm -f "$link"
-      done
+      # Remove old generations (all except current and the most recent N)
+      # Sort by mtime (newest first), skip the current one, delete the rest
+      find "$profile_dir" -maxdepth 1 -name 'home-manager-*-link' -type l \
+        -not -newer "$current_link" \
+        -not -samefile "$current_link" \
+        -type l | sort -r | tail -n +$((max_keep + 1)) | while read -r link; do
+          echo "cleanup-old-generations: Removing old generation: $(basename "$link")"
+          rm -f "$link"
+        done
 
-    echo "cleanup-old-generations: Done"
+      echo "cleanup-old-generations: Done"
+    }
+    _cleanup_old_generations || echo "cleanup-old-generations: failed, continuing activation" >&2
+    unset -f _cleanup_old_generations
   '';
 }
