@@ -19,4 +19,16 @@
   pi = {
     enable = false;
   };
+
+  # No Nix JDK on this laptop. It is a work machine and Java comes from
+  # SDKMAN under ~/.sdkman (the init block lives in
+  # modules/home-manager/shell.nix), which selects a JDK by rewriting
+  # JAVA_HOME and PATH. Home Manager re-exports its session variables into
+  # every new shell, so `sdk use java ...` would lose to pkgs.jdk21 at the
+  # next prompt. `jdk.enable` is the opt-out in
+  # modules/home-manager/dev-tools.nix and drops the package and JAVA_HOME
+  # together, leaving SDKMAN authoritative for both.
+  jdk = {
+    enable = false;
+  };
 }

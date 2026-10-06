@@ -13,6 +13,21 @@
 let
   configOnly = userOptions.configOnly or false;
 
+  # ---- JDK ------------------------------------------------------------
+  # Per-host overrides live in that host's userOptions.nix under `jdk`.
+  jdkCfg = userOptions.jdk or { };
+
+  # Opt a host out of the Nix-provided JDK with `jdk.enable = false` in its
+  # userOptions.nix, for a machine where a JDK manager outside Nix owns
+  # Java. Why the flag exists: such a manager (SDKMAN on oracle) switches
+  # versions by rewriting JAVA_HOME and PATH in the shell, but Home Manager
+  # re-exports its own session variables into every new shell, so `sdk use
+  # java ...` is undone by the next prompt. Package and JAVA_HOME therefore
+  # move together -- a host that opts out must keep neither, or `java` on
+  # PATH and $JAVA_HOME name two different JDKs and gradle, maven and sbt
+  # silently build against the Nix one.
+  jdkEnable = jdkCfg.enable or true;
+
   # ---- pi coding agent -------------------------------------------------
   # Extracted from this machine's ~/.pi/agent on 2026-09-25.
   #
@@ -230,7 +245,6 @@ in
       nixfmt-tree
       kubernetes-helm
       scala-cli
-      jdk21
       pstree
       lsof
       binutils
@@ -253,6 +267,9 @@ in
     # 1000. The agent *config* and the vendored skills below stay ungated
     # for exactly that reason, and follow `piEnable` instead.
     ++ lib.optionals piEnable [ piPkg ]
+    # The JDK is gated separately because a host may manage Java outside
+    # Nix -- see `jdkEnable` above.
+    ++ lib.optionals jdkEnable [ jdk21 ]
   );
 
   # Vendored skills -- see `piVendoredSkills` above. They route to pi, so
@@ -353,7 +370,9 @@ in
   # through JAVA_HOME rather than `java` on PATH, so point it at the same
   # derivation that provides the binaries. `pkgs.jdk21` is openjdk on Linux
   # and zulu-ca on aarch64-darwin; both are cached for these systems.
-  home.sessionVariables = lib.mkIf (!configOnly) {
+  # Follows `jdkEnable`: a host whose JDK comes from outside Nix must not
+  # have JAVA_HOME pinned here, or it overrides that manager on every shell.
+  home.sessionVariables = lib.mkIf (!configOnly && jdkEnable) {
     JAVA_HOME = "${pkgs.jdk21}";
   };
 
