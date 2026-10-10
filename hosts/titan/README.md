@@ -368,6 +368,82 @@ Re-run the `openssl` check and expect `192.168.133.1` in the list. Then delete
 `insecure-skip-tls-verify: true` from the admin kubeconfigs — that was the point.
 Leave it in and the next person has no way to tell whether the fix ever landed.
 
+## Exit node (roadwarrior full tunnel)
+
+The three roadwarrior peers (`pixel7`, `macbookair`, `macbookpro`) are marked
+`exitNode = true` in `hosts/titan/configuration.nix`, so any of them can use titan as
+its internet egress. The two infrastructure peers are not, on purpose: OPNsense already
+routes the LAN and the VPS is a hub in its own right, and making either of them depend
+on titan for egress would re-parent a whole network onto one OVH box.
+
+**How it is authorised.** The hub never learns that a client default-routed; the client
+just sends packets. What decides is the SNAT scope in `modules/nixos/wireguard.nix`:
+only the /32s of `exitNode` peers get `MASQUERADE`'d out `eno1`, so a peer that
+default-routes without the flag forwards out with a `192.168.133.x` source the public
+internet has no return path for. Black hole, not leak. That is also why there are no
+FORWARD chain rules — the module's "FORWARD is never filtered" property survives.
+
+**The trap this has.** The exit is configured on the *client*, never on the hub. A hub
+peer's `allowedIPs` are the peer's own addresses and become routes on titan, so putting
+`0.0.0.0/0` there installs a default route into wg0 and black-holes titan's own
+internet. There is an assertion for it now, because the failure looks like a healthy
+tunnel and a dead box.
+
+### Client profile for a full tunnel
+
+Keep the mesh-only profile as the default and add a second one; the macOS WireGuard app
+runs one tunnel at a time, so "sometimes" means switching profiles, not editing.
+Defaulting to the full tunnel while *at home* hairpins everything home → OVH → home and
+NATs it twice.
+
+```ini
+[Interface]
+PrivateKey = <generated on the laptop, never here>
+Address = 192.168.133.130/32
+DNS = 192.168.133.1
+
+[Peer]
+PublicKey = <titan's public key>
+Endpoint = titan.arrieta.eu:51820
+AllowedIPs = 0.0.0.0/0, ::/0
+PersistentKeepalive = 25
+```
+
+Two lines in there are load-bearing and both fail silently if dropped:
+
+- **`DNS = 192.168.133.1`.** With `0.0.0.0/0` in the tunnel, the router address the
+  laptop used to ask is *also* routed into the tunnel, so every lookup dies and the VPN
+  feels broken rather than private. titan answers on that address
+  (`modules/nixos/mesh-dns.nix`), from the tunnel only.
+- **`::/0`.** titan has no IPv6 transit, so a client that routes only `0.0.0.0/0` keeps
+  using its own network's IPv6 — which leaks where it lives, exactly the thing the
+  tunnel was for. Sending `::/0` in makes those packets die instead.
+
+### Verify
+
+```bash
+# on titan — the three exit peers are masqueraded out the WAN, and the resolver answers
+sudo iptables -t nat -S POSTROUTING | grep -E '192\.168\.133\.1(29|30|31)/32'
+sudo iptables -t mangle -S POSTROUTING | grep -c TCPMSS
+dig +short @192.168.133.1 coder.home.arrieta.eu
+dig +short @192.168.133.1 s3.l.arrieta.eu        # split zone -> home resolver
+sudo systemctl status unbound --no-pager | head -3
+
+# on the client, with the full-tunnel profile up
+curl -s https://api.ipify.org     # must be <OVH_PUBLIC_IP>, not the laptop's network
+route -n get default | grep interface
+```
+
+If the client resolves nothing, `DNS=` is missing from the profile. If large uploads
+stall but small requests work, the MSS clamp is gone (`iptables -t mangle -S
+POSTROUTING` should show one rule per exit peer). If a peer default-routes and gets
+nothing while the handshake is green, it is not marked `exitNode` — check the SNAT scope
+before touching the client.
+
+What this deliberately does not do: no IPv6 egress (titan has none), no per-device
+bandwidth or session accounting, and every laptop leaves as titan's single address — so
+one device's bad traffic is charged to that IP for all of them.
+
 ## Operating the cluster from the box
 
 `k9s`, `kubectl` and `kubectx` are installed for javier. k3s writes the admin kubeconfig
