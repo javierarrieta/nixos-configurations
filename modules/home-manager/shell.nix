@@ -16,6 +16,10 @@ let
   # own flake.lock, so the home-manager/nixpkgs pins come from the repo too).
   # Consequence: local edits are invisible until they are pushed.
   flakeRef = "github:javierarrieta/nixos-configurations";
+  # Same list base.nix uses to drop python.nix -- see common/minimal-hosts.nix.
+  # Read here rather than passed in because home/hosts/vps/home.nix imports this
+  # module directly, without base.nix in its closure.
+  isMinimalHost = lib.elem hostname (import ../../common/minimal-hosts.nix);
 in
 {
   home.packages = (
@@ -70,9 +74,18 @@ in
 
       starship init fish | source
 
-      # Activate virtual environment if it exists
-      test -e ~/.venv/default/bin/activate.fish || venv ~/.venv/default
-      source ~/.venv/default/bin/activate.fish
+      # Default virtualenv: created on first use, then activated. Two guards.
+      # $hm_default_venv is 0 on the minimal hosts (common/minimal-hosts.nix),
+      # which carry no python toolchain at all -- unguarded, `venv` failed there
+      # and the source line after it failed on the venv it never created, so
+      # every login printed two errors (found on titan, 2026-10-07). The
+      # `type -q python3` guard covers the configOnly hosts, whose binaries come
+      # from the workspace image and are not guaranteed to include python.
+      set -l hm_default_venv ${if isMinimalHost then "0" else "1"}
+      if test $hm_default_venv -eq 1; and type -q python3
+        test -e ~/.venv/default/bin/activate.fish || python3 -m venv ~/.venv/default
+        test -e ~/.venv/default/bin/activate.fish; and source ~/.venv/default/bin/activate.fish
+      end
 
 
       function b64-encode

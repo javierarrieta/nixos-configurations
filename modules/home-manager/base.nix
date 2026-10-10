@@ -8,16 +8,10 @@
 }:
 
 let
-  # Hosts that skip the python toolchain. The Pis are here because a slow ARM box
-  # must not compile a Rust/Scala/Python stack on every deploy; titan is here because
-  # a 150 G root filesystem shared with etcd and container images has no business
-  # holding a Scala toolchain nobody will invoke on a headless server.
-  minimalHostnames = [
-    "k8s-pi01"
-    "k8s-pi02"
-    "k8s-pi03"
-    "titan"
-  ];
+  # Hosts that skip the python toolchain. The list lives in common/minimal-hosts.nix
+  # because shell.nix needs the same answer to skip the fish venv bootstrap; do not
+  # re-inline it here.
+  minimalHostnames = import ../../common/minimal-hosts.nix;
   isMinimalHost = lib.elem hostname minimalHostnames;
   # The k8s CLI is a SEPARATE decision from the python toolchain. The Pis skip it for
   # the same reason as python -- aarch64 build cost -- but titan must not: it is a k3s

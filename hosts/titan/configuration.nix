@@ -31,6 +31,13 @@ in
 
   base.enable = true;
   systemPackages.enable = true;
+  # python3 for ad-hoc admin scripting. This is deliberately *not* the
+  # home-manager python toolchain, which stays off this host
+  # (common/minimal-hosts.nix): that one drags in virtualenv, uv, pylint and
+  # pyenv, and it is what the fish venv bootstrap would have used. A bare
+  # interpreter from the system set is a cached download and keeps ~/.venv off a
+  # headless box, since shell.nix skips the venv bootstrap for minimal hosts.
+  systemPackages.extraPackages = with pkgs; [ python3 ];
   # Public on the internet from the first boot (spec D3): key-only, off the
   # default port, and never dependent on the mesh being up.
   ssh = {
