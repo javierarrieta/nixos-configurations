@@ -20,6 +20,7 @@ in
     ../../modules/nixos/nix-sweep.nix
     ../../modules/nixos/wireguard.nix
     ../../modules/nixos/public-host.nix
+    ../../modules/nixos/mesh-dns.nix
     ../../modules/nixos/k3s.nix
     ../../modules/nixos/k8s-network.nix
     ../../modules/nixos/prometheus.nix
@@ -106,6 +107,17 @@ in
     address = "${vars.meshAddress}/24";
     privateKeyFile = config.sops.secrets."wireguard/titan_private_key".path;
     forwardToLan = true;
+    # Exit node for the roadwarriors (the peers marked exitNode below). Enforcement is
+    # the SNAT scope in wireguard.nix, not a route and not a filter rule: a peer that
+    # default-routes without the flag forwards out with a mesh source the internet has
+    # no return path for, so it black-holes instead of leaking. The two infrastructure
+    # peers are deliberately NOT exits -- OPNsense already routes the LAN and the VPS is
+    # a hub in its own right, and giving either of them titan as an egress would
+    # silently re-parent a whole network onto one OVH box.
+    exitNode = {
+      enable = true;
+      wanInterface = vars.networkInterface;
+    };
     # Hub migration (spec §11a). One mesh, one set of addresses that never change.
     #
     # Shape: this file lists titan's side, but the CORE is a triangle -- titan, the
@@ -180,11 +192,19 @@ in
       {
         publicKey = "e7WsXBdlcjQP1GF8NjDsNzlKVtds55AA3ZaNltoQtno=";
         allowedIPs = [ "192.168.133.129/32" ];
+        exitNode = true;
       }
-      # macbookair (roadwarrior)
+      # macbookair (roadwarrior). Keypair replaced 2026-10-10, NOT because the old one
+      # leaked: the same keypair was in use on the old VPS-hub mesh too, so one identity
+      # belonged to two meshes at once -- the exact dual-membership this file refuses for
+      # OPNsense above. This is now the laptop's new-mesh-only identity, generated on the
+      # laptop itself. The tunnel address stays .130, so nothing else moved; the superseded
+      # key is recorded in the peer inventory of the private companion doc §4, which is
+      # what keeps old `wg show` output attributable.
       {
-        publicKey = "zhW9LX3U9R9Dt5IMxUMI/HlCzsOEFQbUWdslZHDra2g=";
+        publicKey = "SRpxzv7sZNNIqYBPkVdwIzz4LdIWSBEN4MzW6mAKBwE=";
         allowedIPs = [ "192.168.133.130/32" ];
+        exitNode = true;
       }
       # macbookpro (roadwarrior), added 2026-10-03. Same machine as the `macbookpro
       # laptop` sops recipient -- i.e. the daily-driver admin box, not a phone.
@@ -202,6 +222,7 @@ in
       {
         publicKey = "knrQmeNK2Jy94nqKYveB+f2vSVVX9UispvlbhQYTCgM=";
         allowedIPs = [ "192.168.133.131/32" ];
+        exitNode = true;
       }
       # techdelivery VPS -- the old hub, demoted to a plain client of this mesh while
       # staying a hub on 192.168.2.0/24 for chiclana. Its own /32 only: it advertises
@@ -237,6 +258,34 @@ in
   # it needs the OPNsense peer to advertise 192.168.0.0/24 -- without that route titan
   # has no way back to a LAN source. It does now.
   publicHost.meshTCPPortExtraSources = [ "192.168.0.0/24" ];
+
+  # DNS for mesh clients (modules/nixos/mesh-dns.nix): bound to wg0's own address, so
+  # it answers the tunnel and is unreachable from the internet by construction. A
+  # roadwarrior that default-routes through titan has to be pointed at a resolver that
+  # is reachable through the tunnel, and this is it.
+  meshDns = {
+    enable = true;
+    allowedSubnets = [ config.wireguard.meshSubnet ];
+    # Hardcoded rather than vars.nameservers: those are the $DNS1/$DNS2 placeholders
+    # that only become real at activation from the SOPS network_env, while unbound.conf
+    # is rendered at eval time -- forwarding to a literal "$DNS1" fails at the first
+    # query instead of at build, which is the worse way to find out.
+    forwardAddresses = [
+      "1.1.1.1"
+      "9.9.9.9"
+    ];
+    # The two zones public DNS does not answer. l.arrieta.eu is split-horizon -- that is
+    # why s3.l.arrieta.eu is pinned in networking.hosts further down -- and casa.arrieta
+    # is the home bind zone the fleet is reached by (<host>.casa.arrieta). Both live
+    # behind the mesh on the home resolver, so a laptop roaming while the home link is
+    # down simply does not resolve them: correct, not a bug. home.arrieta.eu is NOT here
+    # on purpose -- it is publicly resolvable, which is why nix-cache.home.arrieta.eu
+    # sits in extra-substituters with no hosts pin at all.
+    splitZones = {
+      "l.arrieta.eu." = [ "192.168.0.41" ];
+      "casa.arrieta." = [ "192.168.0.41" ];
+    };
+  };
 
   # The secret itself. It lives in secrets/titan.yaml, NOT secrets.yaml: an etcd snapshot is every
   # Secret in the cluster in plaintext, so the key that writes it should be
