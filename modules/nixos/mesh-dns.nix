@@ -14,6 +14,12 @@
 # listen address is not an option: it is derived from wireguard.address, because a
 # free-form listenAddress on a public host is one typo away from an amplifier.
 #
+# WHY THE UPSTREAMS ARE LISTED PER HOST AND PROBED. This resolver forwards instead of
+# recursing, so its reachability is a property of the datacenter, not of the config: a
+# forwarder that silently never answers turns every query into a client-side timeout,
+# which reads as "the VPN is broken". See meshDns.forwardAddresses and the OVH Edge
+# Network Firewall note in hosts/titan/README.md for what that cost on 2026-10-10.
+#
 # WHY IT DOES NOT TOUCH THE HUB'S OWN RESOLUTION. services.unbound.resolveLocalQueries
 # defaults to true, which puts 127.0.0.1 in /etc/resolv.conf. On titan that would make
 # the host's own name resolution (nix substitute hosts, s3 endpoints, the Attic cache)
@@ -51,9 +57,17 @@ in
           "9.9.9.9"
         ];
         description = ''
-          Public upstreams for everything not covered by splitZones. Empty means
-          unbound recurses from the root servers, which is fine but slower and
-          chattier from a datacenter IP.
+          Upstreams for everything not covered by splitZones. Empty means unbound
+          recurses from the root servers, which is slower, chattier from a datacenter
+          IP, and dead on a host whose outbound port 53 is filtered -- the root servers
+          are reached over 53 too.
+
+          Probe each one FROM THE HUB before listing it ("dig +time=2 +tries=1 @<addr>
+          example.com +short"). A forwarder that never answers does not degrade to
+          "unvalidated answers": every client query waits on it and gives out, which
+          looks exactly like a broken tunnel rather than a broken upstream. On OVH bare
+          metal reachability depends on the Edge Network Firewall accepting UDP source
+          port 53 -- see the ENF table in hosts/titan/README.md.
         '';
       };
 

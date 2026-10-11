@@ -270,9 +270,26 @@ in
     # that only become real at activation from the SOPS network_env, while unbound.conf
     # is rendered at eval time -- forwarding to a literal "$DNS1" fails at the first
     # query instead of at build, which is the worse way to find out.
+    #
+    # External validating resolvers first, OVH's own last.
+    #
+    # This ordering was earned the hard way on 2026-10-10: from titan, `dig @1.1.1.1` and
+    # `@9.9.9.9` timed out while `@213.186.33.99` answered, and every client query stalled
+    # behind a forwarder that could never reply -- which looks exactly like a broken
+    # tunnel, not a broken upstream. Pointed at the OVH Edge Network Firewall, which is
+    # stateless and inbound-only: the query leaves and only the UDP *reply* is filtered,
+    # matched solely by source port (ENF rule 1 in hosts/titan/README.md). OVH's resolver
+    # answers because it sits inside the OVHcloud network and the ENF never sees it.
+    #
+    # So the external pair is listed first because it validates DNSSEC and is not a host
+    # provider, and 213.186.33.99 stays last as the one upstream that does not depend on
+    # an ENF rule holding -- it costs nothing while the first answers, and it is what keeps
+    # name resolution alive if that rule is ever deleted (OVH's own warning is that rules
+    # stay in force during DDoS mitigation even when the firewall reads "off").
     forwardAddresses = [
       "1.1.1.1"
       "9.9.9.9"
+      "213.186.33.99"
     ];
     # The two zones public DNS does not answer. l.arrieta.eu is split-horizon -- that is
     # why s3.l.arrieta.eu is pinned in networking.hosts further down -- and casa.arrieta
