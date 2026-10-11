@@ -43,7 +43,7 @@ stops at the first match.
 | prio | rule | why |
 |---|---|---|
 | 0 | Accept TCP, TCP state = established, **Fragments unticked** | the ENF is stateless; without this titan cannot `git fetch` or pull from Attic at all |
-| 1 | Accept UDP, **source port 53** | DNS replies. There is no state field on UDP rules — the source port is the only handle |
+| 1 | Accept UDP, **source port 53** | DNS replies. There is no state field on UDP rules — the source port is the only handle. Load-bearing for more than the host's own resolution: `meshDns.forwardAddresses` on titan forwards to `1.1.1.1`/`9.9.9.9`, and without this rule the queries leave and only the replies are dropped, so every mesh client lookup times out while `dig @213.186.33.99` still works (OVH's resolver is inside the OVHcloud network and never hits the ENF). Symptom seen 2026-10-10. |
 | 2 | Accept ICMP | path MTU / diagnostics |
 | 3 | Accept TCP dst 22 | rescue mode only — rescue sshd listens on 22 and has no host firewall. In normal operation nothing listens on 22, so this costs a scanner a `connection refused` |
 | 4 | Accept TCP dst 13491 | SSH |
