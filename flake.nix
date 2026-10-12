@@ -182,6 +182,15 @@
           hostname = "coder-workspace";
           system = "x86_64-linux";
         };
+        # Same dotfiles, different route to halogen, because the two Coder servers
+        # put their workspaces on different networks. See
+        # home/hosts/coder-workspace-titan/userOptions.nix for why this cannot be
+        # one attribute that decides at runtime. The titan template's startup_script
+        # must name this attribute; the llm01 podman template keeps the one above.
+        coder-workspace-titan = mkHomeConfig {
+          hostname = "coder-workspace-titan";
+          system = "x86_64-linux";
+        };
         llm01 = mkHomeConfig {
           hostname = "llm01";
           system = "x86_64-linux";
