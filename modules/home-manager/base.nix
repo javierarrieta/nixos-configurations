@@ -65,6 +65,8 @@ in
     ./host-common.nix
     ./shell.nix
     ./cli-tools.nix
+    # Inert unless a host sets coderProfiles.enable; see modules/home-manager/coder.nix.
+    ./coder.nix
   ]
   ++ lib.optionals (!isMinimalHost) [
     # No heavy python tooling on minimal hosts (avoids native aarch64 builds on the

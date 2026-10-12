@@ -29,6 +29,10 @@ in
   # Defaults match the k8s-casa split done on this machine.
   kubeSegregation.enable = true;
 
+  # coder-titan / coder-casa: one CLI config dir per Coder server, so switching
+  # servers is not a re-login. Defaults carry both URLs.
+  coderProfiles.enable = true;
+
   home.stateVersion = "25.05";
 
   home.sessionVariables = {

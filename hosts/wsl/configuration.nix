@@ -93,6 +93,9 @@
         ../../modules/home-manager/base.nix
       ];
       home.stateVersion = "25.11";
+      # coder-titan / coder-casa: one CLI config dir per Coder server, so
+      # switching servers is not a re-login. Defaults carry both URLs.
+      coderProfiles.enable = true;
     };
   };
 
