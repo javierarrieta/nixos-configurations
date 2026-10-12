@@ -55,6 +55,7 @@ images. `ryzen7` was removed on 2026-10-03 -- the box was rebuilt as Windows.
 | `dev-tools.nix` | Development tools |
 | `python.nix` | Python configuration |
 | `k8s.nix` | Kubernetes tools |
+| `coder.nix` | One coder CLI config dir per Coder server (`coder-titan` / `coder-casa`) |
 | `llm.nix` | LLM-related configuration |
 
 ---
@@ -657,6 +658,12 @@ overlay is its own decision, not part of that one.
 Coder OSS runs in the Kubernetes cluster (`casa` namespace) using its built-in
 provisioner. Workspaces are rootless Podman containers on `llm01` with
 iSCSI-backed home directories (TrueNAS zvols) and an in-cluster Docker registry.
+
+> **There are two Coder servers now.** This one (`https://coder.home.arrieta.eu`, v2.35.1) and
+> `https://coder.titan.arrieta.eu` on the titan cluster (its own repo, `k8s-titan`). The coder CLI
+> stores exactly one URL and session per config directory, so laptops and WSL get `coder-titan` /
+> `coder-casa` aliases from `modules/home-manager/coder.nix` rather than a re-login on every hop.
+> A client/server version mismatch there is a warning, not a failure — one CLI serves both.
 
 ### Architecture
 
