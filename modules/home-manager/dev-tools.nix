@@ -106,6 +106,18 @@ let
     ];
   };
 
+  # Machine-local providers a host declares under `pi.extraProviders` in its
+  # userOptions.nix, merged into `piModels.providers` below (a same-named key
+  # replaces the declared provider wholesale).
+  #
+  # Why the hook exists: models.json is a *read-only symlink* into the store (see
+  # `_link_pi_json` below), so an endpoint that only exists on one box -- an omlx
+  # server on 127.0.0.1 on the laptop -- has no other place to live. Before the
+  # link it was a hand-edit of ~/.pi/agent/models.json, and the link change
+  # silently dropped those edits (they survive only as models.json.pre-link).
+  # Anything machine-local now has to be declared here to be seen by pi.
+  piExtraProviders = piCfg.extraProviders or { };
+
   piModels = {
     providers = {
       llm01-halogen = {
@@ -145,7 +157,8 @@ let
           }
         ];
       };
-    };
+    }
+    // piExtraProviders;
   };
 
   piSettingsFile = jsonFormat.generate "pi-settings.json" piSettings;
