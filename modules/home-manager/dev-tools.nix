@@ -31,12 +31,24 @@ let
   # ---- pi coding agent -------------------------------------------------
   # Extracted from this machine's ~/.pi/agent on 2026-09-25.
   #
-  # Why an activation merge instead of `home.file`: pi rewrites
-  # settings.json itself -- /model, `pi install`, the compaction and retry
-  # toggles all end in a writeFileSync -- so a symlink into the read-only
-  # store breaks those paths. The activation step below merges the declared
-  # JSON over whatever pi left on disk, declared keys winning, so the repo
-  # stays the source of truth without making the file unwritable.
+  # Why the agent config is written by an activation step rather than
+  # `home.file`: the two files it owns have opposite requirements, and treating
+  # them alike is what broke pi on the titan workspaces.
+  #
+  #   settings.json  pi writes this itself -- /model, `pi install`, the
+  #                  compaction and retry toggles all end in a writeFileSync --
+  #                  so it has to stay writable. It is merged: declared keys
+  #                  win, pi's own keys survive.
+  #   models.json    pi only reads this one (/model reloads it, docs/models.md).
+  #                  Nothing writes it, so it is a plain symlink into the store
+  #                  and therefore read-only.
+  #
+  # The rule both follow: nothing gets rewritten without saying so. The merge
+  # names the keys it overwrote and keeps the copy it replaced; the link refuses
+  # an edit at the moment it is attempted instead of silently at the next switch.
+  # A writable file that activation overwrites quietly is the worst of both --
+  # that is how a hand-edited models.json looked fixed for hours and then
+  # reverted, with no error anywhere.
   #
   # Deliberately NOT declared:
   #   * lastChangelogVersion -- pi's own runtime bookkeeping.
@@ -290,9 +302,10 @@ in
 
   # The agent config is rendered even on configOnly hosts: those hosts get the
   # pi binary from the workspace image, but settings and model definitions
-  # still come from here. Merged over the on-disk JSON rather than symlinked --
-  # see the note on `piSettings` above. Wrapped as a set so `piEnable = false`
-  # removes the activation entry outright instead of leaving an empty one.
+  # still come from here. settings.json is merged, models.json is linked -- see
+  # the note on `piSettings` above for why they differ. Wrapped as a set so
+  # `piEnable = false` removes the activation entry outright instead of leaving
+  # an empty one.
   home.activation = lib.mkIf piEnable {
     piAgentConfig =
       lib.hm.dag.entryAfter [ "writeBoundary" ] # bash
@@ -301,6 +314,10 @@ in
           _pi_jq="${lib.getExe pkgs.jq}"
           mkdir -p "$_pi_agent_dir"
 
+          # settings.json -- merged, because pi writes this file itself. Loud by
+          # construction: whenever the merge changes the file it names the keys it
+          # overwrote and the local-only keys it preserved, and keeps the copy it
+          # replaced at settings.json.pre-hm.
           _merge_pi_json() {
             _declared="$1"
             _target="$2"
@@ -309,25 +326,90 @@ in
               rm -f "$_target"
             fi
             _tmp="$(mktemp "$_target.XXXXXX")"
+            # -S on every write, not just on read: the change test below compares
+            # bytes, so if the merged output were only as canonical as jq happened
+            # to print it, a reflowed declared file would read as a change on
+            # every single switch and the log would become noise. Canonicalising
+            # on the way in makes the comparison about content, and a legacy
+            # non-canonical file self-heals on the first switch instead of
+            # reporting itself as changed forever after.
             if [ -f "$_target" ]; then
-              if ! $_pi_jq -s '.[0] * .[1]' "$_target" "$_declared" > "$_tmp"; then
+              if ! $_pi_jq -s -S '.[0] * .[1]' "$_target" "$_declared" > "$_tmp"; then
                 rm -f "$_tmp"
                 echo "piAgentConfig: failed to merge $_target, leaving it untouched" >&2
                 return 0
               fi
             else
-              cp "$_declared" "$_tmp"
+              if ! $_pi_jq -S . "$_declared" > "$_tmp"; then
+                rm -f "$_tmp"
+                echo "piAgentConfig: cannot read the declared $_declared, leaving it untouched" >&2
+                return 0
+              fi
             fi
             chmod 0644 "$_tmp"
             if cmp -s "$_tmp" "$_target" 2>/dev/null; then
               rm -f "$_tmp"
-            else
-              mv "$_tmp" "$_target"
+              return 0
             fi
+            if [ -f "$_target" ]; then
+              # `keys[] as $k` rather than `keys[] | select(... . ...)`: after the
+              # pipe the dot is the key, so `$b | has(.)` silently reads as
+              # `has($b)` and the filter passes everything. Binding $k keeps both
+              # sides of the comparison explicit -- and the trailing `| $k` is not
+              # decoration: `select` passes its *input* through, not the variable
+              # it was given, so without it the array collects whole objects and
+              # join() fails. No 2>/dev/null here either: a report that cannot be
+              # computed should say so on stderr, not quietly print "none", which
+              # is the silence this whole change exists to remove. The `|| _x=""`
+              # only keeps set -e from aborting the switch over a cosmetic line.
+              _over="$($_pi_jq -s -r '. as [$a, $b] | [ $b | keys[] as $k | select(($a | has($k)) and ($a[$k] != $b[$k])) | $k ] | join(" ")' "$_target" "$_declared")" || _over=""
+              _kept="$($_pi_jq -s -r '. as [$a, $b] | [ $a | keys[] as $k | select(($b | has($k)) | not) | $k ] | join(" ")' "$_target" "$_declared")" || _kept=""
+              if [ -z "$_over" ]; then _over=none; fi
+              if [ -z "$_kept" ]; then _kept=none; fi
+              cp -p "$_target" "$_target.pre-hm"
+              echo "piAgentConfig: $_target updated -- declared over: $_over; local-only kept: $_kept; previous copy at $_target.pre-hm" >&2
+            else
+              echo "piAgentConfig: $_target created from the declared copy" >&2
+            fi
+            mv "$_tmp" "$_target"
+          }
+
+          # models.json -- linked, not merged. pi only reads this one, so merging
+          # bought nothing and left a writable file that every switch overwrote
+          # without a word. A symlink into the store is read-only: an edit now
+          # fails where it is made, not silently on the next activation.
+          #
+          # The one thing this trades away, stated plainly: if pi ever starts
+          # writing models.json -- a /model save, or the Radius gateway metadata
+          # cache providers.md mentions -- it fails with EACCES instead of
+          # quietly winning. Neither path is reachable from the providers declared
+          # here, and a hard failure is the better default for a file this repo
+          # already owns outright.
+          _link_pi_json() {
+            _declared="$1"
+            _target="$2"
+            if [ -L "$_target" ]; then
+              if [ "$(readlink "$_target")" = "$_declared" ]; then
+                return 0
+              fi
+              echo "piAgentConfig: relinking read-only $_target -> $_declared" >&2
+              rm -f "$_target"
+            elif [ -e "$_target" ]; then
+              # Migration from the merged-regular-file layout. Worth a backup only
+              # if there is local content in it to lose; byte comparison, so a
+              # merely reflowed file still gets one rather than vanishing.
+              if ! cmp -s "$_target" "$_declared"; then
+                cp -p "$_target" "$_target.pre-link"
+                echo "piAgentConfig: $_target held content the flake does not declare; kept at $_target.pre-link" >&2
+              fi
+              echo "piAgentConfig: $_target is now a read-only link to the declared copy -- change the flake, not this file" >&2
+              rm -f "$_target"
+            fi
+            ln -s "$_declared" "$_target"
           }
 
           _merge_pi_json "${piSettingsFile}" "$_pi_agent_dir/settings.json"
-          _merge_pi_json "${piModelsFile}" "$_pi_agent_dir/models.json"
+          _link_pi_json "${piModelsFile}" "$_pi_agent_dir/models.json"
 
           # Unmanaged skills must not be present. A SKILL.md backed by no flake
           # input joins the model's routing table silently, and cannot be
