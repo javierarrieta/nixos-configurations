@@ -100,10 +100,22 @@ let
         # Default is llm01's LAN address. The halogen API runs with
         # `--network=host` and binds 0.0.0.0 on the published port, so any
         # host on the LAN (or VPN) reaches it here. Override per machine via
-        # `pi.baseUrl` in that host's userOptions.nix -- the coder workspaces
-        # do, because `host.containers.internal` is the podman gateway and is
-        # cheaper than hairpinning out to the LAN address from inside the
-        # container.
+        # `pi.baseUrl` in that host's userOptions.nix.
+        #
+        # Two hosts override it, and they are the two coder workspace attributes:
+        # `coder-workspace` (llm01 podman) points at `host.containers.internal`,
+        # the podman gateway, which is cheaper than hairpinning out to the LAN
+        # address from inside the container. The titan workspaces reach this same
+        # address over the mesh, so they could take the default, but they name it
+        # explicitly instead to keep the mesh route next to the thing that depends
+        # on it; see home/hosts/coder-workspace-titan/userOptions.nix.
+        #
+        # No runtime autodetection on purpose. This file is merged over
+        # ~/.pi/agent/models.json with the declared value winning, so whatever
+        # baseUrl Nix chose at eval time is authoritative on every switch. A value
+        # picked at activation time would either be overwritten on the next switch
+        # or overwrite nothing, and both fail silently into a pi that cannot reach
+        # its model.
         baseUrl = piCfg.baseUrl or "http://192.168.0.29:8731/v1";
         api = "openai-completions";
         # The endpoint is unauthenticated; pi requires the field to be present.

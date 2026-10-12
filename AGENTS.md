@@ -664,6 +664,17 @@ iSCSI-backed home directories (TrueNAS zvols) and an in-cluster Docker registry.
 > stores exactly one URL and session per config directory, so laptops and WSL get `coder-titan` /
 > `coder-casa` aliases from `modules/home-manager/coder.nix` rather than a re-login on every hop.
 > A client/server version mismatch there is a warning, not a failure — one CLI serves both.
+>
+> **So there are two home-manager attributes, and they cannot be merged.**
+> `homeConfigurations.coder-workspace` is the llm01 podman workspace; `coder-workspace-titan`
+> is the k8s-pod one built by `../k8s-titan/coder/templates/dev`. They differ only in
+> `pi.baseUrl`: podman workspaces use `host.containers.internal` (the gateway to llm01, where
+> halogen listens on :8731) and titan workspaces use `192.168.0.29` over the mesh, because
+> `host.containers.internal` is a podman DNS entry and does not resolve in a pod at all. It
+> has to be decided at eval time — `dev-tools.nix` merges its declared `models.json` **over**
+> the existing file, so a hand-edit there is reverted by the next switch. Each template's
+> `startup_script` names its own attribute; a wrong one is invisible except in
+> `~/.hm-switch.log`, because a failed switch is deliberately non-fatal.
 
 ### Architecture
 
