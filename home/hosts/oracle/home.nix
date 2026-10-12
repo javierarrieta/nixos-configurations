@@ -28,6 +28,10 @@ in
 
   home.stateVersion = "25.05";
 
+  # coder-titan / coder-casa: one CLI config dir per Coder server, so switching
+  # servers is not a re-login. Defaults carry both URLs.
+  coderProfiles.enable = true;
+
   home.packages = [
     pkgs.kcl
     pkgs.nodejs_24
