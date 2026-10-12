@@ -116,12 +116,41 @@ in
         return 0
       fi
 
-      # Remove old generations (all except current and the most recent N)
-      # Sort by mtime (newest first), skip the current one, delete the rest
+      # Dry activation must not delete anything. HM runs this whole script with
+      # DRY_RUN set for `home-manager switch --dry-run`, but the rm below is not
+      # wrapped in HM's `run`, so a dry run used to delete for real. Incident
+      # 2026-10-12 (macbookpro): a --dry-run removed the active profile link and
+      # left ~/.nix-profile/bin empty -- home-manager, sops and kubectl all off
+      # PATH -- until the next real switch reinstalled the profile.
+      if [[ -v DRY_RUN ]]; then
+        echo "cleanup-old-generations: dry run, nothing removed"
+        return 0
+      fi
+
+      # Keep the current link plus the newest max_keep of the rest, delete the
+      # others. Sort by generation *number* (`sort -V`), newest first.
+      #
+      # Two bugs this replaces, both found on 2026-10-12:
+      #   * `sort -r` sorted the *names*, so `home-manager-10-link` sorted below
+      #     `-9-link` and the newest generation looked like the oldest. From the
+      #     moment a host had ten generations every switch deleted the link the
+      #     profile was pointing at, and only the installPackages entry that runs
+      #     after this one hid it by reinstalling the profile.
+      #   * `-not -samefile` did not protect the current link: find defaults to
+      #     -P, so it compared the symlink inodes, not the generations the links
+      #     resolve to. The current one is now excluded by target instead.
+      local current_target
+      current_target="$(readlink -f "$current_link")"
+      local kept=0
       find "$profile_dir" -maxdepth 1 -name 'home-manager-*-link' -type l \
-        -not -newer "$current_link" \
-        -not -samefile "$current_link" \
-        -type l | sort -r | tail -n +$((max_keep + 1)) | while read -r link; do
+        | sort -Vr | while read -r link; do
+          if [[ "$(readlink -f "$link")" == "$current_target" ]]; then
+            continue
+          fi
+          if (( kept < max_keep )); then
+            kept=$((kept + 1))
+            continue
+          fi
           echo "cleanup-old-generations: Removing old generation: $(basename "$link")"
           rm -f "$link"
         done
