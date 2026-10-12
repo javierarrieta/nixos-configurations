@@ -143,12 +143,19 @@ in
       };
     };
     shellAliases = {
-      "ls" = "eza --icons";
-      "lsa" = "eza -a --icons";
-      "ll" = "eza -l --icons";
-      "lla" = "eza -la --icons";
+      # eza >= 0.21 made --icons take an optional WHEN value (always|auto|never)
+      # instead of being a bare flag. A bare `--icons` therefore swallows the next
+      # token, so `ls ~/foo` became `eza --icons ~/foo` and died with
+      # "invalid value '~/foo' for '--icons [<WHEN>]'" -- the path was never listed.
+      # `auto` keeps icons on a tty and drops them when piped, which is also what
+      # makes `l.` work: with icons forced, every line starts with a glyph and the
+      # grep for '^\.' matched nothing.
+      "ls" = "eza --icons=auto";
+      "lsa" = "eza -a --icons=auto";
+      "ll" = "eza -l --icons=auto";
+      "lla" = "eza -la --icons=auto";
       "lt" = "eza --tree";
-      "l." = "eza -a --icons | grep '^\\.'";
+      "l." = "eza -a --icons=auto | grep '^\\.'";
       "z" = "zoxide";
       "k" = "kubectl";
       "kx" = "kubectx";
@@ -316,10 +323,10 @@ in
       gch = "git checkout";
       cat = "bat";
       du = "dust";
-      ls = "eza --icons";
-      lsa = "eza -a --icons";
-      ll = "eza -l --icons";
-      lla = "eza -la --icons";
+      ls = "eza --icons=auto";
+      lsa = "eza -a --icons=auto";
+      ll = "eza -l --icons=auto";
+      lla = "eza -la --icons=auto";
       lt = "eza --tree";
       python = "python3";
       pip = "pip3";
