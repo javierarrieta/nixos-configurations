@@ -53,11 +53,6 @@ in
         dracula-theme.theme-dracula
         rust-lang.rust-analyzer
         tamasfe.even-better-toml
-        ms-python.python
-        ms-python.vscode-pylance
-        ms-python.pylint
-        ms-python.mypy-type-checker
-        ms-python.debugpy
         coder.coder-remote
         continue.continue
         ms-vscode.makefile-tools
