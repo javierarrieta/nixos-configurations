@@ -141,11 +141,21 @@ in
     # AFTER whatever monitored it over the mesh is repointed at the LAN address --
     # doing it first is a self-inflicted outage of your own monitoring.
     #
-    # chiclana is absent too, and for longer: nobody can touch that box for a few
-    # months, so it stays on the old 192.168.2.0/24 mesh via the VPS. That makes
-    # the old hub permanent-but-scoped -- it keeps running with chiclana as its
-    # only member -- and it means OPNsense must keep its old-mesh link as well as
-    # its new one, or home loses chiclana until the box is reachable again.
+    # chiclana joined on 2026-10-13 and is the LAST member the old hub had, which
+    # is what finally makes 192.168.2.0/24 scoping-out-able. It is a Home Assistant
+    # on a Pi whose tunnel is managed by the HA add-on, and that add-on holds
+    # exactly ONE tunnel: there is no overlap window and no remote rollback, so a
+    # bad client config means nobody reaches that house until someone drives there.
+    # Hence the ordering -- hub first (the peer entry below, inert until the Pi
+    # handshakes), then the Pi, and the old hub stays up until the new path is
+    # proven from both ends.
+    #
+    # What this costs, stated plainly: home<->chiclana used to ride
+    # OPNsense -> VPS -> chiclana, kept independent of titan on purpose (plan
+    # 2026-10-01 §"Update 2026-10-02": routing it through the bridge "would make
+    # that path depend on titan, which is exactly the dependency the triangle exists
+    # to remove"). It now rides titan. Losing titan costs chiclana from home. That
+    # was the old hub's last reason to exist and the trade is accepted.
     #
     # WHY 192.168.0.0/24 IS IN allowedIPs NOW, AND WHY IT WAITED. AllowedIPs become
     # routes the moment the generation is deployed, whether or not the peer ever
@@ -175,7 +185,8 @@ in
       # decision in spec §11a for why OPNsense must hold a return route for it.
       #
       # This is NOT the key OPNsense uses on the old mesh (that one is still
-      # PZ00ZAz1..., and the VPS keeps using it for chiclana). One box, two
+      # PZ00ZAz1..., and it survives on the VPS only until chiclana is confirmed on
+      # this mesh -- that link was its last reason to exist). One box, two
       # identities, because it belongs to two meshes at once: the old instance
       # dials the VPS, the new `wg_titan` instance dials here. Separate keypairs
       # rather than one key on two interfaces, so a roaming bug on one mesh cannot
@@ -188,6 +199,34 @@ in
           # cache, both at 192.168.0.42.
           "192.168.0.0/24"
         ];
+      }
+      # chiclana -- second-home Home Assistant on a Pi. Keeps .3 from the old mesh
+      # (spec §11a preserves last octets so the renumber stays legible).
+      #
+      # REUSES the keypair it had on the old hub -- pMTNHoTV..., still live on the
+      # VPS's wg0 as 192.168.2.3/32. That is the dual-mesh identity this file
+      # refuses for OPNsense above, and it is deliberate here: the HA add-on drives
+      # one tunnel, so a second identity would mean repointing the only tunnel the
+      # box has, with nobody able to reach the Pi if it goes wrong. One key on two
+      # meshes is the cheaper risk, and it self-expires -- retiring the old hub
+      # deletes the only other place this key is trusted.
+      #
+      # Its own /32 only. The old mesh had `192.168.1.1/32` commented out, i.e. its
+      # LAN route was disabled on purpose, so nothing sits behind it here either.
+      #
+      # INERT UNTIL THE PI IS FLIPPED: this entry only installs a route. The Pi
+      # still dials the VPS. When it is flipped, the add-on's allowed_ips must be
+      # EXACTLY 192.168.133.0/24 -- the add-on commonly defaults to 0.0.0.0/0, which
+      # grabs the Pi's default route, kills its internet and takes the old tunnel
+      # down with it. That is the lockout, and it is not fixable remotely.
+      #
+      # NOTE ON SCOPE: .3 is inside staticSubnet (192.168.133.0/25), so public-host
+      # answers 6443/10250/9100/4243 to it. That follows the spec's addressing
+      # scheme (.3 = chiclana) but it is wider than a Home Assistant box needs; if
+      # that is not wanted, move it into the roadwarrior /25 instead.
+      {
+        publicKey = "pMTNHoTVo/MZow0sFpBdIdP/HrSazz8mFVS+PvpnTzc=";
+        allowedIPs = [ "192.168.133.3/32" ];
       }
       # pixel7 (roadwarrior)
       {
@@ -225,17 +264,31 @@ in
         allowedIPs = [ "192.168.133.131/32" ];
         exitNode = true;
       }
-      # techdelivery VPS -- the old hub, demoted to a plain client of this mesh while
-      # staying a hub on 192.168.2.0/24 for chiclana. Its own /32 only: it advertises
-      # nothing it routes for, so there is no overlap with the OPNsense peer's
-      # 192.168.0.0/24. Overlapping AllowedIPs across peers is the trap here -- the
-      # kernel picks a route arbitrarily and you get a green handshake with
-      # black-holed traffic.
+      # techdelivery VPS -- the old hub, demoted to a plain client of this mesh.
+      # Its own /32 only: it advertises nothing it routes for, so there is no
+      # overlap with the OPNsense peer's 192.168.0.0/24. Overlapping AllowedIPs
+      # across peers is the trap here -- the kernel picks a route arbitrarily and
+      # you get a green handshake with black-holed traffic.
       #
-      # What this edge is FOR, since nothing on the VPS was found to need it: it is
-      # the leaf -> titan -> VPS path, so a flipped laptop can still reach
-      # VPS-internal addresses and (via the VPS bridge) chiclana. Point-to-point
-      # only -- the VPS does not forward to its own LAN unless that is asked for.
+      # What this edge is FOR: the leaf -> titan -> VPS path, so a flipped laptop
+      # can still reach VPS-internal addresses, and -- since 2026-10-13 -- the
+      # casa LAN -> VPS path that motivated keeping this link at all.
+      #
+      # OUT OF BAND AND INVISIBLE HERE, so it is written down. The VPS side of this
+      # peer is hand-edited (companion doc §5) and its AllowedIPs for titan MUST
+      # read `192.168.133.0/24, 192.168.0.0/24`. Without that second range
+      # WireGuard drops every casa-sourced packet on the floor -- source not in
+      # AllowedIPs -- while titan's side looks perfectly healthy: green handshake,
+      # tcpdump showing the request leave wg0, nothing coming back. Verified the
+      # hard way 2026-10-13. Two constraints on that range:
+      #   - it belongs on the `wg-mesh` interface (port 51821), NOT on the VPS's
+      #     old `wg0` (port 51820), which is the interface that already carried
+      #     192.168.0.0/24 for the old hub;
+      #   - exactly one VPS interface may claim it. If both do, the kernel picks by
+      #     metric and the reply can leave an interface OPNsense's pf state does not
+      #     match -- same green-handshake-timeouts symptom, different cause.
+      # `wg show` is the only proof of either; the file proves only survival
+      # across a reboot.
       {
         publicKey = "gmIG3/ixbRJhOTYYfbE+F7uXqfEfNMwLtSgUoy81BGQ=";
         allowedIPs = [ "192.168.133.5/32" ];
