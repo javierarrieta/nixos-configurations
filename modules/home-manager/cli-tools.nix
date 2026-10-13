@@ -31,6 +31,10 @@ in
       dyff
       gh
       fastfetch
+      # Tui file manager (vim-like keys). nixpkgs attribute `felix-fm`, pname
+      # `felix`, MIT so it needs no pkgsUnfree entry. On the fleet this is the
+      # only file manager with a real keymap -- eza is a listing, not a browser.
+      felix-fm
     ]
   );
 }
