@@ -36,9 +36,14 @@ let
     c:
     builtins.match "(10\\.[0-9]+\\.[0-9]+\\.[0-9]+|172\\.(1[6-9]|2[0-9]|3[01])\\.[0-9]+\\.[0-9]+|192\\.168\\.[0-9]+\\.[0-9]+)(/[0-9]+)?" c
     != null;
+  # meshTCPPorts is the default list a host keeps as-is; meshTCPPortExtras is what
+  # consumer modules contribute. They are separate options because list assignment
+  # in NixOS REPLACES: a module that wanted to add one port would otherwise have to
+  # restate 6443, 9100, 10250 and the rest, and forgetting one reads back as a
+  # working firewall with the control plane quietly blocked. Both feed one rule.
+  meshPorts = lib.unique (cfg.meshTCPPorts ++ cfg.meshTCPPortExtras);
   leakedMeshPorts = lib.unique (
-    (lib.intersectLists cfg.meshTCPPorts anywhereTCPPorts)
-    ++ (builtins.filter inAnyOpenRange cfg.meshTCPPorts)
+    (lib.intersectLists meshPorts anywhereTCPPorts) ++ (builtins.filter inAnyOpenRange meshPorts)
   );
 in
 {
@@ -76,6 +81,18 @@ in
           wireguard.staticSubnet (plus publicHost.meshTCPPortExtraSources):
           10250 is authenticated but RCE-shaped, and roadwarriors must not reach
           any of it.
+        '';
+      };
+
+      meshTCPPortExtras = lib.mkOption {
+        type = lib.types.listOf lib.types.port;
+        default = [ ];
+        example = [ 2381 ];
+        description = ''
+          Ports ADDED to meshTCPPorts by consumer modules, so a host does not have
+          to restate the default list to publish one more port. Same -i wg0 match,
+          same sources, same posture as meshTCPPorts -- the split is purely because
+          list assignment replaces rather than appends.
         '';
       };
 
@@ -127,9 +144,10 @@ in
         # `or false` because wireguard.nix is an import, not a dependency of this
         # module: without it `config.wireguard.enable` is an unknown option and
         # the eval dies with an option error instead of this message.
-        assertion = cfg.meshTCPPorts == [ ] || (config.wireguard.enable or false);
+        assertion = meshPorts == [ ] || (config.wireguard.enable or false);
         message = ''
-          publicHost.meshTCPPorts is non-empty but wireguard is disabled, so the
+          publicHost mesh ports (${lib.concatStringsSep ", " (map toString meshPorts)})
+          are non-empty but wireguard is disabled, so the
           mesh rule would match a subnet with no tunnel behind it. Either enable
           wireguard or empty meshTCPPorts.
         '';
@@ -149,10 +167,10 @@ in
         # accepts in this chain. Key-only auth makes this hardening, not exposure.
         iptables -I nixos-fw -i cni0 -p tcp --dport ${toString cfg.sshPort} -j DROP
       ''
-      + lib.optionalString (cfg.meshTCPPorts != [ ]) (
+      + lib.optionalString (meshPorts != [ ]) (
         lib.concatMapStrings (src: ''
           iptables -A nixos-fw -i wg0 -s ${src} -p tcp \
-            -m multiport --dports ${lib.concatStringsSep "," (map toString cfg.meshTCPPorts)} \
+            -m multiport --dports ${lib.concatStringsSep "," (map toString meshPorts)} \
             -j nixos-fw-accept
         '') ([ config.wireguard.staticSubnet ] ++ cfg.meshTCPPortExtraSources)
       );

@@ -25,6 +25,7 @@ in
     ../../modules/nixos/k8s-network.nix
     ../../modules/nixos/prometheus.nix
     ../../modules/nixos/k3s-snapshot-monitor.nix
+    ../../modules/nixos/etcd-metrics-proxy.nix
     ../../modules/nixos/rsyslog.nix
     ../../modules/nixos/comin.nix
     ../../modules/nixos/comin-health-gate.nix
@@ -258,6 +259,25 @@ in
   # it needs the OPNsense peer to advertise 192.168.0.0/24 -- without that route titan
   # has no way back to a LAN source. It does now.
   publicHost.meshTCPPortExtraSources = [ "192.168.0.0/24" ];
+
+  # Embedded etcd's /metrics, republished on the tunnel. Bound to wg0's own address
+  # for the same reason meshDns is: unreachable from the internet by construction,
+  # not by a firewall rule alone.
+  #
+  # This is the ONLY way to get etcd metrics off titan without a k3s restart.
+  # --etcd-expose-metrics is the flag that looks right and is wrong here: k3s binds
+  # that extra listener to the node's own address, and this host registers its
+  # InternalIP as its PUBLIC OVH address (see `kubectl get node -o wide`), so the
+  # flag would put unauthenticated plaintext metrics on the internet-facing NIC and
+  # still not answer on 192.168.133.1. Full reasoning in
+  # modules/nixos/etcd-metrics-proxy.nix.
+  #
+  # Nothing here restarts k3s: the loopback listener etcd already has is what this
+  # forwards to. Deploy is a new socket and one iptables rule.
+  etcdMetricsProxy = {
+    enable = true;
+    listenAddress = vars.meshAddress;
+  };
 
   # DNS for mesh clients (modules/nixos/mesh-dns.nix): bound to wg0's own address, so
   # it answers the tunnel and is unreachable from the internet by construction. A
