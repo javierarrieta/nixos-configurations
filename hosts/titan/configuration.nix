@@ -130,9 +130,11 @@ in
     # failover procedure: redundancy here is just a link that is still up.
     #
     # The VPS peer is present now that its new-mesh keypair exists, and it dials
-    # titan like everyone else -- hence no endpoint. It is a hub on the OLD mesh and
-    # a client on this one at the same time, which is fine: different interfaces,
-    # different keys, different meshes.
+    # titan like everyone else -- hence no endpoint. It used to be a hub on the OLD
+    # mesh and a client on this one at the same time; that dual identity is gone --
+    # its own hub (wg0, 192.168.2.0/24, listen 51820) was retired on 2026-10-13, so
+    # inbound 51820 there is dead and its wg-mesh listens on 51821 while dialing
+    # titan:51820. Client here and nothing else.
     #
     # llm01 is absent on purpose: its mesh peer is a leftover from when it had to
     # be bridged to the VPS, and it now sits inside the home LAN. titan reaches it
@@ -184,13 +186,14 @@ in
       # see the note above for why that range waited for a live tunnel, and the Q5d
       # decision in spec §11a for why OPNsense must hold a return route for it.
       #
-      # This is NOT the key OPNsense uses on the old mesh (that one is still
-      # PZ00ZAz1..., and it survives on the VPS only until chiclana is confirmed on
-      # this mesh -- that link was its last reason to exist). One box, two
-      # identities, because it belongs to two meshes at once: the old instance
-      # dials the VPS, the new `wg_titan` instance dials here. Separate keypairs
-      # rather than one key on two interfaces, so a roaming bug on one mesh cannot
-      # silently corrupt the other.
+      # This is NOT the key OPNsense uses on the old mesh (that one was
+      # PZ00ZAz1...). That pairing is historical: the old instance on OPNsense was
+      # disabled on 2026-10-13 and the VPS side it dialed is gone, so this box is no
+      # longer in two meshes at once -- `wg_titan` is its only tunnel. The separate
+      # keypairs are kept anyway, and for the original reason: one key on two
+      # interfaces means a roaming bug on one mesh can silently corrupt the other.
+      # The old instance is disabled on OPNsense, not deleted, so the identity still
+      # exists as dead config on that box.
       {
         publicKey = "dkpVTI+DtKSo2giq6HVUF5WHQzwmxH5tofQW65bCRhg=";
         allowedIPs = [
@@ -203,19 +206,19 @@ in
       # chiclana -- second-home Home Assistant on a Pi. Keeps .3 from the old mesh
       # (spec §11a preserves last octets so the renumber stays legible).
       #
-      # REUSES the keypair it had on the old hub -- pMTNHoTV..., still live on the
-      # VPS's wg0 as 192.168.2.3/32. That is the dual-mesh identity this file
-      # refuses for OPNsense above, and it is deliberate here: the HA add-on drives
+      # REUSES the keypair it had on the old hub -- pMTNHoTV..., which was also live
+      # on the VPS's wg0 as 192.168.2.3/32. That is the dual-mesh identity this file
+      # refuses for OPNsense above, and it was deliberate here: the HA add-on drives
       # one tunnel, so a second identity would mean repointing the only tunnel the
       # box has, with nobody able to reach the Pi if it goes wrong. One key on two
-      # meshes is the cheaper risk, and it self-expires -- retiring the old hub
-      # deletes the only other place this key is trusted.
+      # meshes was the cheaper risk, and it self-expired on schedule: the old hub was
+      # retired 2026-10-13, so this entry is now the only place that key is trusted.
       #
       # Its own /32 only. The old mesh had `192.168.1.1/32` commented out, i.e. its
       # LAN route was disabled on purpose, so nothing sits behind it here either.
       #
-      # INERT UNTIL THE PI IS FLIPPED: this entry only installs a route. The Pi
-      # still dials the VPS. When it is flipped, the add-on's allowed_ips must be
+      # THE PI IS FLIPPED (2026-10-13): it dials titan as 192.168.133.3 and answers
+      # node_exporter there. The add-on's allowed_ips must stay
       # EXACTLY 192.168.133.0/24 -- the add-on commonly defaults to 0.0.0.0/0, which
       # grabs the Pi's default route, kills its internet and takes the old tunnel
       # down with it. That is the lockout, and it is not fixable remotely.
@@ -264,7 +267,8 @@ in
         allowedIPs = [ "192.168.133.131/32" ];
         exitNode = true;
       }
-      # techdelivery VPS -- the old hub, demoted to a plain client of this mesh.
+      # techdelivery VPS -- the old hub, retired 2026-10-13 and now a plain client
+      # of this mesh.
       # Its own /32 only: it advertises nothing it routes for, so there is no
       # overlap with the OPNsense peer's 192.168.0.0/24. Overlapping AllowedIPs
       # across peers is the trap here -- the kernel picks a route arbitrarily and
@@ -289,6 +293,16 @@ in
       #     match -- same green-handshake-timeouts symptom, different cause.
       # `wg show` is the only proof of either; the file proves only survival
       # across a reboot.
+      #
+      # THE FAR SIDE HAD A BOOT HOLE, and it is written here because titan cannot
+      # see it: on 2026-10-13 the VPS's wg-quick@wg-mesh was `disabled` and its
+      # interface had been created by hand, so a reboot there would have left the
+      # mesh down while titan's side looked perfectly healthy -- green peer, no
+      # traffic. Now enabled, and proven by an actual reboot on 2026-10-14 that
+      # rebuilt the tunnel unaided in ~90s. Its endpoint is a hostname
+      # (titan.arrieta.eu:51820), so that box's boot depends on resolving this one;
+      # the stock wg-quick@.service declares nss-lookup.target, which is what makes
+      # that safe. Full record: k8s-techdelivery, apply/20-infra/mesh-api-path.md.
       {
         publicKey = "gmIG3/ixbRJhOTYYfbE+F7uXqfEfNMwLtSgUoy81BGQ=";
         allowedIPs = [ "192.168.133.5/32" ];
