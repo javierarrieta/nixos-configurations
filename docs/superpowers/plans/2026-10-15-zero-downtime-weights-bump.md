@@ -858,24 +858,33 @@ design does not work as specified and needs `PathModified=` or a timer instead.
 - [ ] **Step 1: After the migration deploy (no revision change), confirm the expected one-off restart**
 
 ```bash
-systemctl show -p NRestarts -p ActiveState halogen-flash
+systemctl show -p ActiveState -p ExecMainStartTimestamp halogen-flash
+journalctl -u halogen-flash --since "-2h" --no-pager \
+  | grep -iE "Stopping|Stopped|Starting|Started" | tail -4
 systemctl show -p ActiveState halogen-flash-weights
-systemctl show -p StartLimitIntervalSec -p StartLimitBurst halogen-flash-weights.service
+systemctl show -p StartLimitIntervalUSec -p StartLimitBurst halogen-flash-weights.service
 systemctl status halogen-flash-weights.path
+cat /var/lib/node-exporter/textfiles/halogen-weights.prom
 curl -fsS http://127.0.0.1:8731/health
 ```
 
-Expected: `halogen-flash` `NRestarts` advanced by **exactly 1** from before the
-deploy (the role unit's own text changed — see spec §8; this is NOT a failed
-deploy) and `ActiveState=active`; the weights unit ran and exited; the path unit
-is `active`; and `StartLimitIntervalSec=3600s` / `StartLimitBurst=5` — if these
-read `10s` / `5` from defaults, the start-limit keys landed in `[Service]` again.
-This is spec Review Focus item 3.
+Expected: `halogen-flash` `ExecMainStartTimestamp` at the deploy time and
+`ActiveState=active`, with a `Stopping`/`Stopped`/`Starting`/`Started` sequence
+around it — the role unit's own text changed, so it restarted (see spec §8; this
+is NOT a failed deploy). Do not use `NRestarts` here: `switch-to-configuration`
+stops and starts the unit as separate jobs, which resets the counter, so it reads
+`0` after a real restart. The weights unit is `inactive` (it ran and exited), the
+path unit is `active`, and the textfile shows `state="complete"` with
+`desired == current` because nothing was fetched. `StartLimitIntervalUSec` must
+read `1h` and `StartLimitBurst` `5` — if the interval reads `10s` the start-limit
+keys landed in `[Service]` again. Note the property name ends in `USec`; the
+`Sec` spelling is the unit-file directive and `systemctl show` prints nothing
+for it rather than an error. This is spec Review Focus item 3.
 
 - [ ] **Step 2: Record the restart baseline, then do the bump PR**
 
 ```bash
-systemctl show -p NRestarts halogen-flash | tee /tmp/halogen-nrestarts.before
+systemctl show -p ExecMainStartTimestamp halogen-flash | tee /tmp/halogen-start.before
 readlink /opt/llm/models/halogen/current
 ```
 
@@ -894,12 +903,17 @@ Expected: `active`, `/health` answering, and the textfile showing `state="fetchi
 - [ ] **Step 4: After the fetch completes, prove exactly one restart**
 
 ```bash
-systemctl show -p NRestarts halogen-flash
+systemctl show -p ExecMainStartTimestamp halogen-flash
 readlink /opt/llm/models/halogen/current
 cat /var/lib/node-exporter/textfiles/halogen-weights.prom
 ```
 
-Expected: `NRestarts` exactly one greater than the baseline from Step 2; `current` pointing at the new revision; textfile `state="complete"` with `desired == current`.
+Expected: `ExecMainStartTimestamp` later than the `/tmp/halogen-start.before`
+baseline and moved **exactly once** across the whole fetch — that single restart
+is the sync script moving the server onto the new tree, which is the property
+under test. `current` points at the new revision; textfile `state="complete"`
+with `desired == current`. Compare against the Step 2 baseline rather than
+reading `NRestarts`, which a stop/start resets.
 
 - [ ] **Step 5: Prove repeat bumps work (correction C1)**
 
