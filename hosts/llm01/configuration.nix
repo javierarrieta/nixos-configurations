@@ -216,7 +216,18 @@
     # A digest that is neither pullable nor present fails the unit, and the
     # role units Require it — loud, and caught by the comin health gate.
     pull.enable = true;
-    # environment.HALOGEN_VISION_TOWER = "1"; # enable vision sidecar on /v1
+    # Vision sidecar: the flake module (bumped to 8206b5c) now passes
+    # HALOGEN_VISION_TOWER=1, the upstream shorthand for "find the sidecar
+    # beside the checkpoint inside the /models mount". The pre-bump module
+    # passed a host absolute path that does not exist inside the container.
+    enableVision = true;
+    # Exclusions shrink the weights fetch from 286 GiB to ~112 GiB (skip the
+    # unused w4b 116 GiB and ht43 54 GiB checkpoints) so a future bump fits
+    # /opt/llm. `download.enable` is set above; only `exclude` is added here.
+    download.exclude = [
+      "qwen38-flash-next-w4b*"
+      "qwen38-flash-next-ht43*"
+    ];
   };
 
   # Nix settings
