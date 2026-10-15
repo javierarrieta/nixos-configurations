@@ -117,12 +117,12 @@ WEIGHTS_DESCRIPTION=${svc.description}
 WEIGHTS_AFTER=${toString (svc.after or [ ])}
 WEIGHTS_WANTS=${toString (svc.wants or [ ])}
 WEIGHTS_WANTEDBY=${toString (svc.wantedBy or [ ])}
-WEIGHTS_EXECSTART=${toString svcCfg.ExecStart}
+WEIGHTS_EXECSTART=${toString (svcCfg.ExecStart or "<none>")}
 ${builtins.concatStringsSep "\n"
   (map (k: "WEIGHTS_CFG_${k}=${toString svcCfg.${k}}") (builtins.sort builtins.lessThan keys))}
 PATH_DESCRIPTION=${path.description or "<none>"}
-PATH_UNIT=${toString pathCfg.Unit}
-PATH_CHANGED=${toString pathCfg.PathChanged}
+PATH_UNIT=${toString (pathCfg.Unit or "<none>")}
+PATH_CHANGED=${toString (pathCfg.PathChanged or "<none>")}
 PATH_WANTEDBY=${toString (path.wantedBy or [ ])}
 ROLE_AFTER=${toString (role.after or [ ])}
 ROLE_EXECSTARTPRE=${toString (role.serviceConfig.ExecStartPre or [ ])}
@@ -176,6 +176,17 @@ for prefix in WEIGHTS_ PATH_; do
   fi
 done
 
+# Must exist and be wired: otherwise the invariance checks above pass vacuously
+# on a module that simply has no path unit.
+if printf '%s\n' "$A" | grep -qx 'PATH_CHANGED=/etc/halogen-flash/target-revision' \
+   && printf '%s\n' "$A" | grep -qx 'PATH_UNIT=halogen-flash-weights.service'; then
+  echo "ok: path unit watches the intent file and activates the weights service"
+else
+  echo "FAIL: path unit missing or not wired to the intent file"
+  printf '%s\n' "$A" | grep '^PATH_'
+  status=1
+fi
+
 # Must be identical: the role unit must not be ordered behind the fetch.
 a="$(printf '%s\n' "$A" | grep '^ROLE_')"
 b="$(printf '%s\n' "$B" | grep '^ROLE_')"
@@ -224,11 +235,14 @@ FAIL: WEIGHTS unit text changes with the revision
 > WEIGHTS_EXECSTART=/nix/store/<otherhash>-halogen-weights-sync
 ```
 
-plus `FAIL: role unit is still ordered after halogen-flash-weights.service` and
-`FAIL: target-revision content does not change with the revision`. If the
-harness fails to evaluate at all rather than producing these diffs, fix the
-harness before continuing — a red test that is red for the wrong reason proves
-nothing.
+plus `FAIL: path unit missing or not wired to the intent file`,
+`FAIL: role unit is still ordered after halogen-flash-weights.service` and
+`FAIL: target-revision content does not change with the revision`. Note that
+`ok: PATH unit text identical across revisions` also prints at this stage and is
+**vacuously true** — there is no path unit yet, so both renders are `<none>`. The
+wiring assertion added above is what makes that check meaningful. If the harness
+fails to evaluate at all rather than producing these diffs, fix the harness
+before continuing — a red test that is red for the wrong reason proves nothing.
 
 - [ ] **Step 4: Commit**
 
@@ -434,6 +448,7 @@ Expected: exit 0, all lines `ok:` —
 ```
 ok: WEIGHTS unit text identical across revisions
 ok: PATH unit text identical across revisions
+ok: path unit watches the intent file and activates the weights service
 ok: role unit text identical across revisions
 ok: role unit has no ordering edge on the weights unit
 ok: target-revision content changes with the revision
