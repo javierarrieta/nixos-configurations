@@ -182,7 +182,8 @@ let
   # One layout rule for every entry: <input>/skills/<name>. For the flake inputs
   # `input` is the upstream repo root; for cocoindex it is a repo-root mirror
   # committed under vendor/, so the same rule applies and no per-entry override
-  # is needed.
+  # is needed. `root = true` is the one escape hatch, for upstreams that put
+  # SKILL.md at the repo root instead of under skills/<name>/.
   piVendoredSkills = [
     {
       input = agentSkills.caveman;
@@ -228,6 +229,16 @@ let
       names = [ "find-skills" ];
     }
     {
+      # Rewrites dense English into ASD-STE100 Simplified Technical English for
+      # text a machine must parse without a human (tool descriptions, error
+      # messages, inter-agent instructions). Ships a python linter alongside.
+      input = agentSkills.asd-ste100;
+      origin = "danyuchn/asd-ste100-skill";
+      # Single-skill repo: SKILL.md, references/, scripts/ sit at the root.
+      root = true;
+      names = [ "asd-ste100" ];
+    }
+    {
       # Vendored in-repo rather than as a flake input: cocoindex-io/cocoindex is a
       # ~114MB framework repo, and a `flake = false` input would fetch all of it
       # on every `nix flake update` to reach one skill folder. vendor/cocoindex/
@@ -249,7 +260,7 @@ let
         map (
           n:
           lib.nameValuePair ".pi/agent/skills/${n}" {
-            source = "${s.input}/skills/${n}";
+            source = if s.root or false then "${s.input}" else "${s.input}/skills/${n}";
             # force: these paths already exist as unmanaged symlinks left by the
             # `skills` CLI, which Home Manager would otherwise refuse to replace.
             force = true;
