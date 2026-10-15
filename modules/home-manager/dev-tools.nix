@@ -154,22 +154,6 @@ let
             name = "Qwen3.8-Flash-Next (halogen, llm01)";
             contextWindow = 262144;
             maxTokens = 65536;
-            # Declared, not inferred: pi only attaches an image to a request if
-            # the model says it takes one, so without this the server accepts
-            # images and pi never sends any. Requires llm01's
-            # services.halogenFlash.enableVision (hosts/llm01/configuration.nix);
-            # against a server without the vision tower an image is a 400.
-            #
-            # pi sends a `data:` URL, which is the only shape halogen accepts
-            # (it refuses http(s) URLs so a client cannot make it dial out).
-            # pi's default resize (2000x2000, 4.5 MiB, JPEG q80) is left alone:
-            # halogen downscales to 3,686,400 px itself and upstream measures
-            # ~11.8 s per 1920x1080 image, ~25.3 s at 1440p, with no quality
-            # gain from the larger frame.
-            input = [
-              "text"
-              "image"
-            ];
           }
         ];
       };
