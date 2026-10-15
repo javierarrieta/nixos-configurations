@@ -247,8 +247,13 @@ Plan:
    `defaultWeightsRevision` untouched. Both the weights unit and the role unit
    change text, so both restart: the weights unit exits immediately (revision
    matches `current`, nothing to fetch) and the server reloads its weights once.
-   **Expect `NRestarts` for `halogen-flash` to advance by exactly 1 on this
-   deploy** — that is correct behaviour, not a failed deploy. Deploy and verify.
+   **Expect `ExecMainStartTimestamp` for `halogen-flash` to move to the deploy
+   time** — that is correct behaviour, not a failed deploy. Do NOT verify this
+   with `NRestarts`: `switch-to-configuration` stops and starts the unit as
+   separate jobs, which resets the counter, so it reads 0 even though the service
+   did restart. Measured on llm01 (2026-10-15): `Stopping` 19:33:22, `Started`
+   19:33:25, serving again 19:33:33 — about 11 s, because the weights were
+   already resident. Deploy and verify.
 2. **PR 2 — the bump.** Change `defaultWeightsRevision` and observe the new
    behaviour cleanly: from here on, a bump restarts the weights unit only and the
    server is restarted once by the sync script, not by the deploy.
@@ -273,9 +278,15 @@ instead.
 **On the host, after PR 2 (operator-run):**
 
 - `/health` answers continuously across the whole fetch window.
-- `systemctl show -p NRestarts halogen-flash` advances by **exactly 1**.
-- `systemctl show -p NRestarts halogen-flash-weights` shows the bounded retry
-  policy in effect.
+- `systemctl show -p ExecMainStartTimestamp halogen-flash` moves to the moment
+  the sync script restarted the server, and moves exactly once across the whole
+  fetch window. `NRestarts` is not a reliable instrument here: it is reset by a
+  stop/start, so it can read 0 after a genuine restart.
+- `systemctl show -p StartLimitIntervalUSec -p StartLimitBurst
+  halogen-flash-weights.service` reads `1h` and `5`. The property is
+  `StartLimitIntervalUSec`; `StartLimitIntervalSec` is the unit-file directive
+  spelling, and `systemctl show -p StartLimitIntervalSec` prints nothing at all
+  rather than an error.
 - The textfile reflects `complete` with `desired == current` once the bump lands.
 
 **Discrimination requirement.** The first two host checks must be observed over
