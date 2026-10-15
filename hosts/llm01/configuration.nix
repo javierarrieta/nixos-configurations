@@ -41,7 +41,10 @@
   systemPackages.enable = true;
   ssh.enable = true;
   prometheus.nodeExporter.enable = true;
-  prometheus.nodeExporter.collectors = [ "drm" "textfile" ];
+  prometheus.nodeExporter.collectors = [
+    "drm"
+    "textfile"
+  ];
   # The NixOS node_exporter does not read a textfile dir unless told to, and
   # `collectors` above replaces the module default rather than extending it.
   # The halogen weights sync publishes desired/live/state there; a fetch that
