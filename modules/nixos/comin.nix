@@ -97,12 +97,14 @@ in
           default = 1800;
           description = ''
             How long the halogen-flash check tolerates the service being
-            unhealthy before rolling back. A normal weight load takes minutes,
-            but a services.halogenFlash.download.revision change makes
-            ExecStartPre fetch ~118 GiB, which can run for hours while the
-            unit sits in "activating". Hosts that pin weights must raise this
-            above the worst-case fetch time or the gate rolls back a deploy
-            that is merely still downloading.
+            unhealthy before rolling back. The service answers /health only once
+            the checkpoint is resident, and a normal weight load takes minutes.
+            Since halogen-flash 21a686c a download.revision change no longer
+            blocks the deploy -- the fetch runs in a background unit and the
+            switch returns immediately -- so this window covers the weight load,
+            not the transfer. Hosts on slow storage should still raise it above
+            their worst-case load time, or the gate rolls back a deploy that is
+            merely still loading.
           '';
         };
       };

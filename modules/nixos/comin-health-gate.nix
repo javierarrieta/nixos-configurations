@@ -68,12 +68,13 @@ let
   '';
 
   # halogen-flash (mode "all"): active + /health answering on the configured
-  # API port. Weight load takes minutes, so the window is generous; the real
-  # constraint is download.revision, which turns ExecStartPre into a ~118 GiB
-  # fetch that keeps the unit "activating" for hours. That is a legitimate
-  # deploy, not a broken one, so the window is configurable
-  # (cominGitOps.healthGate.halogenWarmupSec) rather than a fixed 30 min --
-  # a fixed window rolls back any deploy that is merely still downloading.
+  # API port. /health only answers once the checkpoint is resident, and a weight
+  # load takes minutes, so the window is generous and configurable
+  # (cominGitOps.healthGate.halogenWarmupSec) rather than a fixed 30 min -- a
+  # fixed window rolls back a deploy whose model is merely still loading.
+  # It no longer has to outlast a weights transfer: since halogen-flash 21a686c
+  # a download.revision change fetches in a background unit and the deploy
+  # returns immediately.
   halogenFlashCheck =
     lib.optionalString (hasCheck "halogen-flash" && config.services.halogenFlash.enable)
       ''
