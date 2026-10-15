@@ -64,10 +64,15 @@
     "current-system"
     "halogen-flash"
   ];
-  # A services.halogenFlash.download.revision change turns ExecStartPre into a
-  # ~118 GiB fetch that leaves the unit "activating" for hours. The 30 min
-  # default would roll back a deploy that is merely still downloading, so the
-  # window here is sized to outlast a full weights fetch.
+  # The service answers /health only once the checkpoint is resident, and a
+  # weight load takes minutes, so the gate waits rather than calling a healthy
+  # start failed. This used to also have to outlast the fetch: a
+  # download.revision change blocked ExecStartPre on a ~112 GiB download for
+  # hours. Since halogen-flash 21a686c the fetch runs in a background unit and
+  # the deploy returns immediately, so that reason no longer applies and this
+  # window covers the weight LOAD only. 4h is kept deliberately -- see
+  # docs/superpowers/specs/2026-10-15-zero-downtime-weights-bump-design.md §11 --
+  # so it is now generous rather than tight, and retuning it is its own decision.
   cominGitOps.healthGate.halogenWarmupSec = 14400; # 4h
   coderHost.enable = true;
   # The built-in Coder provisioner runs in k3s and reaches llm01's Podman/helper
