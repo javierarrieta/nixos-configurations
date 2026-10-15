@@ -60,8 +60,10 @@
     # previously installed imperatively with the `skills` CLI (~/.agents/skills +
     # .skill-lock.json), which nothing in this repo could reproduce.
     #
-    # `flake = false`: none of the three ships a flake, so each is locked as a
-    # plain source tree and we reference `skills/<name>` out of it directly.
+    # `flake = false`: none of these ship a flake, so each is locked as a plain
+    # source tree and we reference `skills/<name>` out of it directly. The
+    # asd-ste100 entry is the one whose tree is flat (SKILL.md at the root); see
+    # piVendoredSkills in modules/home-manager/dev-tools.nix.
     caveman-skills = {
       url = "github:JuliusBrussee/caveman";
       flake = false;
@@ -72,6 +74,12 @@
     };
     vercel-skills = {
       url = "github:vercel-labs/skills";
+      flake = false;
+    };
+    # ASD-STE100 Simplified Technical English rewrite skill. Single-skill repo,
+    # MIT, upstream default branch is `master` (nix resolves it; no ref pinned).
+    asd-ste100-skill = {
+      url = "github:danyuchn/asd-ste100-skill";
       flake = false;
     };
   };
@@ -110,6 +118,7 @@
       caveman-skills,
       gitguardian-skills,
       vercel-skills,
+      asd-ste100-skill,
       ...
     }:
     let
@@ -138,6 +147,7 @@
           caveman = caveman-skills;
           gitguardian = gitguardian-skills;
           vercel = vercel-skills;
+          asd-ste100 = asd-ste100-skill;
         };
       };
 
