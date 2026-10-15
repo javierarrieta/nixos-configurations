@@ -224,6 +224,14 @@
     # Exclusions shrink the weights fetch from 286 GiB to ~112 GiB (skip the
     # unused w4b 116 GiB and ht43 54 GiB checkpoints) so a future bump fits
     # /opt/llm. `download.enable` is set above; only `exclude` is added here.
+    #
+    # This is a curated DENYLIST, not a "required files only" filter: it skips
+    # exactly the files named here. On a weights bump, re-check the repo tree
+    # (`hf` / the HF API) and extend this list if the new revision adds another
+    # large unused checkpoint — otherwise it downloads silently and can overflow
+    # the volume again. Measured at aec9e43: excluded 173.9 GiB (w4b.hgn 115.5,
+    # ht43.hgn 53.7, w4b.overlay 2.4, w4b.overlay-speed 2.3); downloaded 112.1
+    # GiB (v2 62.1 + ngram 47.7 + mtp 1.4 + vision 0.8 + tokenizer).
     download.exclude = [
       "qwen38-flash-next-w4b*"
       "qwen38-flash-next-ht43*"
