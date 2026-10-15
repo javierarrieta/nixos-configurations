@@ -216,7 +216,26 @@
     # A digest that is neither pullable nor present fails the unit, and the
     # role units Require it — loud, and caught by the comin health gate.
     pull.enable = true;
-    # environment.HALOGEN_VISION_TOWER = "1"; # enable vision sidecar on /v1
+    # Accept images on /v1. Without this the image path is not merely disabled
+    # but absent from the build, so an image is a 400 naming the flag and
+    # /health reports vision.enabled=false (verified 2026-10-14).
+    #
+    # Use the module option rather than the old commented-out
+    # `environment.HALOGEN_VISION_TOWER = "1"`: `environment` is merged last and
+    # would win, and "1" only means "guess the filename beside the checkpoint".
+    # enableVision passes the explicit path inside the read-only mount
+    # (<modelsDir>/current/qwen38-flash-next-vision.hgn -> /models/...), so a
+    # weights revision that drops the sidecar fails at startup instead of
+    # silently pointing at a file nobody checked for.
+    #
+    # The 856 MiB sidecar is already on disk: `hf download` takes the whole
+    # weights repo, and the sidecar ships in it. Confirmed on the host at the
+    # pinned revision before enabling.
+    #
+    # Costs ~2 GiB of GTT, which the engine counts in its startup pool fit
+    # (HALOGEN_KV_POOL_FIT=1): if it does not fit, the server lowers
+    # kv_pool_positions itself and logs what it chose rather than failing.
+    enableVision = true;
   };
 
   # Nix settings
