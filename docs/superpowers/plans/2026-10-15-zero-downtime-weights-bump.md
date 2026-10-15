@@ -36,7 +36,7 @@ Failure modes the spec implies that the per-task tests do not directly exercise.
 0. **A non-root service user.** The test harness evaluates with the module default `user = "root"`, while llm01 runs as `ollama`. The rootless path adds `HOME`/`XDG_RUNTIME_DIR` to `unitEnvironment` and a block of tmpfiles and setuid-wrapper rules, none of which reference the revision. Expected: the invariance property holds identically for a rootless host. If a future change interpolates the revision into any rootless-only attr, the root-only test stays green while llm01 regresses.
 1. **A bump that changes nothing.** Every non-bump deploy rewrites `target-revision` with identical bytes. Expected: `PathChanged` does not fire, no fetch, no restart, the server is untouched. A spurious restart here means the design has leaked back into the deploy path.
 2. **A fresh boot with no weights tree at all.** With R1 there is no ordering edge, so the role unit must fail loudly on its `ExecStartPre` guard and retry, rather than starting a container against an empty bind mount. Expected: `podman run` is never reached with a missing `current`.
-3. **The transition deploy.** The first deploy of this change rewrites the weights unit (description changes, path unit is new) while the revision is unchanged. Expected: the weights unit restarts, exits immediately because desired equals live, and the server is not restarted.
+3. **The transition deploy.** The first deploy of this change rewrites the weights unit and drops `After=halogen-flash-weights.service` from the role unit, while the revision is unchanged. Expected: the weights unit restarts and exits immediately because desired equals live, **and the server also restarts exactly once** — removing `After=` changes the role unit's own text, which is what `switch-to-configuration` restarts on. One weight-load on the transition deploy is correct and unavoidable; zero on every bump after it is the property under test.
 4. **A failed fetch must not look like a healthy deploy.** Expected: the weights unit settles in `failed` after the bounded retries, the textfile says `state="failed"`, the server keeps serving the old revision, and the comin deploy is unaffected.
 5. **Repeat bumps.** The first bump must not be the only one that works (see C1). Expected: a second bump to a third revision behaves exactly like the first.
 
@@ -820,16 +820,57 @@ Cannot be done from this workspace. Specified so the handoff is complete and so 
 
 **Files:** none — this is a runbook.
 
-- [ ] **Step 1: After the migration deploy (no revision change), confirm the server was untouched**
+- [ ] **Step 0: Prove the trigger actually fires (do this first, on any systemd host)**
+
+`PathChanged=` is the one load-bearing assumption this repo cannot test: the intent
+file is a symlink into the store that activation replaces by rename, and the
+invariance test only asserts the path unit's *text*, not that the trigger works.
+If it is inert, bumps silently do nothing until the next boot.
+
+```bash
+mkdir -p /tmp/probe && cd /tmp/probe
+cat > probe.path <<'EOF'
+[Unit]
+Description=probe
+[Path]
+PathChanged=/etc/halogen-flash/target-revision
+Unit=probe.service
+[Install]
+WantedBy=multi-user.target
+EOF
+cat > probe.service <<'EOF'
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'echo PROBE-FIRED'
+EOF
+systemd-run --unit=probe-run --property=RuntimeMaxSec=120 systemd-analyze verify ./probe.path || true
+sudo cp probe.path probe.service /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl start probe.path
+ln -sfn /nix/store/some-other-path /etc/halogen-flash/target-revision   # rename-replace
+sleep 2; journalctl -u probe -b --no-pager | grep PROBE-FIRED && echo "TRIGGER OK"
+sudo systemctl stop probe.path; sudo rm /etc/systemd/system/probe.{path,service}
+sudo systemctl daemon-reload
+```
+
+Expected: `PROBE-FIRED` then `TRIGGER OK`. If it does not fire, stop here — the
+design does not work as specified and needs `PathModified=` or a timer instead.
+
+- [ ] **Step 1: After the migration deploy (no revision change), confirm the expected one-off restart**
 
 ```bash
 systemctl show -p NRestarts -p ActiveState halogen-flash
 systemctl show -p ActiveState halogen-flash-weights
+systemctl show -p StartLimitIntervalSec -p StartLimitBurst halogen-flash-weights.service
 systemctl status halogen-flash-weights.path
 curl -fsS http://127.0.0.1:8731/health
 ```
 
-Expected: `halogen-flash` `NRestarts` unchanged from before the deploy and `ActiveState=active`; the weights unit ran and exited; the path unit is `active`. This is spec Review Focus item 3.
+Expected: `halogen-flash` `NRestarts` advanced by **exactly 1** from before the
+deploy (the role unit's own text changed — see spec §8; this is NOT a failed
+deploy) and `ActiveState=active`; the weights unit ran and exited; the path unit
+is `active`; and `StartLimitIntervalSec=3600s` / `StartLimitBurst=5` — if these
+read `10s` / `5` from defaults, the start-limit keys landed in `[Service]` again.
+This is spec Review Focus item 3.
 
 - [ ] **Step 2: Record the restart baseline, then do the bump PR**
 

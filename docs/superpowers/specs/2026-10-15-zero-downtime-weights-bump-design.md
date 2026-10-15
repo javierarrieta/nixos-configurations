@@ -226,18 +226,32 @@ That alert is an explicit follow-up for a separate PR, not part of this change.
 The transition deploy is **not free** and must be sequenced deliberately.
 
 The currently-deployed weights unit embeds `${targetRevision}` in its
-`description`, and the role unit carries `After=halogen-flash-weights.service`.
-The first deploy of this change therefore rewrites the weights unit and may order
-the server behind it once.
+`description` and in its `ExecStart` script path, and the role unit carries
+`After=halogen-flash-weights.service`. The first deploy of this change rewrites
+both units.
+
+**Correction from implementation review: the transition deploy DOES restart the
+server, exactly once.** Removing `After=halogen-flash-weights.service` changes
+the *role* unit's own generated text, and `switch-to-configuration` restarts any
+unit whose text changed. So the migration deploy costs one weight-load (minutes),
+not zero. No code change avoids this: any edit to the role unit restarts it once.
+
+Worth knowing when reading the old code: systemd's change detection ignores
+`Description` (it is in switch-to-configuration's `[Unit]` ignore list), so the
+old `description` leak was never what restarted the unit. The load-bearing leak
+was the `ExecStart` script path, which lives in `[Service]` and is compared.
 
 Plan:
 
 1. **PR 1 — config-only, revision unchanged.** Land the module changes with
-   `defaultWeightsRevision` untouched. The weights unit text still changes, so it
-   restarts, but it exits immediately (revision matches `current`, nothing to
-   fetch) and the server is untouched. Deploy and verify.
+   `defaultWeightsRevision` untouched. Both the weights unit and the role unit
+   change text, so both restart: the weights unit exits immediately (revision
+   matches `current`, nothing to fetch) and the server reloads its weights once.
+   **Expect `NRestarts` for `halogen-flash` to advance by exactly 1 on this
+   deploy** — that is correct behaviour, not a failed deploy. Deploy and verify.
 2. **PR 2 — the bump.** Change `defaultWeightsRevision` and observe the new
-   behaviour cleanly. This also provides a clean before/after for verification.
+   behaviour cleanly: from here on, a bump restarts the weights unit only and the
+   server is restarted once by the sync script, not by the deploy.
 
 ## 9. Verification
 
