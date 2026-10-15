@@ -154,6 +154,13 @@ let
             name = "Qwen3.8-Flash-Next (halogen, llm01)";
             contextWindow = 262144;
             maxTokens = 65536;
+            # llm01's halogen runs with HALOGEN_VISION_TOWER=1 (vision sidecar),
+            # so /v1 accepts image content parts. Without this pi treats the
+            # model as text-only and never attaches images.
+            input = [
+              "text"
+              "image"
+            ];
           }
         ];
       };
