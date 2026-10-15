@@ -2,7 +2,8 @@
 
 **Date:** 2026-10-15
 **Problem statement:** `problems/zero-downtime-weights-bump.md`
-**Status:** Design approved; awaiting spec review
+**Status:** Approved. Implementation plan:
+`docs/superpowers/plans/2026-10-15-zero-downtime-weights-bump.md`
 
 ## 1. Problem
 
@@ -94,6 +95,27 @@ halogen-flash.service                             (no edge to any of the above;
 The role unit keeps exactly one guard: `ExecStartPre` asserting `current`
 resolves to a directory. Nothing orders it behind the fetch.
 
+## 4a. Corrections found during planning
+
+Two things written above are wrong and were caught while writing the
+implementation plan. The plan implements the corrected version.
+
+**C1 — `RemainAfterExit` must be removed, not kept.** Section 5.1 changes the
+description but leaves `RemainAfterExit = true` in place. A `PathUnit` activates
+its `Unit=` with `StartUnit`; starting an already-active `Type=oneshot` with
+`RemainAfterExit=yes` is a no-op, so `ExecStart` never re-runs and the **second**
+bump silently does nothing. `RemainAfterExit` must be dropped so the unit returns
+to `inactive`. That is safe only because decision R1 already removed the role
+unit's `After=` edge — nothing needs the unit to stay active any more.
+
+**C2 — llm01's host node_exporter does not read the textfile directory.**
+`hosts/llm01/configuration.nix` sets `prometheus.nodeExporter.collectors = [
+"drm" ]`, which replaces the module default `[ "systemd" ]`, and nothing sets
+`--collector.textfile.directory`. The only module that enables the textfile
+collector is `modules/nixos/k3s-snapshot-monitor.nix`, which llm01 does not
+enable. So Section 7 as written would produce a file nobody scrapes. Enabling
+the collector and the directory on llm01 is part of this work, not a follow-up.
+
 ## 5. Components
 
 ### 5.1 `halogen-flash-weights.service` — unit text becomes revision-independent
@@ -106,6 +128,7 @@ resolves to a directory. Nothing orders it behind the fetch.
   interpolated by Nix anywhere in the unit or the script, so both the unit text
   and the script's store path are identical across revisions.
 - No `After=`/`Requires=` relationship with the role units, in either direction.
+- `RemainAfterExit` is **not** set (correction C1).
 - Bounded retry policy (Section 6).
 
 ### 5.2 `halogen-flash-weights.path` — new
@@ -251,12 +274,12 @@ invisible if the transfer is fast enough to finish inside the health-gate window
 | File | Change |
 |---|---|
 | `halogen-flash-flake/nixos/module.nix` | weights unit text made revision-independent; path unit added; role-unit `After=` removed; `environment.etc` target-revision added; script reads the file and writes the textfile; bounded retry |
-| `nixos-configurations/hosts/llm01/configuration.nix` | no change in this work; `halogenWarmupSec` stays at 14400 — see Section 11 |
+| `nixos-configurations/hosts/llm01/configuration.nix` | enable the node_exporter textfile collector and directory (correction C2); take the new module. `halogenWarmupSec` stays at 14400 — see Section 11 |
 
 The module lives in a separate repository (`halogen-flash-flake`), so the module
 change is one PR there. The PR 1 / PR 2 sequencing in Section 8 is two PRs in
-that repository (config-only, then the bump). This repository is only touched if
-the flake input pin needs refreshing after the module PR merges.
+that repository (config-only, then the bump). This repository needs its own PR
+for the collector enablement and the flake input bump.
 
 ## 11. Open follow-ups (not in this change)
 
@@ -266,7 +289,8 @@ the flake input pin needs refreshing after the module PR merges.
   halogen `/health` check should pass in minutes. Reducing the value is safe but
   is deliberately left as a separate, later change so it cannot mask a regression
   during the migration deploy.
-- **Alert on `desired != current`** in `k8s-casa` (Section 7).
+- **Alert on `desired != current`** in `k8s-casa` (Section 7). Note that
+  enabling the collector on llm01 is *not* a follow-up — see correction C2.
 - **Prometheus scrape of the new textfile** is assumed to work via the existing
   node_exporter textfile mount; confirm the mount covers the whole directory
   rather than only `comin.prom`.
