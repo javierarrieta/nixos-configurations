@@ -216,19 +216,18 @@
     # A digest that is neither pullable nor present fails the unit, and the
     # role units Require it — loud, and caught by the comin health gate.
     pull.enable = true;
-    # Working vision: `"1"` is the upstream shorthand for "look beside the
-    # checkpoint at `/models/`" (the container mount). The `halogen-flash-flake`
-    # PR fixes `enableVision` (currently passes broken host absolute path);
-    # once that input bumps, this can become `enableVision = true;`.
-    # The exclusions below shrink the download from 286 GiB to ~112 GiB.
-    environment.HALOGEN_VISION_TOWER = "1";
-    download = {
-      enable = true;
-      exclude = [
-        "qwen38-flash-next-w4b*"
-        "qwen38-flash-next-ht43*"
-      ];
-    };
+    # Vision sidecar: the flake module (bumped to 8206b5c) now passes
+    # HALOGEN_VISION_TOWER=1, the upstream shorthand for "find the sidecar
+    # beside the checkpoint inside the /models mount". The pre-bump module
+    # passed a host absolute path that does not exist inside the container.
+    enableVision = true;
+    # Exclusions shrink the weights fetch from 286 GiB to ~112 GiB (skip the
+    # unused w4b 116 GiB and ht43 54 GiB checkpoints) so a future bump fits
+    # /opt/llm. `download.enable` is set above; only `exclude` is added here.
+    download.exclude = [
+      "qwen38-flash-next-w4b*"
+      "qwen38-flash-next-ht43*"
+    ];
   };
 
   # Nix settings
