@@ -216,7 +216,19 @@
     # A digest that is neither pullable nor present fails the unit, and the
     # role units Require it — loud, and caught by the comin health gate.
     pull.enable = true;
-    # environment.HALOGEN_VISION_TOWER = "1"; # enable vision sidecar on /v1
+    # Working vision: `"1"` is the upstream shorthand for "look beside the
+    # checkpoint at `/models/`" (the container mount). The `halogen-flash-flake`
+    # PR fixes `enableVision` (currently passes broken host absolute path);
+    # once that input bumps, this can become `enableVision = true;`.
+    # The exclusions below shrink the download from 286 GiB to ~112 GiB.
+    environment.HALOGEN_VISION_TOWER = "1";
+    download = {
+      enable = true;
+      exclude = [
+        "qwen38-flash-next-w4b*"
+        "qwen38-flash-next-ht43*"
+      ];
+    };
   };
 
   # Nix settings
