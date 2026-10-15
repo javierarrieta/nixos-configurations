@@ -41,7 +41,15 @@
   systemPackages.enable = true;
   ssh.enable = true;
   prometheus.nodeExporter.enable = true;
-  prometheus.nodeExporter.collectors = [ "drm" ];
+  prometheus.nodeExporter.collectors = [ "drm" "textfile" ];
+  # The NixOS node_exporter does not read a textfile dir unless told to, and
+  # `collectors` above replaces the module default rather than extending it.
+  # The halogen weights sync publishes desired/live/state there; a fetch that
+  # fails hours after its deploy reported success is otherwise invisible.
+  # Same pattern as modules/nixos/k3s-snapshot-monitor.nix.
+  services.prometheus.exporters.node.extraFlags = [
+    "--collector.textfile.directory=/var/lib/node-exporter/textfiles"
+  ];
   rsyslog.enable = true;
   sopsBase.enable = true;
   nixSweep.enable = true;
