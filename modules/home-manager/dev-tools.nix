@@ -56,6 +56,10 @@ let
   #     Never render it from Nix and never commit it; keep using `pi login`
   #     (or wire sops-nix's homeManagerModules if it must be declarative).
   #   * trust.json -- per-checkout project trust, resolved at runtime.
+  #
+  # Extensions are declared, and linked like models.json: pi reads them and never
+  # writes them, so a hand-edit of ~/.pi/agent/extensions/*.ts was drift a switch
+  # would not mention. See `piExtensionNames` below.
   jsonFormat = pkgs.formats.json { };
 
   # Per-host overrides live in that host's userOptions.nix under `pi`.
@@ -276,6 +280,26 @@ let
       ) piVendoredSkills
     )
   );
+  # pi extensions this repo owns, linked read-only into ~/.pi/agent/extensions.
+  # Unlike settings.json these are never written by pi, so a link is honest: the
+  # edit fails where it is attempted instead of disappearing on the next switch.
+  # A hand-written extension has to be listed here (and vendored under
+  # ./pi/extensions/) to survive a switch; the activation step below names any it
+  # does not declare.
+  piExtensionNames = [ "compaction-inkling.ts" ];
+
+  piExtensionFiles = builtins.listToAttrs (
+    map (
+      n:
+      lib.nameValuePair ".pi/agent/extensions/${n}" {
+        source = ./pi/extensions/${n};
+        # The live ~/.pi/agent/extensions entries were hand-written regular files
+        # before this was declared; Home Manager refuses to replace anything that
+        # is not its own symlink without this.
+        force = true;
+      }
+    ) piExtensionNames
+  );
 in
 {
   # Development toolchains and editor config. The everyday CLI niceties
@@ -329,7 +353,7 @@ in
 
   # Vendored skills -- see `piVendoredSkills` above. They route to pi, so
   # they go when pi does; Home Manager unlinks the ones it managed.
-  home.file = lib.mkIf piEnable piSkillFiles;
+  home.file = lib.mkIf piEnable (piSkillFiles // piExtensionFiles);
 
   # The agent config is rendered even on configOnly hosts: those hosts get the
   # pi binary from the workspace image, but settings and model definitions
@@ -462,6 +486,23 @@ in
                 case "$_pi_skill_names" in *" $_n "*) continue ;; esac
                 echo "piAgentConfig: removing unmanaged skill $_pi_agent_dir/skills/$_n" >&2
                 rm -rf "$_n"
+              done
+            )
+          fi
+
+          # Same rule for extensions, but reported instead of deleted: an
+          # extension is code somebody wrote, and rm -rf on switch is the wrong
+          # first move for something this repo only just started declaring. Add the
+          # file to piExtensionNames (and vendor it under ./pi/extensions/) to
+          # silence the line.
+          _pi_extension_names=" ${lib.concatStringsSep " " piExtensionNames} "
+          if [ -d "$_pi_agent_dir/extensions" ]; then
+            (
+              cd "$_pi_agent_dir/extensions" || exit 0
+              for _n in *; do
+                [ -e "$_n" ] || continue
+                case "$_pi_extension_names" in *" $_n "*) continue ;; esac
+                echo "piAgentConfig: undeclared pi extension $_pi_agent_dir/extensions/$_n -- vendor it under modules/home-manager/pi/extensions/ and add it to piExtensionNames" >&2
               done
             )
           fi
