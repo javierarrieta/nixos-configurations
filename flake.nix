@@ -82,6 +82,14 @@
       url = "github:danyuchn/asd-ste100-skill";
       flake = false;
     };
+    # Fish-shell-scripting skill (porada/domfiles). Multi-skill monorepo whose
+    # default branch is `master`, not `main`; nix resolves it, no ref pinned.
+    # MIT. Only `skills/fish-shell-scripting` is vendored -- the other eleven
+    # skills in that repo stay out of pi's routing table deliberately.
+    domfiles-skills = {
+      url = "github:porada/domfiles";
+      flake = false;
+    };
   };
 
   # pi.cachix.org carries the prebuilt pi-coding-agent output (verified: the
@@ -119,6 +127,7 @@
       gitguardian-skills,
       vercel-skills,
       asd-ste100-skill,
+      domfiles-skills,
       ...
     }:
     let
@@ -148,6 +157,7 @@
           gitguardian = gitguardian-skills;
           vercel = vercel-skills;
           asd-ste100 = asd-ste100-skill;
+          domfiles = domfiles-skills;
         };
       };
 

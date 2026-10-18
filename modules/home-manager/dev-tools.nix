@@ -250,6 +250,20 @@ let
       names = [ "asd-ste100" ];
     }
     {
+      # Fish-shell-scripting guidance from porada/domfiles. The upstream repo is a
+      # multi-skill monorepo (skills/<name>/ for all twelve), so the shared layout
+      # rule applies and no per-entry override is needed. Its default branch is
+      # `master`, so the flake input carries no ref.
+      #
+      # This one matters for hand-over commands: AGENTS.md records that every
+      # command handed to the operator is pasted into fish, and bashisms fail in
+      # ways that look like the task failing rather than the shell. The skill
+      # makes that failure mode a routed concern instead of a remembered rule.
+      input = agentSkills.domfiles;
+      origin = "porada/domfiles";
+      names = [ "fish-shell-scripting" ];
+    }
+    {
       # Vendored in-repo rather than as a flake input: cocoindex-io/cocoindex is a
       # ~114MB framework repo, and a `flake = false` input would fetch all of it
       # on every `nix flake update` to reach one skill folder. vendor/cocoindex/
