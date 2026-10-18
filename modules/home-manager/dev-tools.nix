@@ -158,6 +158,32 @@ let
             name = "Qwen3.8-Flash-Next (halogen, llm01)";
             contextWindow = 262144;
             maxTokens = 65536;
+            # The endpoint serves a reasoning model, but pi only exposes
+            # thinking levels when this flag is set: getSupportedThinkingLevels()
+            # returns ["off"] for a model without `reasoning`, so /thinking showed
+            # nothing else. `compat.supportsReasoningEffort` above only controls
+            # whether a reasoning_effort is sent at all -- it does not make the
+            # levels selectable.
+            reasoning = true;
+            # The map does two jobs, both verified against the live server
+            # (`curl http://192.168.0.29:8731/health`):
+            #   * `off -> "none"` -- the server's own value for no reasoning.
+            #     Its `reasoning_effort_default` is "xhigh", and with no map pi
+            #     sends no reasoning_effort when the level is off, so the server
+            #     default would win and "off" would still think hard. Measured
+            #     against the running server: reasoning_effort=none -> 0
+            #     reasoning tokens; every other level -> nonzero (the count
+            #     tracks the prompt and the server's answer-room cap).
+            #   * `xhigh`/`max` -- pi lists these two only when the map defines
+            #     them, and the server accepts both in its
+            #     `reasoning_effort_values` (["high","low","max","medium",
+            #     "minimal","none","xhigh"]). The other levels pass through
+            #     unmapped: pi's level names are already the server's names.
+            thinkingLevelMap = {
+              off = "none";
+              xhigh = "xhigh";
+              max = "max";
+            };
             # llm01's halogen runs with HALOGEN_VISION_TOWER=1 (vision sidecar),
             # so /v1 accepts image content parts. Without this pi treats the
             # model as text-only and never attaches images.
