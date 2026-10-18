@@ -204,6 +204,22 @@
         "type": "github"
       }
     },
+    "domfiles-skills": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792343001,
+        "narHash": "sha256-ZjXhGPVj32QulygU9eep7uLbhEuxWoMYhT7/dybLugw=",
+        "owner": "porada",
+        "repo": "domfiles",
+        "rev": "9e029dcd56ef6de0b2633025f3c59caa000b9c8e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "porada",
+        "repo": "domfiles",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -615,6 +631,7 @@
         "comfyui-nix": "comfyui-nix",
         "comin": "comin",
         "disko": "disko",
+        "domfiles-skills": "domfiles-skills",
         "gitguardian-skills": "gitguardian-skills",
         "halogen-flash": "halogen-flash",
         "herdr-nix": "herdr-nix",
