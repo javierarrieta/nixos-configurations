@@ -6,7 +6,13 @@
   gitDefaultBranch = "main";
   githubUser = "javierarrieta";
   pythonVersion = "3.12";
-  homeManagerConfigDir = "/home/coder/code/nixos-configurations";
+  # Unlike the bare metal hosts, a workspace has no ~/code: the Coder agent lands
+  # directly in /home/coder (agent `dir` in both templates), so every repo -- this
+  # one included -- is cloned straight into $HOME. Read by
+  # modules/home-manager/shell.nix for $CODE_DIR, which `hm-pull` and `hm-update`
+  # use to locate this repo's checkout.
+  codeDir = "/home/coder";
+  homeManagerConfigDir = "/home/coder/nixos-configurations";
 
   # HM manages dotfiles only; all software comes from the workspace image.
   configOnly = true;

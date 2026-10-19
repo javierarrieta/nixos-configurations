@@ -10,6 +10,16 @@
 
 let
   configOnly = userOptions.configOnly or false;
+  # Parent directory of the `nixos-configurations` clone, i.e. where `hm-pull` and
+  # `hm-update` find the checkout. Per-host because two layouts exist: the bare
+  # metal / VM hosts keep repos under ~/code, while a Coder workspace lands them
+  # directly in $HOME -- both templates set the agent `dir` to /home/coder
+  # (coder-templates `templates/podman-template/main.tf`, k8s-titan
+  # `coder/templates/dev/main.tf`), so a `git clone` from the landing directory has
+  # no ~/code to drop into. Found 2026-10-19: `hm-pull`/`hm-update` failed in every
+  # coder workspace because CODE_DIR was hardcoded to $HOME/code. Override per host
+  # with `codeDir` in that host's userOptions.nix.
+  codeDir = userOptions.codeDir or "${userOptions.userHome}/code";
   # Home Manager is applied from the pushed repo rather than a local checkout, so
   # `hm-apply` works on a machine that has no $CODE_DIR/nixos-configurations at
   # all, and always builds the commit GitHub actually has (nix fetches that flake's
@@ -39,7 +49,7 @@ in
 
   home.sessionVariables = {
     EDITOR = "nvim";
-    CODE_DIR = "${userOptions.userHome}/code";
+    CODE_DIR = codeDir;
   };
 
   home.sessionPath = [
