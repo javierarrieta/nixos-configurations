@@ -215,7 +215,23 @@
   # why removal, not just leaving it disabled, was the point.
   services.halogenFlash = {
     enable = true;
-    user = "ollama"; # rootless podman; container runs as ollama (uid 27002)
+    # Rootless podman: the container runs as ollama. The uid pin below is NOT
+    # cosmetic and must not be deleted -- the flake module derives the unit's
+    # XDG_RUNTIME_DIR and a tmpfiles rule from `users.users.ollama.uid`, so a
+    # null uid yields `XDG_RUNTIME_DIR=/run/user/` (root's dir; podman cannot
+    # use it) and, worse, `d /run/user/ 0700 ollama`, which would chown and
+    # chmod /run/user itself and break every other user's runtime dir. Both
+    # confirmed by eval, not theory.
+    #
+    # The declared 27002 is also not what /etc/passwd has: ollama is uid 993
+    # gid 990 here, because NixOS does not retune the uid of an existing user
+    # and the pin was added after ollama already existed. Nothing depends on the
+    # two agreeing -- the unit and its tmpfiles dir both use the declared value,
+    # so they stay self-consistent -- but it does mean podman's
+    # `loginctl enable-linger 993` warning is noise about a runtime dir the
+    # service never uses. Do not chase 993; do not resolve the mismatch by
+    # dropping the pin.
+    user = "ollama";
     podmanHome = "/opt/llm/halogen"; # ollama's podman storage + unit $HOME (image layers live here)
     mode = "all";
     modelsDir = "/opt/llm/models/halogen"; # ~130 GiB of headroom needed
