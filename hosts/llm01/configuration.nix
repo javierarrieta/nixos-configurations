@@ -253,6 +253,51 @@
     # beside the checkpoint inside the /models mount". The pre-bump module
     # passed a host absolute path that does not exist inside the container.
     enableVision = true;
+    # KV sizing: how many conversations stay resident, not how fast they run.
+    # Read from the live server on 2026-10-20 (/health, /cache, /metrics):
+    # nothing queued (queue_waited_total 0, requests_deferred 0) but the pool
+    # sat at 393728/524288 positions with 3 conversations held and 64 cache
+    # entries evicted. The pool default is 2 x HALOGEN_CTX, so at the native
+    # 262144 context two full-length conversations fill it and slots 3 and 4
+    # only ever serve shorter ones. HALOGEN_CTX is deliberately NOT lowered:
+    # halogen is this host's only payload, and a prompt over that cap is a
+    # hard 400 rather than a truncation.
+    #
+    # Paid for with memory, not precision. HALOGEN_KV8=1 would fit 925184
+    # positions in the ~27 GiB the bf16 524288 took, but its published quality
+    # evidence stops short of how this host is used: docs/quality.md runs its
+    # needle battery only to 32768 and says of itself that it "says the model
+    # finds a fact it was given, not that its reasoning holds at depth", and
+    # the 128k/250k parity quoted for KV8 is retrieval of planted facts, not
+    # reasoning over 200k of code -- which is what this endpoint serves.
+    # So the pool grows in bf16 instead; upstream lists 786432 (~34 GiB) as a
+    # supported configuration on the same 128 GiB reference machine. If int8
+    # is ever revisited, settle it on recorded real prompts replayed at
+    # temperature 0 against both arms, not on perplexity.
+    #
+    # Why 786432: a request reserves prompt + max_tokens, so a 200k turn at the
+    # default 8192 budget holds ~208k positions -- 2.5 of those fit today,
+    # ~3.7 after this. The pool must be restated explicitly or it drops back to
+    # 2 x ctx. HALOGEN_KV_POOL_FIT (default on) lowers an ask that will not fit
+    # and logs what it chose, so the settled value is a post-deploy check at
+    # /health, not a promise made here. Do not go to the 1048576 cap without
+    # HALOGEN_MAX_TOK=16384: a 1M pool leaves no room for the prefill arena on
+    # a 128 GiB machine. If 786432 itself does not fit, HALOGEN_MAX_TOK=16384
+    # is the precision-free way to make room (that scratch is ~9 GiB at 32768)
+    # for ~8% slower prefill. The pool is also RAM the 47.7 GiB n-gram table
+    # would otherwise page-cache -- if long prompts start crawling on disk
+    # reads, the fix is a smaller pool or a larger HALOGEN_HOST_RESERVE_GIB.
+    #
+    # CACHE_BRANCHES=3 is the fan-out case: 2 branches is a conversation plus
+    # one side turn, 3 is a parent forked into two subagents, and at 2 the
+    # parent's resume point is the one the children's stores replace, so the
+    # parent re-reads its history next turn. Costs ~0.8 GiB (32 entries, was
+    # 24). HALOGEN_KV_SLOTS stays at 4: eight admits more clients at ~10 tok/s
+    # each against ~19, and nothing is queueing.
+    environment = {
+      HALOGEN_KV_POOL_POSITIONS = "786432";
+      HALOGEN_CACHE_BRANCHES = "3";
+    };
     # Weight exclusions (skip the unused w4b/ht43 checkpoints so a future bump
     # fits /opt/llm) come from the module's `download.exclude` default, which
     # lives beside defaultRepo/defaultWeightsRevision in halogen-flash-flake.
