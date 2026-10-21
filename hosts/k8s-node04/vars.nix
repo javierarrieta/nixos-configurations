@@ -3,9 +3,25 @@
   hostname = "k8s-node04";
   ipAddress = "192.168.0.17";
   defaultGateway = "192.168.0.1";
+  # LAN resolvers, matching node01/02/03/05 and the servers.
+  #
+  # The literal 8.8.8.8/8.8.4.4 here made CoreDNS on this node forward the
+  # private `casa.arrieta` zone to Google, which returns an authoritative
+  # NXDOMAIN because `.arrieta` is not a real TLD. CoreDNS runs on node04 and
+  # node05 and kube-proxy splits queries across both, so every private-zone
+  # lookup from a pod had a ~50% chance of landing on the replica that could
+  # not resolve it. Measured 2026-10-21: gatus `ldap-lb`
+  # (tcp://ldap.casa.arrieta:636) failed 89 of 178 probes, each one an
+  # NXDOMAIN from 10.42.7.175 (this node's coredns) with no SYN following.
+  #
+  # Placeholders rather than literals: this host has the SOPS network_env
+  # secret, so $DNS1/$DNS2 are resolved at activation by
+  # modules/nixos/static-network.nix. k8s-pi* hardcode their nameservers
+  # instead because they have no network_env, and a literal "$DNS1" in
+  # resolv.conf fails at the first query rather than at build.
   nameservers = [
-    "8.8.8.8"
-    "8.8.4.4"
+    "$DNS1"
+    "$DNS2"
   ];
 
   k3s = {
