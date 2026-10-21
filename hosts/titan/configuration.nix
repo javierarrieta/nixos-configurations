@@ -327,6 +327,10 @@ in
   # has no way back to a LAN source. It does now.
   publicHost.meshTCPPortExtraSources = [ "192.168.0.0/24" ];
 
+  # CNPG-backed postgres_exporter NodePort. Unauthenticated metrics on 30087
+  # are accepted through wg0 from the static mesh and the LAN CIDR above only.
+  publicHost.meshTCPPortExtras = [ 30087 ];
+
   # Embedded etcd's /metrics, republished on the tunnel. Bound to wg0's own address
   # for the same reason meshDns is: unreachable from the internet by construction,
   # not by a firewall rule alone.
