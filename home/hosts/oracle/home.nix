@@ -39,6 +39,17 @@ in
   ];
 
   programs.fish = {
+    # kuse (kube context switcher) comes from a hand-cloned repo, not from the
+    # store, so home-manager cannot guarantee the path exists: on a fresh laptop
+    # or before the clone lands, an unguarded `source` prints
+    # "source: No such file or directory" on *every* interactive prompt and
+    # leaves $status non-zero for the first one, which starship then draws as a
+    # failed exit. Same shape as the venv guard in
+    # modules/home-manager/shell.nix. home-manager emits this inside
+    # `status is-interactive; and begin ... end`, so ssh/scp stay silent.
+    interactiveShellInit = ''
+      test -e ~/code/fashion_token/contrib/fish/kuse.fish; and source ~/code/fashion_token/contrib/fish/kuse.fish
+    '';
     functions.sshk = {
       description = "Load SSH keys using a shared password";
       body = ''
