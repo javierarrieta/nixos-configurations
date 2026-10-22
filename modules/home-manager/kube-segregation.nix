@@ -9,6 +9,10 @@
 let
   cfg = config.kubeSegregation;
   home = userOptions.userHome;
+  # Quoted for fish, not for the Nix string: the module writes fish source, and
+  # a context name with a space or glob would otherwise split or expand.
+  expectedFishList = lib.concatMapStringsSep " " (c: "'${c}'") cfg.expectedContexts;
+  firstExpected = "'${lib.head cfg.expectedContexts}'";
 in
 {
   options.kubeSegregation = {
@@ -43,6 +47,35 @@ in
         The exact identity agent-env must resolve to, or it refuses to launch.
         Per-host override if the read-only ServiceAccount differs.
       '';
+    };
+
+    expectedContexts = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [
+        "casa"
+        "titan"
+        "vps"
+      ];
+      apply = lib.unique;
+      description = ''
+        The context names every kubeconfig on this host must contain, and nothing
+        else. Both the read-only and the admin kubeconfig are checked against
+        this list; a file that does not exist is skipped rather than reported.
+
+        The schema is context == cluster == user, named after the cluster, and
+        it is shared with the ssh jumpbox kubeconfig in k8s-casa so the same
+        name means the same cluster everywhere. `vps` is the techdelivery
+        cluster: it is what the jumpbox calls it, and both entries share CA
+        fingerprint e55d3b92f6c09a0a.
+
+        The first entry is what a bare `kadm` selects.
+      '';
+    };
+
+    checkContextsOnStartup = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Validate context names from every interactive shell startup.";
     };
 
     installAgentEnv = lib.mkOption {
@@ -132,7 +165,13 @@ in
           kadm = {
             description = "Switch this shell to the ADMIN kubeconfig (privileged)";
             body = ''
-              set -l ctx default
+              # Bare `kadm` used to select the context `default`. That name is gone:
+              # the schema names every context after its cluster, so `default` was a
+              # silent dead default -- `use-context` failed, the function reverted to
+              # read-only, and it looked like the admin kubeconfig was broken rather
+              # than like the name was stale. Now it takes the first entry of
+              # kubeSegregation.expectedContexts.
+              set -l ctx ${firstExpected}
               if test (count $argv) -ge 1
                   set ctx $argv[1]
               end
@@ -159,6 +198,56 @@ in
             '';
           };
 
+          "kube-context-check" = {
+            description = "Check kubeconfig context names against kubeSegregation.expectedContexts";
+            body = ''
+              set -l expected ${expectedFishList}
+              set -l labels read-only admin
+              set -l files '${cfg.readOnlyKubeconfig}' '${cfg.adminKubeconfig}'
+              set -l rc 0
+              set -l i 1
+
+              for f in $files
+                  set -l label $labels[$i]
+                  set i (math $i + 1)
+
+                  # A host may legitimately carry only the read-only file; agent-env
+                  # is what makes that case safe. Absent is not a finding.
+                  if not test -f $f
+                      continue
+                  end
+
+                  # Local file parse only -- no cluster contact, so this is safe on a
+                  # plane with no VPN up.
+                  set -l have (kubectl config get-contexts -o name --kubeconfig $f 2>/dev/null)
+
+                  set -l missing
+                  for e in $expected
+                      contains -- $e $have
+                      or set -a missing $e
+                  end
+                  set -l extra
+                  for h in $have
+                      contains -- $h $expected
+                      or set -a extra $h
+                  end
+
+                  if test (count $missing) -gt 0; or test (count $extra) -gt 0
+                      set rc 1
+                      echo "kube-context-check: $label kubeconfig $f" >&2
+                      if test (count $missing) -gt 0
+                          echo "    missing:    "(string join ', ' $missing) >&2
+                      end
+                      if test (count $extra) -gt 0
+                          echo "    unexpected: "(string join ', ' $extra) >&2
+                      end
+                  end
+              end
+
+              return $rc
+            '';
+          };
+
           kctx = {
             description = "Show current cluster identity (🔴 admin / 🟢 read-only)";
             body = ''
@@ -177,6 +266,30 @@ in
             '';
           };
         };
+      })
+
+      # -------------------------------------------------------------------------
+      # Startup validation. Runs once per interactive shell, from the same
+      # interactiveShellInit home-manager already guards with `status
+      # is-interactive`, so ssh/scp sessions stay silent. Quiet unless something is
+      # misaligned -- a name that drifted is the only output.
+      # -------------------------------------------------------------------------
+      (lib.mkIf cfg.checkContextsOnStartup {
+        programs.fish.interactiveShellInit = ''
+          # Guard: the check shells out to kubectl twice. On a host where the k8s
+          # CLI is not installed (see base.nix skipK8sTools) that would print an
+          # error on every prompt instead of checking nothing.
+          #
+          # `or true` is load-bearing. home-manager emits this inside
+          # `status is-interactive; and begin ... end`, so a non-zero return here
+          # becomes $status for the first prompt and starship would draw a failed
+          # exit for a shell that did nothing wrong. The warning above is the whole
+          # point at startup; the exit code is for interactive use.
+          if type -q kubectl
+              kube-context-check
+              or true
+          end
+        '';
       })
 
       # Guard against enabling this on a host that has not had its kubeconfig
