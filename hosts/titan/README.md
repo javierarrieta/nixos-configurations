@@ -440,6 +440,44 @@ POSTROUTING` should show one rule per exit peer). If a peer default-routes and g
 nothing while the handshake is green, it is not marked `exitNode` — check the SNAT scope
 before touching the client.
 
+Two things that mislead while diagnosing this, both measured on macbookair 2026-10-18:
+
+- **`dig @192.168.133.1 <name>` proves nothing about the `DNS=` line.** It names its own
+  server, so it answers happily through the mesh while every real app is failing, because
+  apps use the *system* resolver. Bare `dig <name>` is the test that matches what an app
+  does. A profile can therefore show "the hub resolver works" and still be broken.
+- **Drop `-s` from `curl` when a failure prints nothing.** `curl -s` turns
+  `curl: (6) Could not resolve host` into silence, which is indistinguishable from a
+  black-holed tunnel, a dead peer and a working VPN. The flag cost most of one diagnosis.
+
+### Proving the IPv6 half on macOS
+
+The tell is counterintuitive, so write it down: `[Interface] Address` is IPv4-only, so the
+macOS tunnel has **no IPv6 stack at all**. A *correct* profile therefore shows no IPv6
+default route anywhere — not a v6 route into `utun`. Anyone looking for `utun` in
+`route -n get -inet6 default` finds nothing and concludes the tunnel is broken when it is
+behaving exactly as intended.
+
+So prove it by diffing the route table across the tunnel, and check the network actually
+has IPv6 before trusting either result:
+
+```fish
+# 1. does this network offer IPv6 at all? a global address is neither fe80:: (link-local)
+#    nor fd00::/8 (ULA, never leaves the site)
+ifconfig | grep inet6
+# 2. tunnel OFF — must show a v6 route via the local interface
+route -n get -inet6 default
+# 3. tunnel ON — must fail with "not in table", i.e. the tunnel swallowed it
+route -n get -inet6 default
+curl -6 -s --max-time 6 https://api6.ipify.org; echo " <- must print nothing"
+```
+
+Step 2 is what makes step 3 mean anything. If the network hands out v6 addresses without
+advertising a default route, step 3 is vacuous — it passes because nothing ever worked,
+not because the tunnel is holding v6. Run the pair on a phone tethering to get a second
+network with a different prefix; that is the only way to learn about networks you are not
+currently sitting on.
+
 What this deliberately does not do: no IPv6 egress (titan has none), no per-device
 bandwidth or session accounting, and every laptop leaves as titan's single address — so
 one device's bad traffic is charged to that IP for all of them.
