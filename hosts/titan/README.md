@@ -494,6 +494,14 @@ Two things that mislead while diagnosing this, both measured on macbookair 2026-
 - **Drop `-s` from `curl` when a failure prints nothing.** `curl -s` turns
   `curl: (6) Could not resolve host` into silence, which is indistinguishable from a
   black-holed tunnel, a dead peer and a working VPN. The flag cost most of one diagnosis.
+- **`192.168.133.1:6443` refusing a roadwarrior is not a fault.** `public-host.nix` accepts
+  the control-plane and exporter ports only from `wireguard.staticSubnet`
+  (`192.168.133.0/25`), and roadwarriors live at `.129`–`.131` in the other half of the
+  range, so they are refused by design — see the addressing note in
+  `hosts/titan/configuration.nix` for why the laptops were deliberately kept out. Probing
+  it with a browser misleads twice over: 6443 is the API, not a UI, and reaching it is not
+  cluster admin anyway while the kubeconfig stays `root:root 0600` on titan. Use
+  `nc -zvw3 192.168.133.1 6443` and expect it to fail from a roadwarrior.
 
 ### Proving the IPv6 half on macOS
 
@@ -522,6 +530,49 @@ advertising a default route, step 3 is vacuous — it passes because nothing eve
 not because the tunnel is holding v6. Run the pair on a phone tethering to get a second
 network with a different prefix; that is the only way to learn about networks you are not
 currently sitting on.
+
+### When the venue's own LAN is also 192.168.0.0/24
+
+The failure looks like the tunnel being broken and is not. Measured on macbookair
+2026-10-18 on a network that happened to use the same prefix as the home LAN: home-LAN
+destinations (halogen at `192.168.0.29:8731`, anything else in `wireguard.lanSubnet`) die
+in 1–2 ms with `EHOSTUNREACH` — `No route to host`, then a cached `Host is down` — while
+the mesh pings fine and the internet egress is correct.
+
+The venue handed the laptop `192.168.0.69/24`. That makes `192.168.0.0/24` a **connected**
+route on `en0`, and a `/24` is a longer match than the tunnel's `0.0.0.0/0`, so those
+destinations get ARP'd on the venue's Wi-Fi and never enter the tunnel. The tell is in the
+`curl -v` line nobody reads: `connect to 192.168.0.29 ... from 192.168.0.69` — a source of
+`.69` means the packet went out the physical interface, because a tunnelled one would
+source `.130`. Confirmed with:
+
+```fish
+ifconfig en0 | grep 'inet '                       # 192.168.0.69 netmask 0xffffff00
+route -n get 192.168.0.29 | grep interface       # en0  <- stolen by the connected /24
+route -n get 192.168.133.1 | grep interface      # utun4 <- tunnel is fine
+```
+
+**Listing `192.168.0.0/24` in `AllowedIPs` does not fix this.** It is the same prefix
+length as the connected route, and macOS keeps the connected route on a tie — proven by
+the mesh-only profile on this very laptop, which lists the `/24` and still resolved `.29`
+to `en0`. What wins is a **longer** match, so name the host:
+
+```ini
+AllowedIPs = 0.0.0.0/0, ::/0, 192.168.0.29/32
+```
+
+A `/32` beats the connected `/24`, that one host rides the tunnel, and the rest of the
+venue's `/24` stays local — which matters, because claiming the whole `/24` takes the
+venue's gateway and any captive portal down with it. Prefer `/32`s for the few home hosts
+actually reached over a blanket `/24`, in both profiles: on a non-colliding network the two
+spellings behave the same, and on a colliding one only the `/32` works. Verify with
+`route -n get 192.168.0.29 | grep interface` — it must say `utun`.
+
+The cost is unavoidable and worth stating: the venue's own `192.168.0.29` becomes
+unreachable while the tunnel is up. Two networks, one prefix, you pick the winner. The
+durable fix is renumbering the home LAN off `192.168.0.0/24` (tracked as an issue; 21 `.nix`
+files here plus SOPS `network_env` on every host, OPNsense and the cluster scrape list
+encode it), which is not a trade to make for one bad venue.
 
 What this deliberately does not do: no IPv6 egress (titan has none), no per-device
 bandwidth or session accounting, and every laptop leaves as titan's single address — so
