@@ -457,6 +457,19 @@ let
   # does not declare.
   piExtensionNames = [ "compaction-inkling.ts" ];
 
+  # Extensions another tool owns: it installs them and it updates them in place,
+  # so this repo names them without linking them. Deliberately *not* added to
+  # piExtensionNames -- a read-only store symlink would stop the owning tool's
+  # updater from rewriting the file, which is the opposite of what it expects.
+  #
+  # herdr-agent-state.ts is written by herdr (installed through `herdrPkg`) and
+  # says so in its own header: "managed by herdr; reinstalling or updating the
+  # integration overwrites this file", above a HERDR_INTEGRATION_VERSION line the
+  # updater matches on. It is live -- HERDR_ENV=1 inside a herdr pane, reporting
+  # agent state to the pane it runs in -- so deleting it is not an option, and
+  # vendoring it would freeze it against the next herdr update.
+  piForeignExtensionNames = [ "herdr-agent-state.ts" ];
+
   piExtensionFiles = builtins.listToAttrs (
     map (
       n:
@@ -663,15 +676,18 @@ in
           # extension is code somebody wrote, and rm -rf on switch is the wrong
           # first move for something this repo only just started declaring. Add the
           # file to piExtensionNames (and vendor it under ./pi/extensions/) to
-          # silence the line.
+          # silence the line -- or to piForeignExtensionNames if another tool owns
+          # it and has to keep writing it.
           _pi_extension_names=" ${lib.concatStringsSep " " piExtensionNames} "
+          _pi_foreign_extension_names=" ${lib.concatStringsSep " " piForeignExtensionNames} "
           if [ -d "$_pi_agent_dir/extensions" ]; then
             (
               cd "$_pi_agent_dir/extensions" || exit 0
               for _n in *; do
                 [ -e "$_n" ] || continue
+                case "$_pi_foreign_extension_names" in *" $_n "*) continue ;; esac
                 case "$_pi_extension_names" in *" $_n "*) continue ;; esac
-                echo "piAgentConfig: undeclared pi extension $_pi_agent_dir/extensions/$_n -- vendor it under modules/home-manager/pi/extensions/ and add it to piExtensionNames" >&2
+                echo "piAgentConfig: undeclared pi extension $_pi_agent_dir/extensions/$_n -- vendor it under modules/home-manager/pi/extensions/ and add it to piExtensionNames, or add it to piForeignExtensionNames if another tool installs it" >&2
               done
             )
           fi
