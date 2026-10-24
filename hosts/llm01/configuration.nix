@@ -16,7 +16,6 @@
 
     # Modules
     ../../modules/nixos/base.nix
-    ../../modules/nixos/pi-cache.nix
     ../../modules/nixos/system-packages.nix
     ../../modules/nixos/ssh.nix
     ../../modules/nixos/prometheus.nix
@@ -35,9 +34,6 @@
 
   # Module enablement
   base.enable = true;
-  # pi is installed by dev-tools.nix here; without this the comin build
-  # compiles the bun2nix package from source on every deploy.
-  piCache.enable = true;
   systemPackages.enable = true;
   ssh.enable = true;
   prometheus.nodeExporter.enable = true;

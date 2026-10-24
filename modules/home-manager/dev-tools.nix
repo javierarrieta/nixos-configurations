@@ -66,10 +66,9 @@ let
   piCfg = userOptions.pi or { };
 
   # Opt a host out of pi entirely with `pi.enable = false` in its
-  # userOptions.nix. Why the flag exists: pi.cachix.org only carries
-  # x86_64-linux NARs -- upstream's sole cache push is a ubuntu-latest
-  # cron -- so every Mac compiles the bun2nix build from source, and that
-  # build fetches its npm tarballs at build time. On a network that will
+  # userOptions.nix. Why the flag exists: upstream's flake publishes no
+  # binary cache, so every host compiles the npm workspace from source, and
+  # that build fetches its npm tarballs at build time. On a network that will
   # not serve registry.npmjs.org (oracle's returns 403 for
   # @anthropic-ai/sandbox-runtime) the whole home generation becomes
   # unbuildable. A host that will never run pi should opt out rather than
@@ -377,9 +376,9 @@ in
 
       pkgsUnfree.coder
     ]
-    # pi comes from the `piPkg` special arg (bun2nix build of upstream
-    # earendil-works/pi) because `pi-coding-agent` is absent from
-    # nixos-26.05. It stays gated with the rest of this module: on configOnly
+    # pi comes from the `piPkg` special arg (upstream's own flake; see the `pi`
+    # input) because nixos-26.05 freezes pi-coding-agent at an old release. It
+    # stays gated with the rest of this module: on configOnly
     # hosts (the coder workspaces) pi is installed by hand, because its
     # closure pulls dns-root-data -- a root-owned, DB-unregistered leftover
     # of the workspace image's /nix/store that Nix cannot replace as uid
@@ -572,15 +571,33 @@ in
         '';
   };
 
-  # JVM tooling (gradle, maven, sbt, some IDE integrations) resolves the JDK
-  # through JAVA_HOME rather than `java` on PATH, so point it at the same
-  # derivation that provides the binaries. `pkgs.jdk21` is openjdk on Linux
-  # and zulu-ca on aarch64-darwin; both are cached for these systems.
-  # Follows `jdkEnable`: a host whose JDK comes from outside Nix must not
-  # have JAVA_HOME pinned here, or it overrides that manager on every shell.
-  home.sessionVariables = lib.mkIf (!configOnly && jdkEnable) {
-    JAVA_HOME = "${pkgs.jdk21}";
-  };
+  # One definition, because the module system rejects the same option twice in
+  # one file. `lib.mkIf` per key would have been the shape if these could be
+  # separate.
+  #
+  # JAVA_HOME: JVM tooling (gradle, maven, sbt, some IDE integrations) resolves
+  # the JDK through JAVA_HOME rather than `java` on PATH, so point it at the same
+  # derivation that provides the binaries. `pkgs.jdk21` is openjdk on Linux and
+  # zulu-ca on aarch64-darwin; both are cached for these systems. Follows
+  # `jdkEnable`: a host whose JDK comes from outside Nix must not have JAVA_HOME
+  # pinned here, or it overrides that manager on every shell.
+  #
+  # PI_*: pi's upstream flake wrapper is thinner than the nixpkgs
+  # `pi-coding-agent` that used to provide the binary -- it prefixes fd and
+  # ripgrep onto PATH and stops there, so telemetry is on and every start asks
+  # pi.dev whether a newer release exists. That check is meaningless here: the
+  # version moves when `nix flake update pi` says so, not when upstream
+  # publishes. Gated on `piEnable` rather than `!configOnly`, because configOnly
+  # hosts (the coder workspaces) take the binary from the workspace image but run
+  # the same agent, so they want these too.
+  home.sessionVariables =
+    (lib.optionalAttrs (!configOnly && jdkEnable) {
+      JAVA_HOME = "${pkgs.jdk21}";
+    })
+    // (lib.optionalAttrs piEnable {
+      PI_TELEMETRY = "0";
+      PI_SKIP_VERSION_CHECK = "1";
+    });
 
   programs.neovim = lib.mkIf (!configOnly) {
     enable = true;

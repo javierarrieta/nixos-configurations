@@ -43,17 +43,29 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # pi: terminal coding agent. Upstream ships no flake (earendil-works/pi#2310)
-    # and `pi-coding-agent` is absent from nixos-26.05, so it comes from
-    # lukasl-dev/pi.nix -- a bun2nix build of upstream, currently v0.87.1, with
-    # a public binary cache at https://pi.cachix.org (add it to your substituters
-    # or the first build per system compiles from source).
+    # pi: terminal coding agent, straight from upstream's own flake. Upstream
+    # ships one now (flake.nix + nix/package.nix), which retires the third-party
+    # lukasl-dev/pi.nix wrapper this used to point at -- that wrapper had drifted
+    # to 0.87.1 while upstream released 1.4.0, and its pi.cachix.org cache only
+    # ever carried x86_64-linux NARs anyway.
     #
-    # Deliberately NOT `follows = nixpkgs`: the flake pins its own
-    # nixos-unstable plus a separate nixpkgs-26.05-darwin tree for Intel
-    # macOS, and the package expects the newer branch. It builds its own
-    # self-contained closure, so the version skew is contained to pi.
-    pi.url = "github:lukasl-dev/pi.nix";
+    # `stable` is a branch upstream's nix.yml fast-forwards to the newest release
+    # tag once all four systems build, so `nix flake update pi` means "latest
+    # pi". Pin a tag (github:earendil-works/pi/v1.4.0) instead for anything that
+    # must not move under it.
+    #
+    # THE COST OF THIS CHOICE: upstream builds the flake in CI but publishes no
+    # binary cache, so every host compiles the npm workspace once per version and
+    # needs registry.npmjs.org egress while it does. nixpkgs' own
+    # pi-coding-agent is prebuilt on cache.nixos.org and tracks upstream within
+    # about a day (nixos-26.05 carries it too, frozen at 0.75.4); if that build
+    # cost ever becomes the problem, `unstablePkgs.pi-coding-agent` is the
+    # zero-maintenance swap.
+    #
+    # Deliberately NOT `follows = nixpkgs`: upstream pins its own nixos-unstable
+    # plus a separate nixpkgs-26.05-darwin tree for Intel macOS. The closure is
+    # self-contained, so the version skew is contained to pi.
+    pi.url = "github:earendil-works/pi/stable";
 
     # Agent skills vendored straight from their upstream repos and symlinked into
     # ~/.pi/agent/skills by modules/home-manager/dev-tools.nix. These were
@@ -90,21 +102,6 @@
       url = "github:porada/domfiles";
       flake = false;
     };
-  };
-
-  # pi.cachix.org carries the prebuilt pi-coding-agent output (verified: the
-  # 0.87.1 x86_64-linux NAR is there, cache.nixos.org returns 404 for it), so
-  # without this every system compiles pi from source on first use.
-  #
-  # A flake's nixConfig only applies when it is the flake being operated on and
-  # needs one-time approval: either answer the prompt from `home-manager switch
-  # --flake .#<host>` / `nix build .#...`, or set `accept-flake-config = true`
-  # in ~/.config/nix/nix.conf. It is NOT inherited by machines that merely
-  # consume this repo as an input, so on a fresh host add the substituter to
-  # nix.conf / nix.settings directly.
-  nixConfig = {
-    extra-substituters = [ "https://pi.cachix.org" ];
-    extra-trusted-public-keys = [ "pi.cachix.org-1:lGeoGJaZ5ZDabuRzkcD5EBTNnDM4HJ1vqeOxlWk1Flk=" ];
   };
 
   outputs =
@@ -146,11 +143,12 @@
         };
         # Prebuilt herdr binary for this system (see the herdr-nix input note).
         herdrPkg = herdr-nix.packages.${system}.default;
-        # pi binary for this system (see the pi input note). Package only --
-        # the agent config is rendered by modules/home-manager/dev-tools.nix
+        # pi binary for this system (see the pi input note; upstream names the
+        # attribute `pi`, the old wrapper called it `coding-agent`). Package only
+        # -- the agent config is rendered by modules/home-manager/dev-tools.nix
         # rather than the flake's own homeModules, so the merge semantics stay
         # reviewable in this repo.
-        piPkg = pi.packages.${system}.coding-agent;
+        piPkg = pi.packages.${system}.pi;
         # Vendored skill sources, consumed by modules/home-manager/dev-tools.nix.
         agentSkills = {
           caveman = caveman-skills;
