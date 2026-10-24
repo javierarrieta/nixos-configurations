@@ -255,8 +255,10 @@ let
   # The ~/.agents/skills copies were byte-identical to these except for
   # cocoindex, where they were an older upstream revision, so they were dead
   # weight that only produced 28 startup warnings; they were removed on
-  # 2026-10-05 and must stay removed. Re-run `ls ~/.agents` if the warnings come
-  # back -- an old `skills` CLI install on another host recreates them there.
+  # 2026-10-05 and must stay removed -- the activation pruner below deletes any
+  # copy of these names that reappears there and reports the ones it does not
+  # recognise. Re-run `ls ~/.agents/skills` if the warnings come back -- an old
+  # `skills` CLI install on another host recreates them there.
   #
   # One layout rule for every entry: <input>/skills/<name>. For the flake inputs
   # `input` is the upstream repo root; for cocoindex it is a repo-root mirror
@@ -345,6 +347,56 @@ let
   # Every name pi owns. Used both to build home.file and by the activation
   # pruner below, which treats anything outside this list as drift.
   piSkillNames = lib.flatten (map (s: s.names) piVendoredSkills);
+
+  # Skills that must be visible to more than pi, as symlinks in
+  # ~/.agents/skills -- the cross-agent Agent Skills location pi scans as a user
+  # skill root, and the one Codex reads as well.
+  #
+  # superpowers is deliberately *not* in piVendoredSkills: it ships as a pi
+  # package, pinned in `piSettings.packages` above, and pi's package manager
+  # checks it out under ~/.pi/agent/git/github.com/obra/superpowers. Pointing
+  # ~/.agents/skills/superpowers at that checkout instead of keeping a second
+  # clone is what makes it quiet. pi loads skills by canonical path and silently
+  # skips a file it has already loaded through another path, so one file behind
+  # two scan roots costs nothing; two *different* files with the same skill name
+  # produce a collision warning per skill per start, and the copy pi happens to
+  # scan first wins the routing table. That is what sat here until 2026-10-24: a
+  # `skills`-CLI-era clone at ~/.codex/superpowers, symlinked into ~/.agents, at
+  # v6.2.0, beating the v6.4.1 pin declared above. Every pin bump since August
+  # was decorative and nothing on the machine said so.
+  #
+  # The target is derived from the pin rather than written out again: a pin that
+  # moves to a mirror or another owner has to move the link with it, or the link
+  # quietly keeps serving the old checkout and nothing between two switches
+  # notices. pi keys its git checkouts by host/owner/repo, not by rev, so a rev
+  # bump moves the contents and leaves the path alone.
+  #
+  # The target is a runtime directory pi creates on startup, not a store path, so
+  # this cannot be a `home.file` entry -- that would copy the tree into the store
+  # and freeze it against the pin. The activation step below makes the link.
+  piSuperpowersPackage = lib.findFirst (
+    p: lib.hasPrefix "git:github.com/obra/superpowers@" p
+  ) null piSettings.packages;
+
+  piSharedAgentSkillLinks = lib.optionals (piSuperpowersPackage != null) [
+    {
+      name = "superpowers";
+      target =
+        let
+          # "git:github.com/obra/superpowers@<rev>" -> "github.com/obra/superpowers"
+          repo = builtins.head (lib.splitString "@" (lib.removePrefix "git:" piSuperpowersPackage));
+        in
+        "${config.home.homeDirectory}/.pi/agent/git/${repo}/skills";
+    }
+  ];
+  piSharedAgentSkillNames = map (l: l.name) piSharedAgentSkillLinks;
+
+  # Shell for the activation entry below: one `_pi_shared_skill_link` call per
+  # declared link. Bound here rather than inlined because the activation string is
+  # an indented literal and nested indentation inside it reads badly.
+  piSharedAgentSkillLinkCommands = lib.concatMapStrings (l: ''
+    _pi_shared_skill_link "${l.name}" "${l.target}"
+  '') piSharedAgentSkillLinks;
 
   piSkillFiles = builtins.listToAttrs (
     lib.flatten (
@@ -589,27 +641,66 @@ in
             )
           fi
 
-          # Same for the legacy `skills` CLI layout: pi scans ~/.agents/skills
-          # too, so any copy of a name we own there is a collision warning on
-          # every start and dead weight besides -- pi keeps the ~/.pi copy.
-          _pi_legacy="${config.home.homeDirectory}/.agents"
-          if [ -d "$_pi_legacy/skills" ]; then
+          # ~/.agents/skills: the cross-agent Agent Skills layout. pi scans it as
+          # a user skill root and Codex reads it too, so this repo does not own the
+          # directory outright -- an entry pi does not declare may belong to Codex.
+          # The rule is therefore the narrow one, and matches the extensions rule
+          # above: delete only what collides with a name pi vendors, report the
+          # rest. Shared links are skipped here because the step below owns them.
+          #
+          # A copy of a vendored name is deleted for the same reason the
+          # ~/.pi/agent/skills pruner deletes: it is a startup collision warning
+          # and an unaccountable version of that skill in the routing table. On
+          # 2026-10-24 that was the `skills`-CLI-era superpowers clone at
+          # ~/.codex/superpowers, v6.2.0, beating the pin declared above.
+          _pi_cross_agent_dir="${config.home.homeDirectory}/.agents"
+          _pi_vendored_names=" ${lib.concatStringsSep " " piSkillNames} "
+          _pi_shared_names=" ${lib.concatStringsSep " " piSharedAgentSkillNames} "
+          if [ -d "$_pi_cross_agent_dir/skills" ]; then
             (
-              cd "$_pi_legacy/skills" || exit 0
+              cd "$_pi_cross_agent_dir/skills" || exit 0
               for _n in *; do
-                [ -e "$_n" ] || continue
-                case "$_pi_skill_names" in
+                # -L as well as -e: a dangling link is still a routing-table entry
+                # that resolves to nothing, and `continue` on -e alone keeps it
+                # forever because nothing else ever looks at it.
+                [ -e "$_n" ] || [ -L "$_n" ] || continue
+                case "$_pi_shared_names" in *" $_n "*) continue ;; esac
+                case "$_pi_vendored_names" in
                   *" $_n "*)
-                    echo "piAgentConfig: removing legacy copy $_pi_legacy/skills/$_n" >&2
+                    echo "piAgentConfig: removing copy of pi-owned skill $_pi_cross_agent_dir/skills/$_n" >&2
                     rm -rf "$_n"
+                    ;;
+                  *)
+                    echo "piAgentConfig: undeclared entry $_pi_cross_agent_dir/skills/$_n left alone -- declare it in piVendoredSkills or piSharedAgentSkillLinks, or remove it" >&2
                     ;;
                 esac
               done
             )
           fi
-          if [ -e "$_pi_legacy/.skill-lock.json" ]; then
-            echo "piAgentConfig: removing legacy $_pi_legacy/.skill-lock.json" >&2
-            rm -f "$_pi_legacy/.skill-lock.json"
+
+          # A real directory where a declared link belongs is left alone and
+          # named, and the switch keeps going: it is somebody's checkout, and
+          # failing the whole activation over one skill would take the rest of the
+          # home environment down with it. Same contract as the extensions report.
+          _pi_shared_skill_link() {
+            _dst="$_pi_cross_agent_dir/skills/$1"
+            _src="$2"
+            if [ -e "$_dst" ] && [ ! -L "$_dst" ]; then
+              echo "piAgentConfig: WARNING $_dst is a real directory, not the declared link to $_src -- replace it by hand" >&2
+              return 0
+            fi
+            # mkdir lives here so a host with no shared links never grows an
+            # ~/.agents it did not ask for.
+            mkdir -p "$_pi_cross_agent_dir/skills"
+            ln -sfn "$_src" "$_dst"
+            # Normal on the first switch on a new machine: pi clones the package on
+            # its own startup, so the link resolves from the next start onward.
+            [ -e "$_dst" ] || echo "piAgentConfig: shared skill $1 points at $_src, which does not exist yet -- pi creates it on next start" >&2
+          }
+          ${piSharedAgentSkillLinkCommands}
+          if [ -e "$_pi_cross_agent_dir/.skill-lock.json" ]; then
+            echo "piAgentConfig: removing legacy $_pi_cross_agent_dir/.skill-lock.json" >&2
+            rm -f "$_pi_cross_agent_dir/.skill-lock.json"
           fi
         '';
   };
