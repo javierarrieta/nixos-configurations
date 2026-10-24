@@ -724,7 +724,13 @@ in
           _pi_skill_link() {
             _dst="$1"
             _src="$2"
-            if [ "$3" = "require-parent" ] && [ ! -d "$(dirname "$_dst")" ]; then
+            # Two apostrophes before the dollar-brace are how an indented Nix
+            # string spells a literal one. Left unescaped it parses as an
+            # interpolation and emits its value into the script instead: the
+            # guard below turns into dead code and no build error says so. A bare
+            # $3, on the other hand, aborts the whole activation under `set -u`
+            # on the first call with no third argument -- which is what this is.
+            if [ "''${3:-}" = "require-parent" ] && [ ! -d "$(dirname "$_dst")" ]; then
               return 0
             fi
             if [ -e "$_dst" ] && [ ! -L "$_dst" ]; then
