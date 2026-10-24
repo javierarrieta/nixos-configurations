@@ -391,12 +391,47 @@ let
   ];
   piSharedAgentSkillNames = map (l: l.name) piSharedAgentSkillLinks;
 
-  # Shell for the activation entry below: one `_pi_shared_skill_link` call per
-  # declared link. Bound here rather than inlined because the activation string is
-  # an indented literal and nested indentation inside it reads badly.
-  piSharedAgentSkillLinkCommands = lib.concatMapStrings (l: ''
-    _pi_shared_skill_link "${l.name}" "${l.target}"
-  '') piSharedAgentSkillLinks;
+  # Links into *other* agents' own skill dirs, by absolute path.
+  #
+  # Different from the shared links above in one way that matters: pi's module
+  # does not get to create another agent's home. `require-parent` below skips
+  # these silently when the agent's directory is absent, so a host without Codex
+  # does not grow a ~/.codex because of a pi change. Nothing here prunes those
+  # dirs -- Codex's own skill-installer writes there, and this repo cannot tell
+  # its installs from drift.
+  #
+  # find-skills is here because it had been hand-made drift: the link pointed at
+  # ~/.agents/skills/find-skills, which the 2026-10-05 legacy cleanup deleted, so
+  # Codex had been silently missing the skill for weeks and no file in this repo
+  # said anything about it. The target is now the store-backed vendored copy pi
+  # uses -- same content, and it survives a switch.
+  piForeignAgentSkillLinks = [
+    {
+      # Codex's personal skill dir. It also holds ~/.codex/skills/.system, which
+      # is Codex's own and is never touched from here.
+      path = "${config.home.homeDirectory}/.codex/skills/find-skills";
+      target = "${config.home.homeDirectory}/.pi/agent/skills/find-skills";
+    }
+  ];
+
+  # Shell for the activation entry below: one `_pi_skill_link` call per declared
+  # link. Bound here rather than inlined because the activation string is an
+  # indented literal and nested indentation inside it reads badly.
+  piSkillLinkCommands =
+    lib.concatMapStrings
+      (l: ''
+        _pi_skill_link "${l.path}" "${l.target}"${l.extra or ""}
+      '')
+      (
+        map (l: {
+          path = "${config.home.homeDirectory}/.agents/skills/${l.name}";
+          inherit (l) target;
+        }) piSharedAgentSkillLinks
+        ++ map (l: {
+          inherit (l) path target;
+          extra = " require-parent";
+        }) piForeignAgentSkillLinks
+      );
 
   piSkillFiles = builtins.listToAttrs (
     lib.flatten (
@@ -682,22 +717,27 @@ in
           # named, and the switch keeps going: it is somebody's checkout, and
           # failing the whole activation over one skill would take the rest of the
           # home environment down with it. Same contract as the extensions report.
-          _pi_shared_skill_link() {
-            _dst="$_pi_cross_agent_dir/skills/$1"
+          #
+          # $1 destination, $2 source, $3 optional "require-parent": with it, a
+          # missing parent means that agent is not installed on this host, and its
+          # home is not this module's to create.
+          _pi_skill_link() {
+            _dst="$1"
             _src="$2"
+            if [ "$3" = "require-parent" ] && [ ! -d "$(dirname "$_dst")" ]; then
+              return 0
+            fi
             if [ -e "$_dst" ] && [ ! -L "$_dst" ]; then
               echo "piAgentConfig: WARNING $_dst is a real directory, not the declared link to $_src -- replace it by hand" >&2
               return 0
             fi
-            # mkdir lives here so a host with no shared links never grows an
-            # ~/.agents it did not ask for.
-            mkdir -p "$_pi_cross_agent_dir/skills"
+            mkdir -p "$(dirname "$_dst")"
             ln -sfn "$_src" "$_dst"
             # Normal on the first switch on a new machine: pi clones the package on
             # its own startup, so the link resolves from the next start onward.
-            [ -e "$_dst" ] || echo "piAgentConfig: shared skill $1 points at $_src, which does not exist yet -- pi creates it on next start" >&2
+            [ -e "$_dst" ] || echo "piAgentConfig: $_dst points at $_src, which does not exist yet -- pi creates it on next start" >&2
           }
-          ${piSharedAgentSkillLinkCommands}
+          ${piSkillLinkCommands}
           if [ -e "$_pi_cross_agent_dir/.skill-lock.json" ]; then
             echo "piAgentConfig: removing legacy $_pi_cross_agent_dir/.skill-lock.json" >&2
             rm -f "$_pi_cross_agent_dir/.skill-lock.json"
