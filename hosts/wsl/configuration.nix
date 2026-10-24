@@ -18,7 +18,6 @@
     ../../modules/nixos/wsl-base.nix
     ../../modules/nixos/system-packages.nix
     ../../modules/nixos/nix-sweep.nix
-    ../../modules/nixos/pi-cache.nix
     # Pulled in directly rather than via base.nix: this host uses wsl-base.nix,
     # which declares its own `base` option and never imports base.nix. Setting
     # `base.enable = true` here does NOT bring base.nix in, so the cache module
@@ -27,9 +26,6 @@
   ];
 
   base.enable = true;
-  # pi is installed by dev-tools.nix here; without this the build compiles
-  # the bun2nix package from source.
-  piCache.enable = true;
   systemPackages.enable = false;
 
   # User

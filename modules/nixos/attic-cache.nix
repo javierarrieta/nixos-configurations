@@ -37,7 +37,7 @@
 #
 # WHY `extra-*` AND NOT `substituters`. `substituters` REPLACES the list and
 # would drop cache.nixos.org, which remains the real fallback. `extra-*`
-# appends. Same reasoning as the pi-cache.nix module this replaces.
+# appends. Same reasoning as the pi-cache.nix module this replaced.
 { lib, config, ... }:
 
 let
