@@ -145,7 +145,7 @@ let
         # its model.
         baseUrl = piCfg.baseUrl or "http://192.168.0.29:8731/v1";
         api = "openai-completions";
-        # The endpoint is unauthenticated; pi requires the field to be present.
+        # The LAN endpoint is unauthenticated; pi requires the field to be present.
         apiKey = "dummy";
         compat = {
           supportsDeveloperRole = false;
@@ -192,6 +192,49 @@ let
             ];
           }
         ];
+      };
+    }
+    # Opt-in second route to the same endpoint, for a machine that is neither on llm01's LAN nor on
+    # the WireGuard mesh -- the two MacBooks. Declared by setting `pi.publicApiKey` in that host's
+    # userOptions.nix; a host that does not set it gets no public provider at all, which is right for
+    # the coder workspaces and llm01 itself, where the LAN or mesh route is always available and a
+    # second one is just another way to leave the network.
+    #
+    # There is no automatic failover anywhere here: pi does not try a second provider when one is
+    # unreachable, so the away-and-still-on-the-LAN-provider symptom is a request that hangs until it
+    # times out, not a clean error. The user picks it with /model, deliberately.
+    #
+    # The key is never in this repo and never in Nix: the repo is public and the store is
+    # world-readable and keeps every copy forever. A host passes pi's `!command` form, which reads it
+    # from the macOS login keychain at request time and is not cached. Provisioning is one manual
+    # step outside git, which is the point -- a Nix activation cannot create it:
+    #   security add-generic-password -a javier -s llm-titan -U -w
+    #
+    # Derived from the provider above rather than copied. `id` is what pi sends as the request's model
+    # name, so the two routes cannot declare different ids, and compat, thinkingLevelMap and the vision
+    # `input` all have to match the LAN route exactly -- a copy would be a second thing to keep in
+    # sync, and the two MacBooks are already two hosts to keep in sync. The self-reference is safe
+    # because `//` forces only the keys of its right-hand attrset: `llm01-halogen`'s value is reached
+    # without forcing this branch's value, so nothing here is circular.
+    #
+    # `/v1` is load-bearing. pi appends /chat/completions to baseUrl, so a bare host asks halogen for
+    # /chat/completions and gets `404 not_found_error` from uvicorn -- an auth-shaped symptom from a
+    # path-shaped mistake, because the forwardAuth answers `401` first and a `404` therefore means the
+    # credential was already accepted and the route is wrong.
+    // lib.optionalAttrs (piCfg.publicApiKey or "" != "") {
+      llm01-halogen-public = piModels.providers.llm01-halogen // {
+        baseUrl = "https://llm.titan.arrieta.eu/v1";
+        apiKey = piCfg.publicApiKey;
+        # Only the display name differs. pi's /model list shows `name`, so two identical names for
+        # two routes would be a guessing game; `id` stays identical because it is what goes on the
+        # wire.
+        models = map (
+          m:
+          m
+          // {
+            name = m.name + " (via titan)";
+          }
+        ) piModels.providers.llm01-halogen.models;
       };
     }
     // piExtraProviders;
