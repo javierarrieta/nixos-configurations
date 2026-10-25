@@ -345,13 +345,23 @@ in
   # unauthenticated metrics -- and 10250 to two laptops that need none of them. A rule
   # pairs sources with ports instead.
   #
-  # What this does NOT buy: cluster admin. Reaching 6443 is not being authenticated --
-  # the API still demands a client certificate, and the admin kubeconfig stays
-  # root:root 0600 on titan. What it does buy is that the network layer stops being the
-  # thing standing between an admin with a valid kubeconfig and the cluster.
+  # What this buys is cluster admin, and it is worth saying plainly rather than
+  # reassuringly: reaching 6443 is not authenticating, but the credential that does
+  # authenticate is already on both laptops. ~/.kube/admin.yaml -- the file
+  # kubeSegregation names as the admin kubeconfig -- carries a titan context with a
+  # system:masters client certificate copied off titan's /etc/rancher/k3s/k3s.yaml and
+  # repointed at this address. The rule and a key that satisfies it therefore live on
+  # the same two machines, and what stands between a lost laptop and the API server is
+  # the WireGuard private key plus the disk it sits on, not this line. That is the
+  # trade made 2026-10-20; the alternative was leaving 6443 DROP and copying a
+  # kubeconfig over ssh every time an admin needed kubectl. Unchanged by any of it:
+  # the on-host credential stays root:root 0600 on titan (README, "Operating the
+  # cluster from the box"), and nothing here widens that.
   #
-  # Both /32s are listed here and in wireguard.peers below; a laptop that is a peer but
-  # not listed here is a laptop that cannot reach the API, by design.
+  # Both /32s are listed here and in wireguard.peers below, and public-host.nix refuses
+  # the build when a rule source is covered by no peer, so the two lists cannot drift
+  # into a laptop that silently cannot reach the API -- or a grant to an address that
+  # no peer owns yet.
   publicHost.meshTCPPortRules = [
     {
       sources = [

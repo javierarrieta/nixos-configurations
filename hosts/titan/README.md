@@ -161,18 +161,30 @@ A **timeout** is the DROP working; a *refused* would mean something is listening
 ### Reaching the control plane from a laptop
 
 The mesh ports (6443, 9100, 4243, 10250, 10257, 10259) are answered only to
-`wireguard.staticSubnet` (`192.168.133.0/25`) and the home LAN CIDR. So a roadwarrior
-whose tunnel is healthy -- it handshakes, reaches `192.168.133.1`, connects to SSH on
-13491, and forwards to the casa LAN just fine -- still gets a **timeout** on 6443. That
-is the roadwarrior split doing its job, not a broken tunnel: check the client's source
-`/32` before touching anything on the client.
+`wireguard.staticSubnet` (`192.168.133.0/25`) and the home LAN CIDR, except by the
+named per-source grants below. So a roadwarrior whose tunnel is healthy -- it
+handshakes, reaches `192.168.133.1`, connects to SSH on 13491, and forwards to the casa
+LAN just fine -- still gets a **timeout** on 6443. That is the roadwarrior split doing
+its job, not a broken tunnel: check the client's source `/32` before touching anything
+on the client.
 
 The two admin laptops are the named exception. `publicHost.meshTCPPortRules` grants
 `192.168.133.130` (macbookair) and `192.168.133.131` (macbookpro) **6443 and nothing
 else**. A new admin machine needs an entry there; putting its `/32` in
 `publicHost.meshTCPPortExtraSources` instead is the wrong knob -- that option widens a
 single multiport rule, so it would open 9100 and 4243 (unauthenticated metrics) and
-10250 alongside it.
+10250 alongside it. The module also refuses a rule whose source is covered by no
+`wireguard.peers` `allowedIPs` entry, so a typo'd `/32` fails the build instead of
+silently granting nothing.
+
+**What the grant actually buys is cluster admin.** Reaching 6443 is not authenticating,
+but the credential that does authenticate is already on both laptops:
+`~/.kube/admin.yaml` holds a `titan` context whose client certificate is
+`CN=system:admin, O=system:masters`, copied from titan's `/etc/rancher/k3s/k3s.yaml`
+and repointed at `https://192.168.133.1:6443`. Nothing in this repo generates that file
+-- `kubeSegregation` only points `kadm` at it -- so it is hand-maintained, and the only
+thing between a lost laptop and the API server is the WireGuard private key and the
+disk it lives on, not this firewall rule.
 
 Verify from the laptop after a deploy:
 
@@ -180,7 +192,15 @@ Verify from the laptop after a deploy:
 nc -z -G5 192.168.133.1 6443
 openssl s_client -connect 192.168.133.1:6443 </dev/null 2>/dev/null \
   | openssl x509 -noout -ext subjectAltName   # must list 192.168.133.1
+# admin.yaml is NOT built by home-manager: "not found" here means it was never copied
+# off titan, not that the firewall is wrong. See "Rotating the API server serving
+# certificate" for why this must pass without insecure-skip-tls-verify.
 kubectl --kubeconfig ~/.kube/admin.yaml --context titan get nodes
+# An expired client cert looks exactly like a dead tunnel, so check it in the same
+# breath (the certificate is public; this prints no key material).
+kubectl --kubeconfig ~/.kube/admin.yaml config view --raw --minify --context titan \
+  -o jsonpath='{.users[0].user.client-certificate-data}' \
+  | base64 -d | openssl x509 -noout -subject -enddate
 ```
 
 ### comin
