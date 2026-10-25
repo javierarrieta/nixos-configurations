@@ -178,9 +178,11 @@ in
     #     compiles from source instead of downloading.
     #
     # Roadwarriors sit at .129/.130, NOT the .101/.102 they had on the old flat
-    # /24. publicHost answers 6443/10250/9100/4243 only to wireguard.staticSubnet
-    # (192.168.133.0/25 = .0-.127), so .101 and .102 would have handed the two
-    # laptops control-plane access and made the static/roadwarrior split decorative.
+    # /24. publicHost answers 6443/10250/9100/4243 to wireguard.staticSubnet
+    # (192.168.133.0/25 = .0-.127) by default, so .101 and .102 would have handed the
+    # two laptops the whole control-plane port list and made the static/roadwarrior
+    # split decorative. The split still decides the DEFAULT: the two admin laptops get
+    # exactly one port back, 6443, by name in publicHost.meshTCPPortRules below.
     peers = [
       # OPNsense, home LAN gateway. Its own /32 plus the LAN range it routes for --
       # see the note above for why that range waited for a live tunnel, and the Q5d
@@ -253,15 +255,14 @@ in
       # laptop` sops recipient -- i.e. the daily-driver admin box, not a phone.
       # Mesh-only like the others: one /32, nothing routed beyond it, deliberately
       # inside 192.168.133.128/25 so publicHost's staticSubnet (192.168.133.0/25 =
-      # .0-.127) keeps titan's 6443/10250/9100/4243 off it.
+      # .0-.127) keeps titan's 6443/10250/9100/4243 off it by default.
       #
-      # OPEN QUESTION, left open on purpose: being the admin laptop, this is exactly the
-      # peer that will want the API server. Granting it is a one-liner --
-      # publicHost.meshTCPPortExtraSources = [ "192.168.133.131/32" ] -- but that option
-      # is a single multiport rule, so it opens 9100 and 4243 (unauthenticated metrics)
-      # and 10250 alongside 6443. Doing it properly means splitting meshTCPPorts into
-      # per-source port lists in public-host.nix. And reaching 6443 is not cluster admin
-      # anyway: the kubeconfig stays root:root 0600 on titan.
+      # THE OPEN QUESTION IS CLOSED (2026-10-20): both admin laptops now get 6443 and
+      # nothing else, via publicHost.meshTCPPortRules below. The old worry -- that the
+      # only way to grant it was meshTCPPortExtraSources, a single multiport rule that
+      # would also open 9100/4243 (unauthenticated metrics) and 10250 -- is what
+      # motivated splitting meshTCPPorts into per-source port lists in public-host.nix.
+      # 10250, 9100, 4243, 10257 and 10259 stay off both laptops.
       {
         publicKey = "knrQmeNK2Jy94nqKYveB+f2vSVVX9UispvlbhQYTCgM=";
         allowedIPs = [ "192.168.133.131/32" ];
@@ -330,6 +331,36 @@ in
   # CNPG-backed postgres_exporter NodePort. Unauthenticated metrics on 30087
   # are accepted through wg0 from the static mesh and the LAN CIDR above only.
   publicHost.meshTCPPortExtras = [ 30087 ];
+
+  # The admin laptops, and the reason meshTCPPortRules exists.
+  #
+  # Both laptops are roadwarriors (.130 macbookair, .131 macbookpro) and the base rule
+  # answers the mesh ports only to staticSubnet (192.168.133.0/25) plus the LAN CIDR
+  # above, so kubectl from either one was a silent DROP: the tunnel is healthy, SSH on
+  # 13491 connects, 6443 does not. Verified from macbookair on 2026-10-20 with
+  # `nc -z 192.168.133.1 6443` failing while 13491 on the same address succeeded.
+  #
+  # 6443 and nothing else. meshTCPPortExtraSources would have been the one-liner, but it
+  # widens the SINGLE multiport rule, so it would also have opened 9100 and 4243 --
+  # unauthenticated metrics -- and 10250 to two laptops that need none of them. A rule
+  # pairs sources with ports instead.
+  #
+  # What this does NOT buy: cluster admin. Reaching 6443 is not being authenticated --
+  # the API still demands a client certificate, and the admin kubeconfig stays
+  # root:root 0600 on titan. What it does buy is that the network layer stops being the
+  # thing standing between an admin with a valid kubeconfig and the cluster.
+  #
+  # Both /32s are listed here and in wireguard.peers below; a laptop that is a peer but
+  # not listed here is a laptop that cannot reach the API, by design.
+  publicHost.meshTCPPortRules = [
+    {
+      sources = [
+        "192.168.133.130/32"
+        "192.168.133.131/32"
+      ];
+      ports = [ 6443 ];
+    }
+  ];
 
   # Embedded etcd's /metrics, republished on the tunnel. Bound to wg0's own address
   # for the same reason meshDns is: unreachable from the internet by construction,

@@ -158,6 +158,31 @@ nc -zuvw3 titan.arrieta.eu 51820  # succeeded
 
 A **timeout** is the DROP working; a *refused* would mean something is listening.
 
+### Reaching the control plane from a laptop
+
+The mesh ports (6443, 9100, 4243, 10250, 10257, 10259) are answered only to
+`wireguard.staticSubnet` (`192.168.133.0/25`) and the home LAN CIDR. So a roadwarrior
+whose tunnel is healthy -- it handshakes, reaches `192.168.133.1`, connects to SSH on
+13491, and forwards to the casa LAN just fine -- still gets a **timeout** on 6443. That
+is the roadwarrior split doing its job, not a broken tunnel: check the client's source
+`/32` before touching anything on the client.
+
+The two admin laptops are the named exception. `publicHost.meshTCPPortRules` grants
+`192.168.133.130` (macbookair) and `192.168.133.131` (macbookpro) **6443 and nothing
+else**. A new admin machine needs an entry there; putting its `/32` in
+`publicHost.meshTCPPortExtraSources` instead is the wrong knob -- that option widens a
+single multiport rule, so it would open 9100 and 4243 (unauthenticated metrics) and
+10250 alongside it.
+
+Verify from the laptop after a deploy:
+
+```bash
+nc -z -G5 192.168.133.1 6443
+openssl s_client -connect 192.168.133.1:6443 </dev/null 2>/dev/null \
+  | openssl x509 -noout -ext subjectAltName   # must list 192.168.133.1
+kubectl --kubeconfig ~/.kube/admin.yaml --context titan get nodes
+```
+
 ### comin
 
 ```bash
