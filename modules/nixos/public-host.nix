@@ -28,14 +28,67 @@ let
     fw.allowedTCPPortRanges ++ lib.concatLists (map (i: i.allowedTCPPortRanges) ifaces);
   inAnyOpenRange = p: lib.any (r: r.from <= p && p <= r.to) anywhereTCPRanges;
 
-  # Guard for meshTCPPortExtraSources. A typo here -- 0.0.0.0/0, a fat-fingered
-  # public range -- puts the k3s control plane on the internet, and because the
-  # rule is matched with -i wg0 it would still read back as a tunnel-only
-  # allowance. So anything outside RFC1918 is an eval failure, not a surprise.
+  # STRICT IPv4 CIDR parse, shared by every source guard below. Returns { addr;
+  # bits; } or null, with octets bounded at 255 and the prefix at 32.
+  #
+  # The bounds are not pedantry: iptables rejects a bad octet and a /33 at LOAD
+  # time, and a rule that fails to load leaves a half-applied nixos-fw chain on a
+  # host whose default policy is DROP. That is exactly the failure mode the
+  # degenerateRules assertion refuses at eval, so the same strictness belongs here.
+  # The previous regex-only guard let `192.168.133.130/33` and `192.168.999.1/24`
+  # evaluate cleanly and die at firewall start instead.
+  #
+  # octet and prefixLen carry NO capturing parens of their own: parseIPv4CIDR counts
+  # groups by position, and wrapping an already-parenthesised pattern silently doubles
+  # them (POSIX ERE has no `(?:...)` to opt out). And the prefix is matched twice rather
+  # than as an optional group, because builtins.match drops trailing non-participating
+  # groups: one regex with `(/n)?` returns 5 groups for a bare IP and 5 for a bad
+  # prefix, which is enough to read `192.168.133.130/33` as a valid /32.
+  octet = "25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9]";
+  prefixLen = "3[0-2]|[12][0-9]|[0-9]";
+  # Written as arithmetic, not as literals, for the same reason the RFC1918 bases
+  # below are: a hand-computed 32-bit constant is exactly where an off-by-one-octet
+  # bug hides (192.168.0.0 is 3232235520, not 192 * 2**24).
+  v4 =
+    a: b: c: d:
+    (a * 16777216) + (b * 65536) + (c * 256) + d;
+  parseIPv4CIDR =
+    c:
+    let
+      mCidr = builtins.match "(${octet})\\.(${octet})\\.(${octet})\\.(${octet})/(${prefixLen})" c;
+      mBare = builtins.match "(${octet})\\.(${octet})\\.(${octet})\\.(${octet})" c;
+      m = if mCidr != null then mCidr else mBare;
+      n = i: builtins.fromJSON (builtins.elemAt m i);
+    in
+    if m == null then
+      null
+    else
+      {
+        addr = v4 (n 0) (n 1) (n 2) (n 3);
+        bits = if mCidr != null then n 4 else 32;
+      };
+
+  # Guard for meshTCPPortExtraSources and for meshTCPPortRules sources. A typo
+  # here -- 0.0.0.0/0, a fat-fingered public range -- puts the k3s control plane on
+  # the internet, and because the rule is matched with -i wg0 it would still read
+  # back as a tunnel-only allowance. So anything unparseable or outside RFC1918 is
+  # an eval failure, not a surprise.
+  inRange =
+    p: base: size:
+    p.addr >= base && p.addr < base + size;
+  # The three RFC1918 ranges, as ranges rather than masks because a size is easier to
+  # eyeball: /8 is 2**24 addresses, /12 is 2**20, /16 is 2**16.
   isPrivateCIDR =
     c:
-    builtins.match "(10\\.[0-9]+\\.[0-9]+\\.[0-9]+|172\\.(1[6-9]|2[0-9]|3[01])\\.[0-9]+\\.[0-9]+|192\\.168\\.[0-9]+\\.[0-9]+)(/[0-9]+)?" c
-    != null;
+    let
+      p = parseIPv4CIDR c;
+    in
+    p != null
+    && (
+      inRange p (v4 10 0 0 0) 16777216
+      || inRange p (v4 172 16 0 0) 1048576
+      || inRange p (v4 192 168 0 0) 65536
+    );
   # meshTCPPorts is the default list a host keeps as-is; meshTCPPortExtras is what
   # consumer modules contribute. They are separate options because list assignment
   # in NixOS REPLACES: a module that wanted to add one port would otherwise have to
@@ -56,12 +109,51 @@ let
   #
   # Rules are ADDITIVE. They never subtract from the base rule: a source in both the
   # static /25 and a rule gets the union, which is what "accept" chains mean.
+  # Because a rule is the one place a narrow grant is spelled by hand, everything about
+  # it is refused at eval rather than discovered at firewall start: sources must parse
+  # as strict RFC1918 CIDRs (parseIPv4CIDR), must be covered by a wireguard.peers
+  # allowedIPs entry -- an address no peer owns is inert today and a hole the day
+  # someone assigns it -- and each rule needs a non-empty port list that fits one
+  # multiport match.
   ruleSources = lib.concatLists (map (r: r.sources) cfg.meshTCPPortRules);
   badRuleSources = lib.filter (c: !isPrivateCIDR c) ruleSources;
   # An empty sources or ports list would emit `iptables -m multiport --dports` with no
   # argument, which fails at firewall start -- i.e. a silently half-applied nixos-fw
   # chain on the box whose default is DROP. Refuse it at eval instead.
   degenerateRules = builtins.filter (r: r.sources == [ ] || r.ports == [ ]) cfg.meshTCPPortRules;
+  # iptables' multiport match takes at most 15 ports in one --dports list; a 16th
+  # fails at firewall start, i.e. the same half-applied chain as an empty list.
+  # Counted on the deduplicated list because that is what gets emitted.
+  overSizedRules = builtins.filter (
+    r: (builtins.length (lib.unique r.ports)) > 15
+  ) cfg.meshTCPPortRules;
+
+  # `outer` covers `inner`, whole networks, so a /32 rule source inside a peer that
+  # advertises a /24 counts as covered rather than tripping the check below.
+  # Bit arithmetic rather than modulo: Nix has no % operator, and builtins.bitAnd
+  # with a /bits mask is the network address in one step (bits = 0 -> mask 0 -> 0).
+  pow2 = e: if e == 0 then 1 else 2 * pow2 (e - 1);
+  sizeOf = p: pow2 (32 - p.bits);
+  maskOf = p: 4294967296 - (sizeOf p);
+  netOf = p: builtins.bitAnd p.addr (maskOf p);
+  covers =
+    outer: inner:
+    let
+      o = parseIPv4CIDR outer;
+      i = parseIPv4CIDR inner;
+    in
+    o != null
+    && i != null
+    && i.bits >= o.bits
+    && netOf i >= netOf o
+    && (netOf i + sizeOf i) <= (netOf o + sizeOf o);
+
+  # Peer addresses, for the source cross-check. `or [ ]` for the same reason as
+  # `config.wireguard.enable or false` below: wireguard.nix is an import, not a
+  # dependency of this module, so without it this path would be an option error
+  # instead of an assertion message.
+  peerCIDRs = lib.unique (lib.concatLists (map (p: p.allowedIPs) (config.wireguard.peers or [ ])));
+  orphanRuleSources = lib.filter (src: !lib.any (peer: covers peer src) peerCIDRs) ruleSources;
 in
 {
   options = {
@@ -110,15 +202,22 @@ in
               sources = lib.mkOption {
                 type = lib.types.listOf lib.types.str;
                 description = ''
-                  Source CIDRs for this rule. Must be RFC1918; must be non-empty.
+                  Source CIDRs for this rule. Must be non-empty, RFC1918, and
+                  covered by some wireguard.peers allowedIPs entry -- a rule for an
+                  address no peer owns is inert today and a hole the day someone
+                  assigns it, so the module refuses it at eval.
                 '';
               };
               ports = lib.mkOption {
                 type = lib.types.listOf lib.types.port;
                 description = ''
-                  TCP ports accepted from exactly these sources. Must be non-empty.
-                  Ports here are still tunnel-only: the rule is matched with -i wg0
-                  like the base one.
+                  TCP ports accepted from exactly these sources. Must be non-empty
+                  and at most 15 distinct ports (iptables' multiport cap; more fails
+                  at firewall start). Not restricted to meshTCPPorts: a rule may name
+                  any port, so this is a general wg0 source/port pairing and the
+                  leakedMeshPorts assertion does not police it -- a wg0-only rule is
+                  not an internet leak. Either way the ports stay tunnel-only, since
+                  the rule is matched with -i wg0 like the base one.
                 '';
               };
             };
@@ -214,6 +313,25 @@ in
           + "default policy is DROP.";
       }
       {
+        assertion = orphanRuleSources == [ ];
+        message =
+          "publicHost.meshTCPPortRules names sources covered by no wireguard.peers "
+          + "allowedIPs entry: "
+          + lib.concatStringsSep ", " orphanRuleSources
+          + ". A rule for an address no peer owns is inert today and a hole the day "
+          + "someone assigns that address to a peer, and a typo in a real peer's /32 "
+          + "is an admin laptop that silently cannot reach the API. Add the peer or "
+          + "fix the rule.";
+      }
+      {
+        assertion = overSizedRules == [ ];
+        message =
+          "${toString (builtins.length overSizedRules)} of publicHost.meshTCPPortRules "
+          + "list more than 15 distinct ports. iptables' multiport match caps one "
+          + "rule at 15 dports and fails at firewall start on a host whose default "
+          + "policy is DROP; split the rule in two.";
+      }
+      {
         # Every rule below is matched with -i wg0, so a rule is meaningless without a
         # tunnel even in the case where meshTCPPorts is empty.
         assertion = cfg.meshTCPPortRules == [ ] || (config.wireguard.enable or false);
@@ -263,7 +381,7 @@ in
         r:
         lib.concatMapStrings (src: ''
           iptables -A nixos-fw -i wg0 -s ${src} -p tcp \
-            -m multiport --dports ${lib.concatStringsSep "," (map toString r.ports)} \
+            -m multiport --dports ${lib.concatStringsSep "," (map toString (lib.unique r.ports))} \
             -j nixos-fw-accept
         '') r.sources
       ) cfg.meshTCPPortRules;
