@@ -55,6 +55,16 @@ in
     pkgs.minio-client
     pkgs.wp-cli
 
+    # Recursive's local Flint inference CLI (see pkgs/rec/default.nix). The
+    # package is only the CLI; the ~30 GB model is fetched on the first
+    # `rec pull` / `rec serve` into ~/.local/share/rec, and `rec doctor` refuses
+    # to run on anything below an M4 Pro / M5 Pro / M5 Max with 48 GB unified
+    # memory, so installing it here costs nothing until it is actually used.
+    # `rec launch pi` / `rec launch opencode` also want node + npm, which
+    # modules/home-manager/macbook/dev-tools.nix provides via nodejs_24 (the
+    # docs name Node 22). Quoted because `rec` is a reserved word in Nix.
+    pkgs."rec"
+
     unstablePkgs.opencode
   ];
 }
