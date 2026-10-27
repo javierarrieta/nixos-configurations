@@ -537,10 +537,11 @@
       packages.x86_64-linux.hm-cli = nixpkgs.legacyPackages.x86_64-linux.home-manager;
       packages.aarch64-darwin.hm-cli = nixpkgs.legacyPackages.aarch64-darwin.home-manager;
 
-      # Same package the macbookpro home config installs, exposed so it can also
-      # be run ad hoc (`nix run .#rec`) without a switch. aarch64-darwin only:
-      # upstream ships no other asset, so there is deliberately no
-      # packages.x86_64-linux.rec to fail on.
+      # The same ./pkgs/rec the macbookpro home config installs through the
+      # overlay, called directly here rather than through a second nixpkgs
+      # instance, so it can also be run ad hoc (`nix run .#rec`) without a
+      # switch. aarch64-darwin only: upstream ships no other asset, so there is
+      # deliberately no packages.x86_64-linux."rec" to fail on.
       # Quoted because `rec` is a reserved word in Nix; the attribute is still
       # reached as `nix run .#rec`.
       packages.aarch64-darwin."rec" = nixpkgs.legacyPackages.aarch64-darwin.callPackage ./pkgs/rec { };

@@ -63,6 +63,10 @@ in
     # `rec launch pi` / `rec launch opencode` also want node + npm, which
     # modules/home-manager/macbook/dev-tools.nix provides via nodejs_24 (the
     # docs name Node 22). Quoted because `rec` is a reserved word in Nix.
+    # Neither `rec uninstall` nor `rec update` is safe on a packaged install --
+    # both assume upstream's ~/.local/share/rec/releases layout -- so bump the
+    # version in pkgs/rec/default.nix. `rec doctor` passes from the store path
+    # (macbookpro, 2026-10-27); `rec pull` is the step still untested there.
     pkgs."rec"
 
     unstablePkgs.opencode

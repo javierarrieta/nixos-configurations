@@ -14,13 +14,28 @@
 # `~/.local/share/rec`), i.e. outside the store, so the store path never holds a
 # model and the nix-sweep GC can never delete one.
 #
-# Upstream's own installer (install.sh in the repo) does the same thing by hand:
-# download the asset, check it against the sibling `.meta` file, drop it under
-# the data dir and symlink `~/.local/bin/rec`. Packaging it replaces that
-# symlink with a store path; `rec` never writes next to its own binary, so both
-# install methods coexist. Do not run `rec uninstall` on a packaged install --
-# it removes its managed `~/.local/bin/rec` link and the whole data directory,
-# model included, and knows nothing about the store copy.
+# PARTLY VERIFIED ON A MAC -- the rest costs 30 GB. The asset is not only a CLI:
+# it embeds `assets/runtime.tar.gz` (a Python 3.12 tree carrying numpy, tvm_ffi
+# and xgrammar dylibs) and unpacks it on first run -- the binary contains
+# `extract.lock`, `rec-tmp-`, `.install-*` and the error "unexpected runtime
+# archive entry". Measured on macbookpro 2026-10-27: `nix build .#rec &&
+# ./result/bin/rec doctor` runs from the read-only store, reports
+# `Data /Users/javier/.local/share/rec`, and passes the hardware gate, so the
+# binary does not need to write next to itself in order to start. What that does
+# not prove is the runtime unpack, which only `rec pull` / `rec serve` triggers.
+# If that ever fails against a read-only path, the fix is a makeWrapper pointing
+# the runtime root at a writable directory under ~/.local/share/rec.
+#
+# Upstream's own installer (install.sh in the repo) does the same download by
+# hand: fetch the asset, check it against the sibling `.meta`, store it under
+# the data dir as `releases/<version>/rec` with a `.managed` marker, and symlink
+# `~/.local/bin/rec`. A store path is not that layout, so the two commands that
+# assume it are off-limits here:
+#
+# - `rec uninstall` deletes the data directory (model included) and its managed
+#   `~/.local/bin/rec` link, and knows nothing about the store copy.
+# - `rec update` looks for a managed instance (the binary carries "no managed
+#   rec instance is reachable"), so bump the version in this file instead.
 #
 # To bump the version:
 #
@@ -45,13 +60,11 @@ let
     };
   };
 
-  # Only evaluated when something actually asks for `rec`, which is what keeps
-  # the overlay harmless on the Linux hosts. nixpkgs' own `meta.platforms` check
-  # fires first with a clearer message; this is the backstop for a system listed
-  # below that upstream stops shipping an asset for.
-  source =
-    sources.${stdenvNoCC.hostPlatform.system}
-      or (throw "rec ${version}: no upstream build for ${stdenvNoCC.hostPlatform.system} (Apple Silicon macOS only)");
+  # Single source of truth for both the download and meta.platforms below, so
+  # adding a Linux asset later cannot leave the two out of step. No fallback
+  # here: nixpkgs refuses an unsupported platform before `src` is ever forced,
+  # which is what keeps this overlay harmless on the Linux hosts.
+  source = sources.${stdenvNoCC.hostPlatform.system};
 in
 stdenvNoCC.mkDerivation {
   pname = "rec";
@@ -77,11 +90,6 @@ stdenvNoCC.mkDerivation {
     install -Dm755 $src $out/bin/rec
     runHook postInstall
   '';
-
-  passthru = {
-    # The `.meta` asset upstream checks at install time, for update tooling.
-    releaseAsset = "rec-darwin-arm64";
-  };
 
   meta = {
     description = "Local inference engine for Recursive's Flint model";
