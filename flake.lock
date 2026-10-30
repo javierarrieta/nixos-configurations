@@ -160,6 +160,22 @@
         "type": "github"
       }
     },
+    "egm-skills": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793333843,
+        "narHash": "sha256-1ymhAhbQlr2BWa1Q2N8YaOksE4O4uiQnWZ77CP6fVjY=",
+        "owner": "google",
+        "repo": "elephant-goldfish-model",
+        "rev": "5efe34126a0059eff51ca7e0af7e3249d70952bf",
+        "type": "github"
+      },
+      "original": {
+        "owner": "google",
+        "repo": "elephant-goldfish-model",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -521,6 +537,7 @@
         "comin": "comin",
         "disko": "disko",
         "domfiles-skills": "domfiles-skills",
+        "egm-skills": "egm-skills",
         "gitguardian-skills": "gitguardian-skills",
         "halogen-flash": "halogen-flash",
         "herdr-nix": "herdr-nix",

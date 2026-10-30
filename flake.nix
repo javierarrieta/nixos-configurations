@@ -102,6 +102,21 @@
       url = "github:porada/domfiles";
       flake = false;
     };
+    # Elephant-Goldfish Model (EGM): draft specs, then stress-test them with
+    # fresh-context "Goldfish" reviewers. Apache-2.0, no flake, so a plain
+    # source tree. Vendored whole rather than skill-by-skill: its skills read
+    # `agents/<persona>.md` and `resources/document_standards/<name>.md` from
+    # the *repo root* at run time, and upstream says a skills-only install
+    # breaks it (docs/harnesses.md). See `egmSkillDir` in
+    # modules/home-manager/dev-tools.nix for how that is reconciled with the
+    # `<input>/skills/<name>` layout every other entry uses.
+    #
+    # Upstream ships manifests for Claude Code, Codex and Antigravity and none
+    # for pi; the pi mapping lives in this repo, not in a fork of the skill text.
+    egm-skills = {
+      url = "github:google/elephant-goldfish-model";
+      flake = false;
+    };
   };
 
   outputs =
@@ -125,6 +140,7 @@
       vercel-skills,
       asd-ste100-skill,
       domfiles-skills,
+      egm-skills,
       ...
     }:
     let
@@ -156,6 +172,7 @@
           vercel = vercel-skills;
           asd-ste100 = asd-ste100-skill;
           domfiles = domfiles-skills;
+          egm = egm-skills;
         };
       };
 
