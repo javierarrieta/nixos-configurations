@@ -409,6 +409,48 @@ let
   # <root>/agents $out/agents` lands *inside* it as `agents/agents` and the
   # persona files stay unreachable. Measured on the first build of this, which is
   # the only reason it is known.
+  # Text patches to upstream EGM skill bodies, keyed by skill name.
+  #
+  # `.nix` is not in EGM's recognized source-extension list, so the bootstrap's
+  # bottom-up pruning pass drops every directory holding only `.nix` files. On
+  # this repo that is 135 files across `common/`, `home/`, `hosts/`, `modules/`
+  # and `secrets/` -- the whole point of the tree -- and what survives to be
+  # documented is five shell scripts, one `.ts` extension and a python helper.
+  # Measured 2026-10-30, not guessed: `find` over the tree reported 135 `.nix`
+  # against 5 `.sh`, and the list appears exactly once in the entire plugin.
+  #
+  # Unlike the harness paragraph, this one is substituted rather than appended,
+  # because it is a filter the model applies mid-workflow rather than an
+  # instruction it can weigh, and because the anchor is a single unique line
+  # rather than prose upstream rewords between releases.
+  #
+  # Guarded for the same reason either way: `substituteInPlace` no-ops silently
+  # when the anchor moves, and a silently unpatched list is a bootstrap that
+  # quietly documents nothing and reports success. Here the build fails and says
+  # what to update -- which it did, first catching that an anchor starting with
+  # `- ` is read as a grep option. Hence the shorter anchor and the `--`.
+  egmSkillPatches.egm-bootstrap = {
+    anchor = "Declarative Code: `.tf`, `.hcl`, `.cue`";
+    replacement = "Declarative Code: `.tf`, `.hcl`, `.cue`, `.nix`";
+  };
+
+  egmSkillPatchScript =
+    name:
+    let
+      p = egmSkillPatches.${name} or null;
+    in
+    if p == null then
+      ""
+    else
+      # bash
+      ''
+        if ! grep -qF -- ${lib.escapeShellArg p.anchor} $out/SKILL.md; then
+          echo "egmSkillDir: ${name}: the anchor for the .nix patch is gone -- upstream reworded its source-extension list; update egmSkillPatches" >&2
+          exit 1
+        fi
+        substituteInPlace $out/SKILL.md --replace ${lib.escapeShellArg p.anchor} ${lib.escapeShellArg p.replacement}
+      '';
+
   egmSkillDir =
     name:
     pkgs.runCommand "egm-${name}" { } # bash
@@ -416,11 +458,13 @@ let
         mkdir -p $out
         cp -r ${egmRoot}/skills/${name}/. $out/
         # cp preserves the store's read-only mode; SKILL.md has to stay writable
-        # for the append below. Nix restores read-only perms on the output path.
+        # for the patch and the append below. Nix restores read-only perms on the
+        # output path.
         chmod -R u+w $out
         mkdir -p $out/agents $out/resources
         cp ${egmRoot}/agents/*.md $out/agents/
         cp -r ${egmRoot}/resources/. $out/resources/
+        ${egmSkillPatchScript name}
         cat $out/SKILL.md ${egmPiNotes} > $out/SKILL.md.tmp
         mv $out/SKILL.md.tmp $out/SKILL.md
       '';
