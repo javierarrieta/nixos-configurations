@@ -266,255 +266,17 @@ let
   # is needed. Two escape hatches: `root = true` for upstreams that put SKILL.md
   # at the repo root instead of under skills/<name>/, and `dir = name: path` for
   # an upstream whose skill folder is not self-contained -- used by EGM, which
-  # reads sibling trees at run time (see `egmSkillDir`).
-  # ---- Elephant-Goldfish Model (EGM) --------------------------------------
-  #
-  # EGM drafts a design spec with a context-rich agent (the elephant) and then
-  # stress-tests it with reviewers that get the document and nothing else (the
-  # goldfish). Upstream ships manifests for Claude Code, Codex and Antigravity
-  # and none for pi, so everything below is this repo's mapping -- and it
-  # deliberately does not fork the skill text.
-  #
-  # Three things pi needs that the tarball does not provide by itself:
-  #
-  # 1. Path layout. Every skill resolves `agents/<persona>.md` and
-  #    `resources/document_standards/<standard>.md` against the *repo root*, not
-  #    its own folder, so the `<input>/skills/<name>` link every other vendored
-  #    skill uses leaves both trees unreachable -- upstream's own
-  #    docs/harnesses.md says a skills-only install breaks EGM. `egmSkillDir`
-  #    rebuilds each skill folder with those two trees merged into it, so the
-  #    relative paths resolve from the directory pi reports to the model.
-  #
-  # 2. Harness notes. Each SKILL.md opens by telling the reader to read
-  #    `../../docs/codex.md` (Codex) or `${CLAUDE_PLUGIN_ROOT}/docs/claude.md`
-  #    (Claude) and names only those harnesses' subagent tools. Neither path
-  #    exists here and pi is not named, so `egmPiNotes` appends a pi section.
-  #    Appended rather than substituted on purpose: an append cannot silently
-  #    no-op when upstream rewords that paragraph, which a sed would.
-  #
-  # 3. Named subagents. The skills ask for subagents named `egm-zoom-out`,
-  #    `egm-design`, ... "where your harness registers named subagents".
-  #    `egmPersonaAgent` renders each upstream persona into a pi-subagents agent
-  #    file, and that is where the Goldfish guarantee actually gets enforced --
-  #    read-only tools and no inherited project or skill context. A reviewer that
-  #    inherits the parent's context is not a Goldfish, and no amount of upstream
-  #    prompt text can enforce that on pi.
-  egmRoot = agentSkills.egm;
-
-  # Explicit rather than `builtins.readDir`, for the same reason the other name
-  # lists are: an upstream addition cannot silently join the routing table on a
-  # flake update.
-  egmSkillNames = [
-    "egm-bootstrap"
-    "egm-brainstorm"
-    "egm-draft"
-    "egm-drift-report"
-    "egm-resolve"
-    "egm-review"
-    "egm-review-loop"
-  ];
-
-  # `name` is the runtime name pi-subagents uses, taken from each persona's own
-  # frontmatter -- it does not always match the file name (design_critic.md
-  # registers as `egm-design`). `nested = true` marks the two personas whose job
-  # is to fan out other subagents, so they get the child-safe `subagent` tool;
-  # the seven reviewers stay read-only, which is what their own text mandates.
-  #
-  # `advertise` stays false: nine always-present descriptions in every pi system
-  # prompt on every host, for a workflow that is opt-in by slash command, is the
-  # wrong trade. The names are in context when they matter instead --
-  # `egmPiNotes` lists them inside each skill.
-  egmPersonas = [
-    {
-      file = "bootstrap_orchestrator.md";
-      name = "egm-bootstrap-orchestrator";
-      nested = true;
-    }
-    {
-      file = "codebase_details.md";
-      name = "egm-codebase-details";
-    }
-    {
-      file = "comprehension.md";
-      name = "egm-comprehension";
-    }
-    {
-      file = "design_critic.md";
-      name = "egm-design";
-    }
-    {
-      file = "implementation_readiness.md";
-      name = "egm-implementation-readiness";
-    }
-    {
-      file = "structural.md";
-      name = "egm-structural";
-    }
-    {
-      file = "style.md";
-      name = "egm-style";
-    }
-    {
-      file = "synthesizer.md";
-      name = "egm-synthesizer";
-      nested = true;
-    }
-    {
-      file = "zoom_out.md";
-      name = "egm-zoom-out";
-    }
-  ];
-
-  # What the two harness lines at the top of each skill cannot say on pi, and
-  # cannot be patched in place without a fragile match on upstream wording.
-  egmPiNotes =
-    pkgs.writeText "egm-pi-notes" # markdown
-      ''
-
-
-        ---
-
-        ## pi harness notes
-
-        Added by nixos-configurations; not upstream text. This is pi, not Codex,
-        ChatGPT Work, Claude Code or Cowork: ignore the two lines near the top that
-        point at `docs/codex.md` or `''${CLAUDE_PLUGIN_ROOT}/docs/claude.md`, and use
-        this instead.
-
-        * Subagent tool: `subagent` (pi-subagents). Pass the persona as the agent
-          and the review prompt as the task.
-        * Registered personas: egm-zoom-out, egm-design, egm-structural, egm-style,
-          egm-comprehension, egm-codebase-details, egm-implementation-readiness,
-          egm-synthesizer, egm-bootstrap-orchestrator. They are registered
-          unadvertised, so name them explicitly; they are not in the parent's system
-          prompt.
-        * Goldfish isolation is enforced by those agent definitions (fresh context,
-          no inherited project or skill context, read-only tools). Do not substitute
-          a forked-context or general-purpose subagent -- that is not a Goldfish
-          review, and the skill is right to refuse it.
-        * `agents/<file>.md` and `resources/document_standards/<file>.md` resolve
-          inside this skill directory; both are merged into it here.
-        * Prefer direct dispatch: spawn each reviewer from this session. Nested
-          spawning is capped by pi-subagents `maxSubagentDepth` (default 2), so a
-          synthesizer that fans out reviewers itself may hit the cap; if it does,
-          use the flat swarm the skill documents as the fallback.
-      '';
-
-  # One skill folder, self-contained: upstream contents, plus the repo-root
-  # `agents/` and `resources/` trees its text resolves relative to itself, plus
-  # the pi notes appended.
-  #
-  # Copied, not symlinked, and that is not laziness: every upstream skill folder
-  # already ships its own `agents/` (a Codex `openai.yaml`), so `ln -s
-  # <root>/agents $out/agents` lands *inside* it as `agents/agents` and the
-  # persona files stay unreachable. Measured on the first build of this, which is
-  # the only reason it is known.
-  # Text patches to upstream EGM skill bodies, keyed by skill name.
-  #
-  # `.nix` is not in EGM's recognized source-extension list, so the bootstrap's
-  # bottom-up pruning pass drops every directory holding only `.nix` files. On
-  # this repo that is 135 files across `common/`, `home/`, `hosts/`, `modules/`
-  # and `secrets/` -- the whole point of the tree -- and what survives to be
-  # documented is five shell scripts, one `.ts` extension and a python helper.
-  # Measured 2026-10-30, not guessed: `find` over the tree reported 135 `.nix`
-  # against 5 `.sh`, and the list appears exactly once in the entire plugin.
-  #
-  # Unlike the harness paragraph, this one is substituted rather than appended,
-  # because it is a filter the model applies mid-workflow rather than an
-  # instruction it can weigh, and because the anchor is a single unique line
-  # rather than prose upstream rewords between releases.
-  #
-  # Guarded for the same reason either way: `substituteInPlace` no-ops silently
-  # when the anchor moves, and a silently unpatched list is a bootstrap that
-  # quietly documents nothing and reports success. Here the build fails and says
-  # what to update -- which it did, first catching that an anchor starting with
-  # `- ` is read as a grep option. Hence the shorter anchor and the `--`.
-  egmSkillPatches.egm-bootstrap = {
-    anchor = "Declarative Code: `.tf`, `.hcl`, `.cue`";
-    replacement = "Declarative Code: `.tf`, `.hcl`, `.cue`, `.nix`";
+  # reads sibling trees at run time (see `skillDir` in ./pi/egm.nix).
+  # The Elephant-Goldfish Model mapping lives in ./pi/egm.nix -- the vendored
+  # upstream tree is not usable by pi as-is, and the reason why is documented there
+  # rather than here, where the rest of pi's config is. This module owns the wiring:
+  # `skillNames` joins piSkillNames so the pruner keeps them, `skillDir` is the
+  # `dir` override on the EGM entry below, `agentFiles` goes into home.file, and
+  # `personas` names the activation report's declared set.
+  piEgm = import ./pi/egm.nix {
+    inherit pkgs lib;
+    root = agentSkills.egm;
   };
-
-  egmSkillPatchScript =
-    name:
-    let
-      p = egmSkillPatches.${name} or null;
-    in
-    if p == null then
-      ""
-    else
-      # bash
-      ''
-        if ! grep -qF -- ${lib.escapeShellArg p.anchor} $out/SKILL.md; then
-          echo "egmSkillDir: ${name}: the anchor for the .nix patch is gone -- upstream reworded its source-extension list; update egmSkillPatches" >&2
-          exit 1
-        fi
-        substituteInPlace $out/SKILL.md --replace ${lib.escapeShellArg p.anchor} ${lib.escapeShellArg p.replacement}
-      '';
-
-  egmSkillDir =
-    name:
-    pkgs.runCommand "egm-${name}" { } # bash
-      ''
-        mkdir -p $out
-        cp -r ${egmRoot}/skills/${name}/. $out/
-        # cp preserves the store's read-only mode; SKILL.md has to stay writable
-        # for the patch and the append below. Nix restores read-only perms on the
-        # output path.
-        chmod -R u+w $out
-        mkdir -p $out/agents $out/resources
-        cp ${egmRoot}/agents/*.md $out/agents/
-        cp -r ${egmRoot}/resources/. $out/resources/
-        ${egmSkillPatchScript name}
-        cat $out/SKILL.md ${egmPiNotes} > $out/SKILL.md.tmp
-        mv $out/SKILL.md.tmp $out/SKILL.md
-      '';
-
-  # Upstream persona -> pi-subagents agent file. The persona's own frontmatter
-  # is dropped and replaced: pi needs its own fields, and a second frontmatter
-  # block in the middle of the file would render as prompt text.
-  #
-  # `description` is read out of the persona rather than copied into Nix, so a
-  # reworded upstream persona cannot drift from what the parent sees. The guard
-  # is there because an awk that silently returns nothing would otherwise produce
-  # an agent file pi refuses to load, with the cause three directories away.
-  egmPersonaAgent =
-    p:
-    let
-      nestedTools = if p.nested or false then ", subagent" else "";
-    in
-    pkgs.runCommand "pi-agent-${p.name}" { } # bash
-      ''
-        src=${egmRoot}/agents/${p.file}
-        desc=$(awk '/^description: /{ sub(/^description: /, ""); gsub(/"/, ""); print; exit }' "$src")
-        if [ -z "$desc" ]; then
-          echo "egmPersonaAgent: no description line in ${p.file}" >&2
-          exit 1
-        fi
-        {
-          printf -- '---\nname: ${p.name}\n'
-          printf 'description: %s\n' "$desc"
-          printf 'advertise: false\n'
-          printf 'tools: read, grep, find, ls${nestedTools}\n'
-          printf 'inheritProjectContext: false\n'
-          printf 'inheritGlobalContext: false\n'
-          printf 'inheritSkills: false\n'
-          printf -- '---\n\n'
-          # Body after the closing '---' of the upstream frontmatter.
-          awk 'c >= 2 { print } /^---$/ { c++ }' "$src"
-        } > $out
-      '';
-
-  piEgmAgentFiles = builtins.listToAttrs (
-    map (
-      p:
-      lib.nameValuePair ".pi/agent/agents/${p.name}.md" {
-        source = egmPersonaAgent p;
-        # A hand-made ~/.pi/agent/agents/<name>.md is what this collides with,
-        # and Home Manager refuses to replace one without this.
-        force = true;
-      }
-    ) egmPersonas
-  );
 
   piVendoredSkills = [
     {
@@ -594,14 +356,14 @@ let
       names = [ "cocoindex" ];
     }
     {
-      # EGM -- see the `egmRoot` block above. `dir` replaces the usual
+      # EGM -- see ./pi/egm.nix. `dir` replaces the usual
       # `<input>/skills/<name>` link because these skills cannot work from a bare
       # skill folder: they read the repo-root `agents/` and `resources/` trees at
       # run time.
       input = agentSkills.egm;
       origin = "google/elephant-goldfish-model";
-      dir = egmSkillDir;
-      names = egmSkillNames;
+      dir = piEgm.skillDir;
+      names = piEgm.skillNames;
     }
   ];
 
@@ -802,7 +564,7 @@ in
 
   # Vendored skills -- see `piVendoredSkills` above. They route to pi, so
   # they go when pi does; Home Manager unlinks the ones it managed.
-  home.file = lib.mkIf piEnable (piSkillFiles // piExtensionFiles // piEgmAgentFiles);
+  home.file = lib.mkIf piEnable (piSkillFiles // piExtensionFiles // piEgm.agentFiles);
 
   # The agent config is rendered even on configOnly hosts: those hosts get the
   # pi binary from the workspace image, but settings and model definitions
@@ -963,14 +725,14 @@ in
           # owns only the generated egm-* personas, so the check is scoped to that
           # prefix and reports instead of deleting -- a hand-made persona would
           # shadow a declared one by runtime name and nothing else would say so.
-          _pi_agent_names=" ${lib.concatStringsSep " " (map (p: p.name) egmPersonas)} "
+          _pi_agent_names=" ${lib.concatStringsSep " " (map (p: p.name) piEgm.personas)} "
           if [ -d "$_pi_agent_dir/agents" ]; then
             (
               cd "$_pi_agent_dir/agents" || exit 0
               for _n in egm-*.md; do
                 [ -e "$_n" ] || continue
                 case "$_pi_agent_names" in *" ''${_n%.md} "*) continue ;; esac
-                echo "piAgentConfig: undeclared egm agent $_pi_agent_dir/agents/$_n -- it shadows a generated persona; change egmPersonas in modules/home-manager/dev-tools.nix or remove the file" >&2
+                echo "piAgentConfig: undeclared egm agent $_pi_agent_dir/agents/$_n -- it shadows a generated persona; change `personas` in modules/home-manager/pi/egm.nix or remove the file" >&2
               done
             )
           fi

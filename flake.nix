@@ -107,8 +107,8 @@
     # source tree. Vendored whole rather than skill-by-skill: its skills read
     # `agents/<persona>.md` and `resources/document_standards/<name>.md` from
     # the *repo root* at run time, and upstream says a skills-only install
-    # breaks it (docs/harnesses.md). See `egmSkillDir` in
-    # modules/home-manager/dev-tools.nix for how that is reconciled with the
+    # breaks it (docs/harnesses.md). See `skillDir` in
+    # modules/home-manager/pi/egm.nix for how that is reconciled with the
     # `<input>/skills/<name>` layout every other entry uses.
     #
     # Upstream ships manifests for Claude Code, Codex and Antigravity and none
