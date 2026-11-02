@@ -116,8 +116,14 @@ in
       # S3 retention, NOT --etcd-snapshot-retention: that one counts local snapshot
       # files, which do not exist when snapshots go to S3. Wrong flag here means the
       # bucket silently grows forever.
-      # 24 snapshots at the 6h cadence below = 6 days of recovery points.
-      "--etcd-s3-retention=24"
+      # 240 snapshots at the 6h cadence below = 60 days of recovery points.
+      # Raised from 24 (6 days) on 2026-11-02. Size is not the constraint: an etcd
+      # snapshot is a bolt copy of the DB, and titan's measured
+      # etcd_mvcc_db_total_size_in_bytes = 19,021,824 (~18 MiB) via the metrics
+      # proxy, so 240 of them is ~4.3 GB in the bucket. Retention is a COUNT here,
+      # not a duration -- the window is this number times the cadence below, so
+      # changing the cadence silently changes the recovery window this line means.
+      "--etcd-s3-retention=240"
       # Every 6h, not hourly. Measured on 2026-10-02: pidstat showed zero block
       # writes across every process at idle, so the datastore is nowhere near a
       # disk-endurance problem -- but an hourly full copy of the DB, uploaded over a
