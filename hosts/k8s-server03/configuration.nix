@@ -20,6 +20,7 @@ in
     ../../modules/nixos/openiscsi.nix
     ../../modules/nixos/sops-base.nix
     ../../modules/nixos/k3s.nix
+    ../../modules/nixos/k3s-snapshot-monitor.nix
     ../../modules/nixos/k8s-network.nix
     ../../modules/nixos/comin.nix
     ../../modules/nixos/comin-health-gate.nix
@@ -46,7 +47,31 @@ in
 
   sopsBase.enable = true;
 
-  k3s = vars.k3s;
+  # Credentials for the scheduled etcd snapshots. k3s reads --etcd-s3-access-key from
+  # $AWS_ACCESS_KEY_ID and --etcd-s3-secret-key from $AWS_SECRET_ACCESS_KEY, so no flag
+  # carries a secret into the world-readable unit file.
+  #
+  # It MUST be k3s.environmentFiles, not systemd.services.k3s.serviceConfig.
+  # EnvironmentFiles (plural): systemd has no such [Service] key, ignores it silently,
+  # and k3s then authenticates to MinIO anonymously -- every scheduled snapshot fails
+  # with `Access Denied` while the node stays Ready and the build stays green. Found
+  # 2026-10-03 on titan; the restore drill had passed only because the manual
+  # `etcd-snapshot save` inherited credentials from the operator's shell.
+  k3s = vars.k3s // {
+    environmentFiles = [ config.sops.secrets."casa/minio_env".path ];
+  };
+
+  # Nothing else watches whether snapshots actually land: k3s swallows S3 failures
+  # inside the server (Rancher #14144), so the node stays Ready and the bucket quietly
+  # stops receiving objects. This publishes the age of the newest object under this
+  # member's prefix into the node_exporter textfile dir, which the in-cluster
+  # node-exporter DaemonSet already reads on this host -- the same path
+  # comin_pending_confirmation travels.
+  k3sSnapshotMonitor = {
+    enable = true;
+    envFile = config.sops.secrets."casa/minio_env".path;
+    s3Flags = vars.snapshotS3Flags;
+  };
 
   k8sNetwork = {
     enable = true;
@@ -64,6 +89,14 @@ in
 
   sops.secrets."k3s_token" = {
     mode = "0600";
+    owner = "root";
+  };
+  # Shared by all three control-plane members: a MinIO key scoped to the casa-etcd
+  # bucket and nothing else. Exactly two KEY=value lines, AWS_ACCESS_KEY_ID and
+  # AWS_SECRET_ACCESS_KEY. This must exist in secrets.yaml BEFORE the generation that
+  # references it activates -- a missing EnvironmentFile fails the k3s unit at start.
+  sops.secrets."casa/minio_env" = {
+    mode = "0400";
     owner = "root";
   };
   sops.secrets."k8s-server03/network_env" = {
