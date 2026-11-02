@@ -953,9 +953,18 @@ Promotion is a manual git merge — the human gate:
 git checkout stable && git merge main && git push origin stable
 ```
 
-Manual fleet order (least -> most critical): `k8s-node04 -> k8s-node03 ->
-k8s-node02 -> k8s-node01 -> k8s-pi01 -> k8s-pi02 -> k8s-pi03 ->
-k8s-server01 -> k8s-server02 -> k8s-server03`.
+Manual fleet order — default `COMIN_ORDER=servers-first`: `k8s-server01 ->
+k8s-server02 -> k8s-server03 -> k8s-node01 -> k8s-node02 -> k8s-node03 ->
+k8s-node04 -> k8s-pi01 -> k8s-pi02 -> k8s-pi03`. Control plane first, because
+the fleet ring is one k3s cluster and k3s follows the Kubernetes skew policy:
+servers may run newer than agents, never the reverse. Accepting a worker first
+puts a newer kubelet on a cluster whose API servers are still old.
+
+`COMIN_ORDER=risk` restores the previous least -> most critical order
+(`k8s-node04 -> k8s-node03 -> k8s-node02 -> k8s-node01 -> k8s-pi01 -> k8s-pi02 ->
+k8s-pi03 -> k8s-server01 -> k8s-server02 -> k8s-server03`). Use it for a change
+that is risky but version-neutral, where losing a worker is cheaper than losing
+a server; it is wrong for a k3s version bump.
 
 Gatekeeper:
 ```bash
@@ -966,6 +975,18 @@ suspended, node Ready where applicable) and prints "merge main -> stable".
 Run it again after the merge: it verifies canaries again, then auto-accepts
 the fleet in order with a `kubectl get node` wait between hosts. Aborts if
 a canary (or any host) is suspended — the health gate rolled it back.
+
+For a k3s version bump, add `EXPECT_VERSION` so each host is proved to have
+actually moved rather than just reported `done` (see "deploy done is not proof
+of a switch" below — a node stays Ready across a k3s restart, so the Ready wait
+alone passes with the old binary still running):
+```bash
+EXPECT_VERSION=v1.36.4+k3s1 ./scripts/comin-approve.sh
+```
+The canary ring does not cover the skew constraint for the home cluster:
+`k8s-node05` is a *worker* and auto-deploys off `main`, so a k3s bump lands
+there before any casa server does. `sudo comin suspend` on node05 before
+merging to `main`, resume it once the servers have converged.
 
 Runner requirements (portable since 2026-08-26, macOS optional):
 ssh access to all 12 hosts by `<hostname>.casa.arrieta` (bind zone;

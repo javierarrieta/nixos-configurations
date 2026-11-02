@@ -33,7 +33,11 @@
         fish
         prometheus-node-exporter
         smartmontools
-        k3s
+        # The interactive `k3s` CLI (k3s kubectl, k3s etcd-snapshot) must be the
+        # same minor as the server binary, or `k3s etcd-snapshot list` on a 1.36
+        # node is run through a 1.35 client. Read back from the k3s module rather
+        # than naming pkgs.k3s, which is pinned to a different minor.
+        config.services.k3s.package
         kubernetes-helm
         openiscsi
         nfs-utils

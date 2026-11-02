@@ -18,7 +18,7 @@ let
     # values the server uses; if the server's flags are wrong, this goes red too.
     status=0
     err=$(mktemp)
-    if ! ${pkgs.k3s}/bin/k3s etcd-snapshot list ${s3Args} >"$out" 2>"$err"; then
+    if ! ${config.services.k3s.package}/bin/k3s etcd-snapshot list ${s3Args} >"$out" 2>"$err"; then
       status=1
       # Was `2>/dev/null`, which made a real failure indistinguishable from an empty
       # bucket: the metric went to its -1 sentinel and the journal said nothing at all.

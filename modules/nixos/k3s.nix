@@ -15,6 +15,45 @@
         ];
         description = "K3s role: server or agent";
       };
+      package = lib.mkOption {
+        type = lib.types.package;
+        default = pkgs.k3s_1_36;
+        defaultText = lib.literalExpression "pkgs.k3s_1_36";
+        description = ''
+          The k3s derivation to install.
+
+          Pinned to a minor rather than left at pkgs.k3s on purpose. pkgs.k3s is
+          whatever minor the channel happens to default to -- in nixos-26.05 that
+          is `k3s = k3s_1_35` in pkgs/top-level/all-packages.nix -- so using it
+          here would let an unrelated `nix flake update` move every node in the
+          fleet between Kubernetes minors without anyone deciding to. Naming the
+          minor makes the bump a reviewable change with a PR of its own.
+
+          Why 1.36 is safe from 1.35.8 (all three verified 2026-11-01, not
+          assumed):
+            * etcd is unchanged. k3s v1.35.8+k3s1 and v1.36.4+k3s1 both embed
+              etcd v3.6.14-k3s1, so this bump does not cross the 3.5 -> 3.6
+              data-directory boundary -- that migration already happened when the
+              fleet went to 1.35, and it is the step that makes a k3s downgrade
+              need `etcdutl migrate`.
+            * the bundled Traefik chart is byte-identical between the two minors
+              (40.1.4+up40.1.0 in both 1_35/chart-versions.nix and
+              1_36/chart-versions.nix), so titan -- the one host that does NOT
+              pass --disable=traefik -- does not get a chart bump from this.
+            * Kubernetes 1.36 stops serving no API versions at all; the newest
+              removal entry in the upstream deprecation guide is still v1.32.
+              The only 1.36 deprecation touching this fleet is Service
+              .spec.externalIPs (deprecated, still functional), used once, in
+              k8s-casa apply/50-apps/casa/bambuddy.yaml.
+
+          Still one patch behind upstream: nixpkgs carries 1.36.4, upstream has
+          1.36.5. Expected for a release branch; do not chase it here.
+
+          Set a host back to pkgs.k3s to hold that one node on 1.35 while the
+          control plane goes first -- k3s skew allows servers newer than agents,
+          never the reverse.
+        '';
+      };
       environmentFiles = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         default = [ ];
@@ -202,6 +241,7 @@
 
     services.k3s = {
       enable = true;
+      package = lib.mkDefault config.k3s.package;
       role = config.k3s.role;
       serverAddr = config.k3s.serverAddr;
       tokenFile = config.k3s.tokenFile;
