@@ -5,9 +5,31 @@ set -euo pipefail
 # Canary ring (auto, branch main): node05 + llm01 + titan — must converge healthy
 # or we abort. titan is spelled as its public FQDN because it is not in the bind
 # zone (see ssh_host/ssh_port below).
-# Fleet ring (manual, branch stable): accepted here in least -> most critical order.
+# Fleet ring (manual, branch stable): accepted here, in the order chosen below.
 CANARY_RING=(k8s-node05 llm01 titan.arrieta.eu)
-ORDER=(k8s-node04 k8s-node03 k8s-node02 k8s-node01 k8s-pi01 k8s-pi02 k8s-pi03 k8s-server01 k8s-server02 k8s-server03)
+
+# Fleet accept order. Two orders, because two different failure models:
+#
+#   servers-first (default) -- control plane, then workers, then Pis. This is the
+#     order k3s REQUIRES whenever the pending generation changes the k3s version:
+#     the Kubernetes skew policy lets servers run newer than agents and never
+#     the reverse, so accepting a worker first puts a newer kubelet on a cluster
+#     whose API servers are still old. Correct for every deploy, since a version
+#     change is the only one where order has a correctness constraint.
+#   risk -- least -> most critical (workers, Pis, then control plane). Smaller
+#     blast radius first; use it for a change that is risky but version-neutral,
+#     where losing a worker is cheaper than losing a server:
+#     COMIN_ORDER=risk ./scripts/comin-approve.sh
+#
+# Note the canary ring cannot cover the skew constraint for the home cluster:
+# k8s-node05 is a WORKER and auto-deploys off main, so a k3s version bump lands
+# there before any casa server does. Suspend comin on node05 before merging to
+# main, and resume it once the servers have converged.
+case "${COMIN_ORDER:-servers-first}" in
+  servers-first) ORDER=(k8s-server01 k8s-server02 k8s-server03 k8s-node01 k8s-node02 k8s-node03 k8s-node04 k8s-pi01 k8s-pi02 k8s-pi03) ;;
+  risk) ORDER=(k8s-node04 k8s-node03 k8s-node02 k8s-node01 k8s-pi01 k8s-pi02 k8s-pi03 k8s-server01 k8s-server02 k8s-server03) ;;
+  *) echo "COMIN_ORDER must be 'servers-first' or 'risk', got '${COMIN_ORDER}'" >&2; exit 1 ;;
+esac
 # k8s nodes only (llm01 is not a cluster node — skip its node_ready wait).
 # titan is deliberately absent: it is a k8s node, but of its own cluster, which
 # this runner's kubectl (pointed at the home cluster) cannot see.
@@ -47,6 +69,29 @@ pending() { # host -> prints 1 if a deploy confirmation is pending
 
 node_ready() { # node -> 1 when Ready
   kubectl get node "$1" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null
+}
+
+kubelet_version() { # node -> the kubeletVersion the API server reports
+  kubectl get node "$1" -o jsonpath='{.status.nodeInfo.kubeletVersion}' 2>/dev/null
+}
+
+# Optional proof that the switch actually landed. `deployment.status == done`
+# is not that proof -- see "comin-approve.sh 'deploy done' is not proof of a
+# switch" in AGENTS.md: the deployer reports done for the PREVIOUS deploy when
+# it stalls, and a node stays Ready across a k3s restart, so on a version bump
+# both existing waits can pass with the old binary still running. Set
+# EXPECT_VERSION to the kubeletVersion every fleet node must end on:
+#   EXPECT_VERSION=v1.36.4+k3s1 ./scripts/comin-approve.sh
+# Only for a deploy that moves the whole fleet ring to one version; a node held
+# back on purpose (k3s.package pinned to the old minor) will time out here.
+wait_version() { # node -> wait until it reports EXPECT_VERSION
+  local n="$1" v="" i=0
+  while :; do
+    v=$(kubelet_version "$n")
+    if [ "$v" = "$EXPECT_VERSION" ]; then echo "$n kubelet $v OK"; return; fi
+    [ "$i" -lt "${VERSION_TIMEOUT:-600}" ] || { echo "TIMEOUT: $n reports kubelet '$v', wanted '$EXPECT_VERSION' -- the switch did not land"; exit 1; }
+    sleep 5; i=$((i + 5))
+  done
 }
 
 wait_for() { # desc, seconds, cmd...
@@ -118,6 +163,7 @@ for h in "${ORDER[@]}"; do
   fi
   if is_k8s_node "$h"; then
     wait_for "$h node Ready" 600 node_ready "$h"
+    [ -n "${EXPECT_VERSION:-}" ] && wait_version "$h"
   else
     echo "== $h: not a k8s node, skipping node Ready wait"
   fi
