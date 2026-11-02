@@ -172,7 +172,7 @@ in
           80
           443
         ];
-        description = "Public ingress (Traefik via ServiceLB).";
+        description = "Public ingress. Mechanism-neutral on purpose: on titan this was Traefik via " "ServiceLB and is now Traefik via a ClusterIP Service with externalIPs, with " "no NodePorts; the ports that must be open are the same either way.";
       };
 
       meshTCPPorts = lib.mkOption {

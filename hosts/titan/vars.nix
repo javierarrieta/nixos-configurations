@@ -71,9 +71,26 @@ in
     # LAN over WireGuard, so the defaults would collide.
     clusterCidr = "10.62.0.0/16";
     serviceCidr = "10.63.0.0/16";
-    # Keep the k3s bundle intact: Traefik + ServiceLB are the public ingress path
-    # on a host with no LoadBalancer controller of its own (spec D4).
-    disable = [ ];
+    # Reverses host spec D4. D4 kept the bundle because titan had no LoadBalancer
+    # controller of its own; it turns out one was never needed. OVH's primary IP is
+    # statically configured on the host interface on a /24 with an on-link gateway, so
+    # the public address IS the node address and nothing has to bind, announce or
+    # route it. Traefik is now a Flux HelmRelease whose Service is ClusterIP with
+    # externalIPs set to that address, so kube-proxy does the DNAT itself: no
+    # klipper-lb DaemonSet, no hostPort contention, and no NodePorts at all.
+    # See k8s-titan#209 and k8s-titan docs/superpowers/specs/
+    # 2026-10-31-titan-ingress-ownership-decision.md.
+    #
+    # DO NOT APPLY THIS BEFORE the Flux release is live and serving. Disabling
+    # traefik actively UNINSTALLS the bundled HelmChart, and at this k3s version the
+    # one manifest declares both the traefik and the traefik-crd HelmCharts, so the
+    # 25 Traefik CRDs go with them unless the HelmCharts are marked unmanaged and
+    # their finalizers stripped first. The runbook is in k8s-titan; the failure mode
+    # is every Middleware cascade-deleted with every repo gate still green.
+    disable = [
+      "traefik"
+      "servicelb"
+    ];
     taints = [ ];
     controlPlaneMetricsBindAddress = "0.0.0.0";
     requiresMountFor = [ "var-lib-rancher-k3s-storage.mount" ];

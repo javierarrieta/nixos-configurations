@@ -49,7 +49,7 @@ git diff --cached | grep -noE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' \
 | D1 | Cluster shape | Standalone single-node k3s server, embedded etcd, own cluster (no join to the home fleet) | confirmed |
 | D2 | Reachability model | **Hybrid**: public IPv4 for 80/443 + WireGuard for the management plane | confirmed |
 | D3 | SSH | Public on **13491**, key-only, never depends on WireGuard. No WG-only SSH. | confirmed |
-| D4 | Ingress | k3s' bundled **Traefik + ServiceLB stay enabled** (unlike the home cluster, which disables both) | confirmed |
+| D4 | Ingress | ~~k3s' bundled Traefik + ServiceLB stay enabled~~ **superseded 2026-10-31: both disabled.** The reason D4 was made - no LoadBalancer controller of our own - turned out not to hold: OVH's primary IP is the node's own address, so a ClusterIP Service with `externalIPs` needs no controller at all. Traefik is now a Flux HelmRelease in k8s-titan. See k8s-titan#209. | superseded |
 | D5 | Certificates | cert-manager **DNS-01 via the OVH webhook**, same pattern as `../k8s-techdelivery` | confirmed |
 | D6 | Public domain | `titan.arrieta.eu` + `*.titan.arrieta.eu` (DNS not yet created) | confirmed, DNS pending |
 | D7 | Workloads | Mostly self-hosted services behind HTTPS ingress | confirmed |
@@ -279,6 +279,9 @@ k3s = {
   # no serverAddr — standalone
   tokenFile = config.sops.secrets."k3s_token_titan".path;   # NOT the existing k3s_token
   disable = [ ];                    # keep traefik + servicelb (D4)
+                                    # SUPERSEDED 2026-10-31: hosts/titan/vars.nix now sets
+                                    # [ "traefik" "servicelb" ]. Left as originally decided
+                                    # so this block still shows what was designed at the time.
   taints = [ ];                     # single node must be schedulable
   controlPlaneMetricsBindAddress = "0.0.0.0";                # firewalled to wg (§4.4)
   extraFlags = [ "--flannel-iface=<pub0>" "--node-external-ip=<public-ip>" ];
