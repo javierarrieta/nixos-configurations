@@ -1,6 +1,15 @@
 { config, pkgs }:
+let
+  # Off-node etcd snapshots to MinIO. Each member needs its own folder (retention is
+  # scoped per folder) and its own minute. See common/etcd-snapshot-s3.nix.
+  snapshotS3Flags = import ../../common/etcd-snapshot-s3.nix {
+    folder = "casa/server03";
+    cron = "40 */6 * * *";
+  };
+in
 {
   hostname = "k8s-server03";
+  inherit snapshotS3Flags;
   ipAddress = "$IP_ADDRESS";
   defaultGateway = "$DEFAULT_GATEWAY";
   nameservers = [
@@ -32,6 +41,6 @@
     # payload is operational only (disk fsync, leader changes, DB size, peer
     # traffic), no keys and no object data.
     # Requires a service restart of k3s on this host.
-    extraFlags = [ "--etcd-expose-metrics" ];
+    extraFlags = [ "--etcd-expose-metrics" ] ++ snapshotS3Flags;
   };
 }
