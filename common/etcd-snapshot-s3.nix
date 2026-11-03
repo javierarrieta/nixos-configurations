@@ -47,10 +47,15 @@
   # the vhost form does not resolve at all.
   "--etcd-s3-bucket-lookup-type=path"
   # A COUNT, not a duration: the recovery window is this number times the cadence
-  # below, so changing the cron silently changes what this line means. 28 at 6h is
-  # 7 days per member. Size is not the constraint -- casa's etcd members measured
-  # ~52 MB each (etcd_mvcc_db_total_size_in_bytes), so 28 x 3 members is ~4.4 GB.
-  "--etcd-s3-retention=28"
+  # below, so changing the cron silently changes what this line means. 240 at 6h is
+  # 60 days PER MEMBER -- retention is scoped by folder (see the header), so each of
+  # the three members keeps its own 240 and the bucket holds up to 720 objects.
+  # Raised from 28 (7 days) on 2026-11-03 to match titan's window; size is not the
+  # argument. Casa's members measured ~52 MB each (etcd_mvcc_db_total_size_in_bytes),
+  # so 240 x 3 is ~38 GB on the NAS. If that ever matters, compress before trimming
+  # the window: --etcd-snapshot-compress cuts roughly 10x, but test a restore first
+  # (restore-from-compressed had a bug fixed only in the 1.35.9 backports, #14528).
+  "--etcd-s3-retention=240"
   # The embedded quotes are load-bearing. k3s.extraFlags is toString'd into a single
   # ExecStart string and systemd word-splits it, so an unquoted cron arrives as
   # --etcd-snapshot-schedule-cron=0 plus three stray arguments, which is how titan's
