@@ -109,6 +109,32 @@ in
         assertion = builtins.elem "--etcd-s3" cfg.s3Flags;
         message = "k3sSnapshotMonitor.s3Flags must contain --etcd-s3, otherwise k3s lists local snapshots and the metric is meaningless.";
       }
+      # `k3s etcd-snapshot list` is a different command from `k3s server` and rejects
+      # anything it does not know: `flag provided but not defined:
+      # -etcd-snapshot-schedule-cron`, exit non-zero, and the check then publishes the
+      # same age=-1 / check_success=0 pair that an EMPTY BUCKET produces. A mis-wired
+      # flag is therefore indistinguishable from "no backups exist" from outside the
+      # host's journal. Found 2026-11-04 on k8s-server01..03: six snapshots had landed
+      # correctly while the monitor reported failure for ten hours.
+      {
+        assertion =
+          lib.lists.findFirst (
+            f: lib.strings.hasPrefix "--etcd-snapshot-" f || lib.strings.hasPrefix "--etcd-s3-retention" f
+          ) null cfg.s3Flags == null;
+        message = ''
+          k3sSnapshotMonitor.s3Flags contains a `k3s server`-only flag. Keep it to the
+          connection flags `k3s etcd-snapshot list` accepts (--etcd-s3,
+          --etcd-s3-endpoint/-bucket/-region/-folder, --etcd-s3-bucket-lookup-type) and
+          put --etcd-snapshot-* and --etcd-s3-retention on the k3s.extraFlags side.
+          Offending flag: ${
+            toString (
+              lib.lists.findFirst (
+                f: lib.strings.hasPrefix "--etcd-snapshot-" f || lib.strings.hasPrefix "--etcd-s3-retention" f
+              ) null cfg.s3Flags
+            )
+          }
+        '';
+      }
       # The failure this guards is the one found 2026-10-03 on titan: the credentials
       # were declared, materialised and never reached the process, so every scheduled
       # snapshot failed with Access Denied while the node stayed Ready. Asserting the

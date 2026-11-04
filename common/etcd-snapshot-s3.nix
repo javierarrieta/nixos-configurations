@@ -5,6 +5,23 @@
 # actually run against it. The traps are summarised here, not re-derived; read that
 # file before changing anything below.
 #
+# Returns TWO lists, and the split is the whole point of this file:
+#
+#   s3Flags     connection flags only -- what `k3s etcd-snapshot list` accepts.
+#               Used by k3sSnapshotMonitor.s3Flags.
+#   serverFlags s3Flags plus the scheduling and pruning flags, which exist only on
+#               `k3s server`. Used by k3s.extraFlags.
+#
+# Feeding serverFlags to the CLI is not a warning, it is a fatal exit:
+#
+#   level=fatal msg="Error: flag provided but not defined: -etcd-snapshot-schedule-cron"
+#
+# and the monitor turns that into `check_success 0` / `age -1`, which is the exact
+# value pair an empty bucket produces. Found 2026-11-04 on k8s-server01..03: six
+# snapshots had landed correctly while the monitor reported failure for ten hours,
+# and nothing outside the host's journal said why. Keep the two lists apart, and
+# keep new scheduling flags on the serverFlags side.
+#
 # Takes { folder, cron } because BOTH must differ per member:
 #
 #   - folder scopes retention. pkg/etcd/s3/s3.go:395 (release-1.36) does
@@ -23,42 +40,50 @@
 # the host (see the hosts/k8s-serverNN/configuration.nix side of this change). A
 # missing EnvironmentFile makes the k3s unit fail at start, on a control plane.
 { folder, cron }:
-[
-  "--etcd-s3"
-  # BARE HOST: no scheme, no port. s3.l.arrieta.eu is a Traefik Ingress on 443
-  # (k8s-casa apply/50-apps/casa/minio.yaml, an Endpoints object pointing at the
-  # out-of-cluster MinIO at 192.168.0.6:9000). Two separate ways to get this wrong,
-  # both hit on 2026-10-03 with titan: pinning :9000 hits a VIP and hangs until
-  # --etcd-s3-timeout, and a scheme makes minio-go reject the endpoint outright.
-  # TLS is on by default; --etcd-s3-insecure is what turns it off, not the scheme.
-  "--etcd-s3-endpoint=s3.l.arrieta.eu"
-  # Own bucket, NOT titan-etcd. An etcd snapshot is every Secret in the cluster in
-  # plaintext, so the bucket boundary is the access boundary: the MinIO key for
-  # casa-etcd must not be able to read titan-etcd, or a casa credential becomes
-  # cross-cluster.
-  "--etcd-s3-bucket=casa-etcd"
-  # eu-west-1, not k3s' us-east-1 AWS default. MinIO signs per bucket and rejects a
-  # region mismatch outright rather than ignoring it.
-  "--etcd-s3-region=eu-west-1"
-  "--etcd-s3-folder=${folder}"
-  # Mandatory, not an optimisation: 'auto' lookup resolves casa-etcd.s3.l.arrieta.eu,
-  # which has no DNS record and no certificate, because the Ingress serves exactly
-  # one host. Verified 2026-11-02: the bare host answers 403 (MinIO, anonymous deny),
-  # the vhost form does not resolve at all.
-  "--etcd-s3-bucket-lookup-type=path"
-  # A COUNT, not a duration: the recovery window is this number times the cadence
-  # below, so changing the cron silently changes what this line means. 240 at 6h is
-  # 60 days PER MEMBER -- retention is scoped by folder (see the header), so each of
-  # the three members keeps its own 240 and the bucket holds up to 720 objects.
-  # Raised from 28 (7 days) on 2026-11-03 to match titan's window; size is not the
-  # argument. Casa's members measured ~52 MB each (etcd_mvcc_db_total_size_in_bytes),
-  # so 240 x 3 is ~38 GB on the NAS. If that ever matters, compress before trimming
-  # the window: --etcd-snapshot-compress cuts roughly 10x, but test a restore first
-  # (restore-from-compressed had a bug fixed only in the 1.35.9 backports, #14528).
-  "--etcd-s3-retention=240"
-  # The embedded quotes are load-bearing. k3s.extraFlags is toString'd into a single
-  # ExecStart string and systemd word-splits it, so an unquoted cron arrives as
-  # --etcd-snapshot-schedule-cron=0 plus three stray arguments, which is how titan's
-  # k3s was taken down on 2026-10-03.
-  "--etcd-snapshot-schedule-cron=\"${cron}\""
-]
+let
+  s3Flags = [
+    "--etcd-s3"
+    # BARE HOST: no scheme, no port. s3.l.arrieta.eu is a Traefik Ingress on 443
+    # (k8s-casa apply/50-apps/casa/minio.yaml, an Endpoints object pointing at the
+    # out-of-cluster MinIO at 192.168.0.6:9000). Two separate ways to get this wrong,
+    # both hit on 2026-10-03 with titan: pinning :9000 hits a VIP and hangs until
+    # --etcd-s3-timeout, and a scheme makes minio-go reject the endpoint outright.
+    # TLS is on by default; --etcd-s3-insecure is what turns it off, not the scheme.
+    "--etcd-s3-endpoint=s3.l.arrieta.eu"
+    # Own bucket, NOT titan-etcd. An etcd snapshot is every Secret in the cluster in
+    # plaintext, so the bucket boundary is the access boundary: the MinIO key for
+    # casa-etcd must not be able to read titan-etcd, or a casa credential becomes
+    # cross-cluster.
+    "--etcd-s3-bucket=casa-etcd"
+    # eu-west-1, not k3s' us-east-1 AWS default. MinIO signs per bucket and rejects a
+    # region mismatch outright rather than ignoring it.
+    "--etcd-s3-region=eu-west-1"
+    "--etcd-s3-folder=${folder}"
+    # Mandatory, not an optimisation: 'auto' lookup resolves casa-etcd.s3.l.arrieta.eu,
+    # which has no DNS record and no certificate, because the Ingress serves exactly
+    # one host. Verified 2026-11-02: the bare host answers 403 (MinIO, anonymous deny),
+    # the vhost form does not resolve at all.
+    "--etcd-s3-bucket-lookup-type=path"
+  ];
+in
+{
+  inherit s3Flags;
+
+  serverFlags = s3Flags ++ [
+    # A COUNT, not a duration: the recovery window is this number times the cadence
+    # below, so changing the cron silently changes what this line means. 240 at 6h is
+    # 60 days PER MEMBER -- retention is scoped by folder (see the header), so each of
+    # the three members keeps its own 240 and the bucket holds up to 720 objects.
+    # Raised from 28 (7 days) on 2026-11-03 to match titan's window; size is not the
+    # argument. Casa's members measured ~52 MB each (etcd_mvcc_db_total_size_in_bytes),
+    # so 240 x 3 is ~38 GB on the NAS. If that ever matters, compress before trimming
+    # the window: --etcd-snapshot-compress cuts roughly 10x, but test a restore first
+    # (restore-from-compressed had a bug fixed only in the 1.35.9 backports, #14528).
+    "--etcd-s3-retention=240"
+    # The embedded quotes are load-bearing. k3s.extraFlags is toString'd into a single
+    # ExecStart string and systemd word-splits it, so an unquoted cron arrives as
+    # --etcd-snapshot-schedule-cron=0 plus three stray arguments, which is how titan's
+    # k3s was taken down on 2026-10-03.
+    "--etcd-snapshot-schedule-cron=\"${cron}\""
+  ];
+}
