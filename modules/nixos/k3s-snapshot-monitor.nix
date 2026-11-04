@@ -125,6 +125,16 @@ let
       echo '# TYPE k3s_etcd_snapshot_keys gauge'
       echo "k3s_etcd_snapshot_keys ''${keys}"
     } > "$out"
+    # chmod before the mv or node_exporter never sees the file at all. mktemp creates
+    # 0600 and mv preserves it; node_exporter runs as the `node-exporter` user, not
+    # root (measured on titan: `ps -o user=` -> node-ex+, with
+    # --collector.textfile.directory=/var/lib/node-exporter/textfiles). A 0600 root-owned
+    # file in that directory is skipped silently -- no scrape error, nothing in the
+    # scrape log, just the metric absent from Prometheus while the file on disk reads
+    # perfectly. Measured 2026-11-04: comin.prom in the SAME directory is 0644 and was
+    # scraped throughout; k3s-snapshot.prom was 0600 and was absent for ~80 minutes,
+    # and a real S3 listing timeout at 15:27 landed inside that blind window.
+    chmod 0644 "$out"
     mv "$out" ${cfg.textfileDir}/k3s-snapshot-verify.prom
   '';
 
@@ -189,6 +199,9 @@ let
         echo 'k3s_etcd_snapshot_check_success 0'
       fi
     } > "$out"
+    # chmod before the mv -- see the same line in verifyScript above for why 0600 is
+    # invisible rather than loud.
+    chmod 0644 "$out"
     mv "$out" ${cfg.textfileDir}/k3s-snapshot.prom
   '';
 in
@@ -344,7 +357,13 @@ in
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
       serviceConfig = {
-        type = "oneshot";
+        # `Type`, capitalised. systemd unit keys are case-sensitive and Nix emits
+        # serviceConfig keys verbatim, so this was silently ignored -- the journal said
+        # `Unknown key 'type' in section [Service], ignoring` on every daemon-reload --
+        # and the unit ran Type=simple. systemd therefore did not wait for ExecStart to
+        # finish, which is what let a 5-minute hung `etcd-snapshot list` (the 15:27
+        # timeout, error ID 40848) present as a clean ~1s "Deactivated successfully".
+        Type = "oneshot";
         EnvironmentFile = cfg.envFile;
         ExecStart = script;
       };
@@ -358,7 +377,8 @@ in
       # coreutils the script does need (mktemp, shred, sort, cut, tr) are already on the
       # default unit path.
       serviceConfig = {
-        type = "oneshot";
+        # `Type`, capitalised; see the note in systemd.services.k3s-snapshot-monitor.
+        Type = "oneshot";
         EnvironmentFile = cfg.envFile;
         ExecStart = verifyScript;
       };
