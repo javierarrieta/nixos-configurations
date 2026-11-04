@@ -460,6 +460,8 @@ in
     enable = true;
     envFile = config.sops.secrets."titan/minio_env".path;
     s3Flags = vars.snapshotS3Flags;
+    # Age proves an upload landed; this proves the bytes open as a database.
+    verify.enable = true;
   };
 
   sops.secrets."ssh_keys/titan_host_private" = {

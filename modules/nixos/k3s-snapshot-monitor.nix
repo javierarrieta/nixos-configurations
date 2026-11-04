@@ -7,9 +7,132 @@
 let
   cfg = config.k3sSnapshotMonitor;
   s3Args = lib.concatStringsSep " " (map lib.escapeShellArg cfg.s3Flags);
+
+  # Pulled out of s3Flags rather than declared again, so the verify step cannot drift
+  # from the listing step the way the flag list drifted from the server's own.
+  flagValue =
+    prefix:
+    lib.strings.removePrefix prefix (
+      lib.lists.findFirst (f: lib.strings.hasPrefix prefix f) "" cfg.s3Flags
+    );
+  s3Endpoint = flagValue "--etcd-s3-endpoint=";
+  s3Bucket = flagValue "--etcd-s3-bucket=";
+  s3Region = flagValue "--etcd-s3-region=";
+
+  # Age tells you a snapshot was UPLOADED. It cannot tell you the bytes are a database:
+  # k3s treats a successful HTTP 200 as the end of the story, and a truncated or corrupt
+  # object sits in the bucket looking perfectly fresh. This downloads the newest object
+  # and asks etcdutl to open it, which is the shallowest check that means "restorable".
+  #
+  # The file is every Secret in the cluster in plaintext, hence umask 077, a private
+  # mktemp -d, and shred on every exit path including signals.
+  verifyScript = pkgs.writeShellScript "k3s-snapshot-verify" ''
+    set -u
+    umask 077
+    work=$(mktemp -d)
+    snap="$work/snap"
+    err=$(mktemp)
+    list=$(mktemp)
+    # Written beside its destination, not in /tmp: mv from tmpfs to a disk filesystem is
+    # copy+unlink, so node_exporter can catch a half-written file. A rename inside
+    # textfileDir is atomic, and the dot-prefixed name does not end in .prom so the
+    # collector skips it until the rename lands.
+    out=$(mktemp ${cfg.textfileDir}/.k3s-snapshot-verify.XXXXXX 2>/dev/null) || out="$work/prom"
+    cleanup() {
+      shred -u "$snap" 2>/dev/null
+      rm -f "$err" "$out" "''${list:-}" 2>/dev/null
+      rm -rf "$work" 2>/dev/null
+    }
+    trap cleanup EXIT HUP INT TERM
+
+    status=0
+    reason=""
+
+    if ! ${config.services.k3s.package}/bin/k3s etcd-snapshot list ${s3Args} >"$list" 2>"$err"; then
+      status=1
+      reason="list failed: $(tail -c 200 "$err" | tr '\n' ' ')"
+    fi
+
+    # Newest = the largest trailing unix epoch in the object key. Deliberately NOT the
+    # Created column: its awk field number depends on how k3s formats Size ("49 MB" is
+    # two fields, "49MB" is one), so a release that changes the spacing would move the
+    # timestamp out from under a positional parse and do it silently. The key suffix is
+    # part of the name k3s itself builds (name-nodeName-unix), so it is stable.
+    loc=$("${pkgs.gawk}/bin/awk" '$2 ~ /^s3:\/\// { print $2 }' "$list" | while read -r l; do
+            k=''${l##*/}; e=''${k##*-}
+            case "$e" in *[!0-9]*) continue ;; esac
+            [ -n "$e" ] || continue
+            printf '%s\t%s\n' "$e" "$l"
+          done | sort -n | tail -n1 | cut -f2)
+    if [ -z "$loc" ]; then
+      status=1
+      reason="no s3:// rows to verify"
+    fi
+
+    key=''${loc#s3://${s3Bucket}/}
+    if [ "$status" -eq 0 ]; then
+      # SigV4 in curl itself (>= 8.9) rather than boto3 or mc: curl is already on every
+      # host, and this is the exact command line proven against the live bucket before
+      # it shipped. Path-style, matching --etcd-s3-bucket-lookup-type=path.
+      #
+      # --fail-with-body, not --fail: with --fail the S3 error document is discarded, so a
+      # 403 (revoked key, wrong bucket policy) and a DNS failure leave the same one line
+      # in the journal. The body lands in "$snap" and explains itself.
+      #
+      # The `:-` defaults are load-bearing. Under `set -u` an unbound credential aborts the
+      # script BEFORE it publishes anything, which leaves the previous -- healthy -- value
+      # in the textfile forever: a missing EnvironmentFile would read as "backups fine".
+      if ! ${pkgs.curl}/bin/curl --fail-with-body --silent --show-error --location --max-time 600 \
+             --aws-sigv4 "aws:amz:${s3Region}:s3" \
+             --user "''${AWS_ACCESS_KEY_ID:-}:''${AWS_SECRET_ACCESS_KEY:-}" \
+             "https://${s3Endpoint}/${s3Bucket}/''${key}" -o "$snap"; then
+        status=1
+        reason="download of ''${key} failed"
+      fi
+    fi
+
+    revision=-1
+    keys=-1
+    if [ "$status" -eq 0 ]; then
+      # passthru.deps.etcdutl, not pkgs.etcd: the top-level attribute is a symlinkJoin of
+      # etcdserver + etcdutl + etcdctl, so the whole etcd release would land on four
+      # hosts for one binary. Same version (3.6.14), ~1/3 the closure.
+      if ! st=$("${pkgs.etcd.passthru.deps.etcdutl}/bin/etcdutl" snapshot status "$snap" --write-out=json 2>"$err"); then
+        status=1
+        reason="etcdutl could not open the snapshot: $(tail -c 200 "$err" | tr '\n' ' ')"
+      else
+        revision=$(echo "$st" | ${pkgs.jq}/bin/jq -r '.revision // -1')
+        keys=$(echo "$st" | ${pkgs.jq}/bin/jq -r '.totalKey // -1')
+        # A non-numeric value makes node_exporter reject the ENTIRE file, which would
+        # take restoreable down with it and turn "bad snapshot" into "no monitor".
+        case "$revision" in *[!0-9]*) revision=-1 ;; esac
+        case "$keys" in *[!0-9]*) keys=-1 ;; esac
+      fi
+    fi
+
+    if [ "$status" -ne 0 ]; then
+      echo "snapshot verify failed: $reason" >&2
+    fi
+
+    {
+      echo '# HELP k3s_etcd_snapshot_restoreable 1 when the newest snapshot opens as a valid etcd database.'
+      echo '# TYPE k3s_etcd_snapshot_restoreable gauge'
+      if [ "$status" -eq 0 ]; then echo 'k3s_etcd_snapshot_restoreable 1'; else echo 'k3s_etcd_snapshot_restoreable 0'; fi
+      echo '# HELP k3s_etcd_snapshot_revision MVCC revision of the newest snapshot; -1 when unverifiable.'
+      echo '# TYPE k3s_etcd_snapshot_revision gauge'
+      echo "k3s_etcd_snapshot_revision ''${revision}"
+      echo '# HELP k3s_etcd_snapshot_keys Keys in the newest snapshot; a collapse is corruption, not idleness.'
+      echo '# TYPE k3s_etcd_snapshot_keys gauge'
+      echo "k3s_etcd_snapshot_keys ''${keys}"
+    } > "$out"
+    mv "$out" ${cfg.textfileDir}/k3s-snapshot-verify.prom
+  '';
+
   script = pkgs.writeShellScript "k3s-snapshot-monitor" ''
     set -u
-    out=$(mktemp)
+    # Same-fs rename for the same reason as the verify script: /tmp is tmpfs and
+    # /var/lib is not, so `mv` there is a copy and the collector can read it mid-write.
+    out=$(mktemp ${cfg.textfileDir}/.k3s-snapshot.XXXXXX 2>/dev/null) || out=$(mktemp)
     trap 'rm -f "$out"' EXIT
 
     # `k3s etcd-snapshot list` does NOT read the k3s unit's flags -- the S3 endpoint,
@@ -65,8 +188,8 @@ let
       else
         echo 'k3s_etcd_snapshot_check_success 0'
       fi
-    } > "$out.prom"
-    mv "$out.prom" ${cfg.textfileDir}/k3s-snapshot.prom
+    } > "$out"
+    mv "$out" ${cfg.textfileDir}/k3s-snapshot.prom
   '';
 in
 {
@@ -96,6 +219,21 @@ in
       type = lib.types.str;
       default = "15m";
       description = "How often to refresh the metric.";
+    };
+    verify = {
+      enable = lib.mkEnableOption ''
+        Download the newest snapshot and verify it with `etcdutl snapshot status`,
+        publishing restoreability, revision and key count alongside the age.
+      '';
+      interval = lib.mkOption {
+        type = lib.types.str;
+        default = "6h";
+        description = ''
+          How often to download and verify the newest snapshot. Each run pulls one
+          snapshot over the network, so this is deliberately much slower than the
+          age check: it is a proof of restorability, not a liveness probe.
+        '';
+      };
     };
   };
 
@@ -150,6 +288,43 @@ in
           silently ignored.
         '';
       })
+      # The verify step rebuilds the download URL from these three, so an s3Flags list
+      # without them would build `https:///` and fail at runtime on a host whose age
+      # metric looks perfectly healthy.
+      (lib.mkIf cfg.verify.enable {
+        assertion = s3Endpoint != "" && s3Bucket != "" && s3Region != "";
+        message = ''
+          k3sSnapshotMonitor.verify.enable needs --etcd-s3-endpoint, --etcd-s3-bucket and
+          --etcd-s3-region in s3Flags to build the download URL. Found:
+          endpoint='${s3Endpoint}' bucket='${s3Bucket}' region='${s3Region}'.
+        '';
+      })
+      # The download URL is path-style (endpoint/bucket/key). With vhost lookup the two
+      # disagree and every download 404s -- while the age metric, which uses k3s' own
+      # listing, stays green.
+      (lib.mkIf cfg.verify.enable {
+        assertion = builtins.elem "--etcd-s3-bucket-lookup-type=path" cfg.s3Flags;
+        message = ''
+          k3sSnapshotMonitor.verify builds a path-style URL, so s3Flags needs
+          --etcd-s3-bucket-lookup-type=path. A vhost configuration makes every verify
+          download fail while the age metric keeps reporting success.
+        '';
+      })
+      # etcdutl opens a bolt file. If compression is ever turned on -- and
+      # common/etcd-snapshot-s3.nix names --etcd-snapshot-compress as the size lever --
+      # every object becomes an archive, etcdutl fails permanently, and restoreable pins
+      # at 0 against a perfectly good backup. Fail the build instead of lying.
+      (lib.mkIf cfg.verify.enable {
+        assertion =
+          !(lib.lists.any (f: lib.strings.hasPrefix "--etcd-snapshot-compress" f) (
+            cfg.s3Flags ++ (config.k3s.extraFlags or [ ])
+          ));
+        message = ''
+          k3sSnapshotMonitor.verify cannot read a compressed snapshot; etcdutl expects an
+          uncompressed bolt file. Drop --etcd-snapshot-compress, or decompress in the
+          verify script before calling etcdutl.
+        '';
+      })
     ];
 
     # The NixOS node_exporter does not read the textfile dir unless told to; the fleet's
@@ -172,6 +347,30 @@ in
         type = "oneshot";
         EnvironmentFile = cfg.envFile;
         ExecStart = script;
+      };
+    };
+
+    systemd.services.k3s-snapshot-verify = lib.mkIf cfg.verify.enable {
+      description = "Verify the newest k3s etcd snapshot opens as a valid database";
+      after = [ "network-online.target" ];
+      wants = [ "network-online.target" ];
+      # No `path`: every tool is called by absolute store path from the script, and the
+      # coreutils the script does need (mktemp, shred, sort, cut, tr) are already on the
+      # default unit path.
+      serviceConfig = {
+        type = "oneshot";
+        EnvironmentFile = cfg.envFile;
+        ExecStart = verifyScript;
+      };
+    };
+
+    systemd.timers.k3s-snapshot-verify = lib.mkIf cfg.verify.enable {
+      description = "Download and verify the newest k3s etcd snapshot";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "10m";
+        OnUnitActiveSec = cfg.verify.interval;
+        AccuracySec = "1m";
       };
     };
 
