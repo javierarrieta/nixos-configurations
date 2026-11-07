@@ -42,6 +42,13 @@ DOMAIN="${COMIN_DOMAIN:-casa.arrieta}"
 ssh_host() { case "$1" in *.*) echo "$1";; *) echo "$1.$DOMAIN";; esac; }
 ssh_port() { case "$1" in titan|titan.arrieta.eu) echo 13491;; *) echo 22;; esac; }
 
+# The home cluster, named. Relying on an ambient current-context was a real
+# failure mode (2026-11-07): ~/.kube/config had `current-context: ""`, kubectl
+# fell back to localhost:8080, node_ready swallows stderr, and the canary wait
+# looped 600s in silence on a node that was Ready the whole time. The gatekeeper
+# names its cluster so a local kubeconfig edit cannot impersonate an outage.
+KUBE_CONTEXT="${COMIN_KUBE_CONTEXT:-casa}"
+
 is_k8s_node() { # host -> 0 if the host is a k8s node
   printf '%s\n' "${K8S_NODES[@]}" | grep -qx "$1"
 }
@@ -68,11 +75,11 @@ pending() { # host -> prints 1 if a deploy confirmation is pending
 }
 
 node_ready() { # node -> 1 when Ready
-  kubectl get node "$1" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null
+  kubectl --context "$KUBE_CONTEXT" get node "$1" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null
 }
 
 kubelet_version() { # node -> the kubeletVersion the API server reports
-  kubectl get node "$1" -o jsonpath='{.status.nodeInfo.kubeletVersion}' 2>/dev/null
+  kubectl --context "$KUBE_CONTEXT" get node "$1" -o jsonpath='{.status.nodeInfo.kubeletVersion}' 2>/dev/null
 }
 
 # Optional proof that the switch actually landed. `deployment.status == done`
@@ -96,16 +103,37 @@ wait_version() { # node -> wait until it reports EXPECT_VERSION
 
 wait_for() { # desc, seconds, cmd...
   local desc="$1" timeout="$2"; shift 2
-  local i=0
-  until "$@" | grep -q "1\|True\|done"; do
-    [ $i -lt "$timeout" ] || { echo "TIMEOUT waiting for $desc"; exit 1; }
+  local i=0 out=""
+  # Progress to stderr, once per 30s, with the last value actually observed:
+  # a silent 600s loop is indistinguishable from a hung script when the probe
+  # returns empty (unreachable API server, bad kubeconfig, wrong node name).
+  until out=$("$@" | grep "1\|True\|done"); do
+    [ $i -lt "$timeout" ] || { echo "TIMEOUT waiting for $desc -- last probe output: '${out:-<empty>}'"; exit 1; }
+    if [ "$i" -gt 0 ] && [ $((i % 30)) -eq 0 ]; then
+      echo "  ... still waiting for $desc (${i}s / ${timeout}s, last probe: '${out:-<empty>}')" >&2
+    fi
     sleep 5; i=$((i + 5))
   done
   echo "$desc OK"
 }
 
+require_cluster() { # fail fast when kubectl cannot reach the cluster at all
+  local out
+  if ! out=$(kubectl --context "$KUBE_CONTEXT" get nodes 2>&1); then
+    echo "ABORT: kubectl --context $KUBE_CONTEXT cannot reach the cluster: ${out:-unknown error}"
+    echo "Fix the kubeconfig, or point the gatekeeper elsewhere with COMIN_KUBE_CONTEXT."
+    exit 1
+  fi
+}
+
 # 1) Canary pre-flight. Suspension = the health gate rolled a canary back,
 #    so abort the rollout before touching the fleet.
+# Cluster reachability is checked before any ssh: without it the first k8s canary
+# burns its full 600s Ready wait on a local kubectl problem.
+for c in "${CANARY_RING[@]}"; do
+  is_k8s_node "$c" && { require_cluster; break; }
+done
+
 for c in "${CANARY_RING[@]}"; do
   echo "== waiting for canary $c to auto-deploy"
   # Probe reachability first: an unreachable canary would otherwise burn the
