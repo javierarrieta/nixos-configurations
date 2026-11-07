@@ -61,17 +61,32 @@ notify() { # message — desktop notification where available (macOS), no-op els
   echo "NOTIFY: $msg"
 }
 
+# Read a host's comin status. A host you cannot read is an ERROR, not an empty
+# answer: every caller below used to treat empty output as "nothing pending", so
+# k8s-server03 was reported as "nothing pending, skipping" for five weeks -- its
+# host key was rotated in 5029fe6 (2026-10-03, after 82ad758 leaked the old one
+# to a public repo), ssh refused on the stale known_hosts entry, and the stderr
+# carrying that refusal went to /dev/null. Same class as the kubectl bug above:
+# a swallowed error impersonating a healthy "nothing to do".
+comin_json() { # host -> comin status JSON on stdout, or non-zero + reason on stderr
+  local out
+  if ! out=$(ssh -o BatchMode=yes -o ConnectTimeout=10 -p "$(ssh_port "$1")" "$(ssh_host "$1")" 'comin status --json' 2>&1) || [ -z "$out" ]; then
+    printf 'comin status unavailable on %s: %s\n' "$1" "${out:0:200}" >&2
+    return 1
+  fi
+  printf '%s\n' "$out"
+}
+
 deploy_status() { # host -> deployer.deployment.status
-  ssh -p "$(ssh_port "$1")" "$(ssh_host "$1")" 'comin status --json' 2>/dev/null | jq -r '.deployer.deployment.status? // "none"'
+  comin_json "$1" | jq -r '.deployer.deployment.status? // "none"'
 }
 
 is_suspended() { # host -> "true" if comin deployer is suspended (manager or deployer level)
-  ssh -p "$(ssh_port "$1")" "$(ssh_host "$1")" 'comin status --json' 2>/dev/null \
-    | jq -r 'if (.is_suspended // false) or (.deployer.is_suspended // false) then "true" else "false" end'
+  comin_json "$1" | jq -r 'if (.is_suspended // false) or (.deployer.is_suspended // false) then "true" else "false" end'
 }
 
 pending() { # host -> prints 1 if a deploy confirmation is pending
-  ssh -p "$(ssh_port "$1")" "$(ssh_host "$1")" 'comin status --json' 2>/dev/null | jq -r 'if (.deploy_confirmer.submitted? != "" and .deploy_confirmer.confirmed? == "") then 1 else 0 end'
+  comin_json "$1" | jq -r 'if (.deploy_confirmer.submitted? != "" and .deploy_confirmer.confirmed? == "") then 1 else 0 end'
 }
 
 node_ready() { # node -> 1 when Ready
@@ -151,7 +166,11 @@ for c in "${CANARY_RING[@]}"; do
     exit 1
   fi
   wait_for "$c deploy done" 1200 deploy_status "$c"
-  if [ "$(is_suspended "$c")" = "true" ]; then
+  # Statement-level assignment, not `if [ "$(f)" = x ]`: a command substitution
+  # swallows the function's exit status, so only a plain assignment lets
+  # set -e abort the run when a canary cannot be read.
+  susp=$(is_suspended "$c")
+  if [ "$susp" = "true" ]; then
     notify "$c rolled back (comin suspended) — rollout aborted"
     echo "ABORT: $c rolled back (comin suspended). Fix main before retrying."
     exit 1
@@ -169,7 +188,8 @@ echo "== canary ring healthy (node05 + llm01 + titan)"
 #    main -> stable merge is pushed.
 fleet_pending=0
 for h in "${ORDER[@]}"; do
-  [ "$(pending "$h")" = "1" ] && fleet_pending=1
+  p=$(pending "$h")
+  if [ "$p" = "1" ]; then fleet_pending=1; fi
 done
 if [ "$fleet_pending" = "0" ]; then
   echo "Fleet has no pending confirmations — merge main -> stable and push, then re-run."
@@ -178,14 +198,16 @@ fi
 
 # 3) Accept the fleet in order, waiting for each to converge.
 for h in "${ORDER[@]}"; do
-  if [ "$(pending "$h")" != "1" ]; then
+  p=$(pending "$h")
+  if [ "$p" != "1" ]; then
     echo "== $h: nothing pending, skipping"
     continue
   fi
   echo "== $h: deploy confirmation pending — accepting"
   ssh -p "$(ssh_port "$h")" "$(ssh_host "$h")" 'comin confirmation accept'
   wait_for "$h deploy done" 900 deploy_status "$h"
-  if [ "$(is_suspended "$h")" = "true" ]; then
+  susp=$(is_suspended "$h")
+  if [ "$susp" = "true" ]; then
     echo "ABORT: $h rolled back (comin suspended). Investigate before continuing."
     exit 1
   fi
