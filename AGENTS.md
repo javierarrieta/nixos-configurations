@@ -983,6 +983,27 @@ alone passes with the old binary still running):
 ```bash
 EXPECT_VERSION=v1.36.4+k3s1 ./scripts/comin-approve.sh
 ```
+
+Gatekeeper environment variables:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `COMIN_ORDER` | `servers-first` | Fleet accept order; `risk` = least -> most critical. |
+| `COMIN_DOMAIN` | `casa.arrieta` | Bind-zone suffix appended to short host names. |
+| `COMIN_KUBE_CONTEXT` | `casa` | Named kube context for every `kubectl` call. The script refuses to run if that context cannot reach the cluster. |
+| `EXPECT_VERSION` | unset | When set, each fleet node must report this `kubeletVersion`. |
+| `VERSION_TIMEOUT` | `600` | Seconds to wait per node for `EXPECT_VERSION`. |
+
+**The gatekeeper fails closed on unreadable hosts (2026-11-07).** A host whose
+`comin status --json` cannot be read -- stale host key in `known_hosts`, host
+powered off, `comin` not installed -- aborts the run with the ssh reason on
+stderr. It used to print "nothing pending, skipping", which is how `k8s-server03`
+sat unconfirmed for five weeks after its host key was rotated in `5029fe6`. Same
+rule for the cluster: `kubectl` is pointed at a **named** context instead of the
+ambient `current-context`, because an empty `current-context` fell back to
+`localhost:8080` and looked exactly like a node that was not Ready. A host held
+back on purpose must be removed from `ORDER` for that run, not left unreachable.
+
 The canary ring does not cover the skew constraint for the home cluster:
 `k8s-node05` is a *worker* and auto-deploys off `main`, so a k3s bump lands
 there before any casa server does. `sudo comin suspend` on node05 before
@@ -991,7 +1012,8 @@ merging to `main`, resume it once the servers have converged.
 Runner requirements (portable since 2026-08-26, macOS optional):
 ssh access to all 12 hosts by `<hostname>.casa.arrieta` (bind zone;
 override the suffix with `COMIN_DOMAIN`), `jq`, `kubectl` with node
-read access. Desktop notifications only fire when `osascript` exists.
+read access and a context named `casa` (or `COMIN_KUBE_CONTEXT` pointing at
+it). Desktop notifications only fire when `osascript` exists.
 
 #### Hermes rollout account (`modules/nixos/hermes-ssh.nix`)
 
