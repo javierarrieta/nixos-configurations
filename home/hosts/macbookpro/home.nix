@@ -55,6 +55,16 @@ in
     pkgs.minio-client
     pkgs.wp-cli
 
+    # Blender from nixpkgs (5.2.3), not a hand-downloaded .dmg, so it upgrades
+    # with the flake lock like everything else here. Taken from nixos-unstable on
+    # purpose: nixpkgs lists aarch64-darwin as supported on both branches, but
+    # cache.nixos.org only has NARs for the unstable one -- `nix build --dry-run`
+    # for pkgs.blender (5.1.1) reports blender and manifold as local builds on
+    # top of 271 fetches, while unstablePkgs.blender is fully substituted.
+    # Installed on this host only -- modules/home-manager/media.nix is shared with
+    # macbookair, which does not want a 3D suite.
+    unstablePkgs.blender
+
     # Recursive's local Flint inference CLI (see pkgs/rec/default.nix). The
     # package is only the CLI; the ~30 GB model is fetched on the first
     # `rec pull` / `rec serve` into ~/.local/share/rec, and `rec doctor` refuses

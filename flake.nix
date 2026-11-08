@@ -43,29 +43,28 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # pi: terminal coding agent, straight from upstream's own flake. Upstream
-    # ships one now (flake.nix + nix/package.nix), which retires the third-party
-    # lukasl-dev/pi.nix wrapper this used to point at -- that wrapper had drifted
-    # to 0.87.1 while upstream released 1.4.0, and its pi.cachix.org cache only
-    # ever carried x86_64-linux NARs anyway.
+    # pi (the terminal coding agent) is no longer a flake input: it now comes from
+    # `unstablePkgs.pi-coding-agent`, see `piPkg` below.
     #
-    # `stable` is a branch upstream's nix.yml fast-forwards to the newest release
-    # tag once all four systems build, so `nix flake update pi` means "latest
-    # pi". Pin a tag (github:earendil-works/pi/v1.4.0) instead for anything that
-    # must not move under it.
+    # HISTORY -- why the upstream flake input was dropped (2026-11-08). It used to
+    # be `pi.url = "github:earendil-works/pi/stable"`, where `stable` is a branch
+    # upstream's nix.yml fast-forwards to the newest release tag once all four
+    # systems build. Two things made that route unusable for 1.5.0:
     #
-    # THE COST OF THIS CHOICE: upstream builds the flake in CI but publishes no
-    # binary cache, so every host compiles the npm workspace once per version and
-    # needs registry.npmjs.org egress while it does. nixpkgs' own
-    # pi-coding-agent is prebuilt on cache.nixos.org and tracks upstream within
-    # about a day (nixos-26.05 carries it too, frozen at 0.75.4); if that build
-    # cost ever becomes the problem, `unstablePkgs.pi-coding-agent` is the
-    # zero-maintenance swap.
+    # 1. `stable` never advanced past v1.4.0 (4a080252, 2026-10-22) even though
+    #    v1.5.0 (f9a26365, 2026-11-02) is a descendant of it -- because of (2).
+    # 2. The v1.5.0 tag does not evaluate at all, with its own pinned nixpkgs or
+    #    ours: `importNpmLock` over packages/coding-agent/install-lock dies with
+    #    `error: attribute 'integrity' missing` because pi-schema is not packed in
+    #    the install lock. Upstream fixed it in d71c66e0 "fix(nix): pack pi-schema
+    #    for the install lock", which is on `main` but in no release yet.
     #
-    # Deliberately NOT `follows = nixpkgs`: upstream pins its own nixos-unstable
-    # plus a separate nixpkgs-26.05-darwin tree for Intel macOS. The closure is
-    # self-contained, so the version skew is contained to pi.
-    pi.url = "github:earendil-works/pi/stable";
+    # So the only way to run 1.5.0 today was nixpkgs' own pi-coding-agent, which
+    # also removes the old cost of the upstream flake: no binary cache upstream
+    # meant every host compiled the npm workspace once per version. To go back,
+    # re-add the input (ref = "stable") and restore
+    # `piPkg = pi.packages.${system}.pi;` once `stable` has moved past the release
+    # you want -- nixos-26.05 is NOT an option, it is frozen at 0.75.4.
 
     # Agent skills vendored straight from their upstream repos and symlinked into
     # ~/.pi/agent/skills by modules/home-manager/dev-tools.nix. These were
@@ -134,7 +133,6 @@
       codex-cli-nix,
       halogen-flash,
       herdr-nix,
-      pi,
       caveman-skills,
       gitguardian-skills,
       vercel-skills,
@@ -159,12 +157,24 @@
         };
         # Prebuilt herdr binary for this system (see the herdr-nix input note).
         herdrPkg = herdr-nix.packages.${system}.default;
-        # pi binary for this system (see the pi input note; upstream names the
-        # attribute `pi`, the old wrapper called it `coding-agent`). Package only
-        # -- the agent config is rendered by modules/home-manager/dev-tools.nix
-        # rather than the flake's own homeModules, so the merge semantics stay
-        # reviewable in this repo.
-        piPkg = pi.packages.${system}.pi;
+        # pi binary for this system. Package only -- the agent config is rendered
+        # by modules/home-manager/dev-tools.nix rather than the flake's own
+        # homeModules, so the merge semantics stay reviewable in this repo.
+        #
+        # 1.5.0 from nixos-unstable, prebuilt on cache.nixos.org. It used to be
+        # `pi.packages.${system}.pi` from upstream's own flake; see the `pi` note
+        # in `inputs` for why that input is gone (v1.5.0 does not evaluate, and
+        # `stable` is still 1.4.0). Do not swap this for `pkgs`/nixos-26.05: that
+        # tree freezes pi-coding-agent at 0.75.4.
+        #
+        # Re-imports `unstable` rather than reusing `unstablePkgs` above because
+        # this attrset is not `rec`; Nix caches the import, so it is the same
+        # package set either way.
+        piPkg =
+          (import unstable {
+            localSystem = system;
+            config.allowUnfree = false;
+          }).pi-coding-agent;
         # Vendored skill sources, consumed by modules/home-manager/dev-tools.nix.
         agentSkills = {
           caveman = caveman-skills;
