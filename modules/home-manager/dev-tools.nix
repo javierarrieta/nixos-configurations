@@ -548,8 +548,9 @@ in
 
       pkgsUnfree.coder
     ]
-    # pi comes from the `piPkg` special arg (upstream's own flake; see the `pi`
-    # input) because nixos-26.05 freezes pi-coding-agent at an old release. It
+    # pi comes from the `piPkg` special arg (nixos-unstable's `pi-coding-agent`;
+    # see the `pi` note in flake.nix) because nixos-26.05 freezes pi-coding-agent
+    # at an old release. It
     # stays gated with the rest of this module: on configOnly
     # hosts (the coder workspaces) pi is installed by hand, because its
     # closure pulls dns-root-data -- a root-owned, DB-unregistered leftover
@@ -823,12 +824,12 @@ in
   # `jdkEnable`: a host whose JDK comes from outside Nix must not have JAVA_HOME
   # pinned here, or it overrides that manager on every shell.
   #
-  # PI_*: pi's upstream flake wrapper is thinner than the nixpkgs
-  # `pi-coding-agent` that used to provide the binary -- it prefixes fd and
-  # ripgrep onto PATH and stops there, so telemetry is on and every start asks
-  # pi.dev whether a newer release exists. That check is meaningless here: the
-  # version moves when `nix flake update pi` says so, not when upstream
-  # publishes. Gated on `piEnable` rather than `!configOnly`, because configOnly
+  # PI_*: pi's update check is meaningless here either way. The nixpkgs
+  # `pi-coding-agent` that provides the binary prefixes fd and ripgrep onto PATH
+  # and stops there, and the version moves when the `unstable` input moves, not
+  # when upstream publishes -- so `pi` must not phone home on every start. (The
+  # upstream flake wrapper this briefly replaced was thinner still; see the `pi`
+  # note in flake.nix.) Gated on `piEnable` rather than `!configOnly`, because configOnly
   # hosts (the coder workspaces) take the binary from the workspace image but run
   # the same agent, so they want these too.
   home.sessionVariables =
