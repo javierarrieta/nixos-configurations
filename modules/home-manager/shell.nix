@@ -373,6 +373,37 @@ in
     }
     // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
       credential.helper = "osxkeychain";
+    }
+    // lib.optionalAttrs (!pkgs.stdenv.hostPlatform.isDarwin) {
+      # On the github.com scope only, so this cannot answer a prompt for another
+      # host. Why it exists at all: Coder brokers GitHub access in these
+      # workspaces through GIT_ASKPASS=/tmp/coder.<x>/coder, and the token that
+      # flow mints authenticates and is then refused -- `git push` fails with
+      # "Permission to <owner>/<repo>.git denied to <user>", which reads like a
+      # repository permission problem rather than a credential one. Measured
+      # 2026-11-10 in the dev.titan workspace: `coder external-auth access-token
+      # github` exits 0 with a 40-char token, `gh auth status` reports repo
+      # scope, and the same push succeeds the moment the gh token answers
+      # instead. Credential helpers are consulted before GIT_ASKPASS, so
+      # declaring one here wins without unsetting anything Coder injects.
+      #
+      # Bare `gh`, never ${pkgs.gh}/bin/gh: the config files are rendered on the
+      # configOnly hosts too, where the image owns every binary and the contract
+      # above forbids pulling a closure in through a store path. gh is on PATH on
+      # every host that gets this file (./cli-tools.nix), and an empty answer is
+      # handled below rather than assumed away.
+      #
+      # The guard is the point: when `gh auth token` fails this helper outputs
+      # nothing at all, so git moves on to the next helper or askpass exactly as
+      # it did before. Emitting an empty password instead would present a
+      # credential git then has to reject, which turns "not logged in yet" into a
+      # 401 on every host where nobody ran `gh auth login`.
+      #
+      # Not set on darwin: osxkeychain is the credential store there, the Coder
+      # askpass path does not exist, and a second helper would only cloud which
+      # one answered.
+      credential."https://github.com".helper =
+        "!f() { t=$(gh auth token 2>/dev/null) || exit 0; echo username=x-access-token; echo \"password=$t\"; }; f";
     };
   };
 
