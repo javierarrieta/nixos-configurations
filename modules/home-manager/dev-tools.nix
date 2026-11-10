@@ -243,6 +243,111 @@ let
   piSettingsFile = jsonFormat.generate "pi-settings.json" piSettings;
   piModelsFile = jsonFormat.generate "pi-models.json" piModels;
 
+  # pi-subagents concurrency. The scarce resource is the endpoint, not the CPU:
+  # llm01's halogen admits HALOGEN_KV_SLOTS=4 requests and halves each one's
+  # throughput when it admits more. pi itself sends one request per turn, so the
+  # fan-out that overruns those slots comes entirely from pi-subagents -- every
+  # child is another request.
+  #
+  # Two knobs, and they bound different scopes. Getting them confused is exactly
+  # what an earlier revision of this block did, so each claim below is against the
+  # 0.76.0 pin in `piSettings.packages`, read out of
+  # ~/.pi/agent/npm/node_modules/pi-subagents:
+  #
+  # - `globalConcurrencyLimit` is PER RUN, not per session. Its semaphore is
+  #   constructed inside runSubagent (src/runs/background/subagent-runner.js:1516)
+  #   and once per runWorkflowScript (src/workflows/scripted-workflow.js:2004), so
+  #   two concurrent async runs get two of them; upstream says the same
+  #   (docs/configuration.md:379, "Caps simultaneously running children inside one
+  #   run"). It also queues rather than failing: Semaphore.acquire pushes onto a
+  #   wait queue (src/runs/shared/parallel-utils.js:38-45) and queued children
+  #   "begin when a running sibling releases capacity".
+  # - `maxActiveAsyncRunsPerSession` is the session-wide one. It caps concurrent
+  #   top-level async runs per parent session and is the knob that refuses a launch
+  #   before any run artifact exists when the capacity cannot fit
+  #   (docs/configuration.md:411, :427).
+  #
+  # So the peak is 1 parent + N async runs x C children per run, against halogen's
+  # 4 slots (numbers from hosts/llm01/configuration.nix):
+  #
+  #   N = maxActiveAsyncRunsPerSession  C = globalConcurrencyLimit  peak requests
+  #   unset (unlimited)                 3                           unbounded
+  #   3                                 3                           10
+  #   2                                 2                           5
+  #   1                                 3                           4   <- below
+  #   3                                 1                           4   <- no fan-out
+  #
+  # The parent is budgeted because an async launch does not block it: a foreground
+  # child leaves the parent waiting on the tool call with no request in flight,
+  # which is why docs/configuration.md:411 charges it no slot, while an async child
+  # lets the parent keep sending. N=1 is not a guess -- it is the only N that keeps
+  # C=3, the fan-out HALOGEN_CACHE_BRANCHES=3 was sized for, inside four slots.
+  # Raising N means lowering C by the same factor, and C=1 is no fan-out at all.
+  #
+  # The price of N=1 is that a slot is sticky: it releases on terminal state plus
+  # observed process-terminal proof, and a wedged run holds it for
+  # capacity.abandonedSlotReleaseAfterMs, which defaults to 20 minutes
+  # (docs/configuration.md:413-421) -- twenty minutes of refusing every async
+  # launch after one bad one. So it goes to its 5-minute floor, the minimum the
+  # validator allows (src/runs/background/active-async-capacity.js:13).
+  #
+  # Note how this file fails if a later edit puts an out-of-range number in it:
+  # config.js validates the whole object on load, and because none of these keys
+  # are in its FAIL_CLOSED_CONFIG_KEYS (src/extension/config.js:16), a validation
+  # error drops every cap here and leaves only a startup console line. Measured:
+  # a file with maxActiveAsyncRunsPerSession = -1 loads as {}. So a typo in the
+  # range-constrained values below is silently permissive, not loudly wrong.
+  #
+  # A host that serves a different endpoint overrides any of these keys under
+  # `pi.subagentConcurrency` in its userOptions.nix; recursiveUpdate keeps the
+  # siblings, so setting only globalConcurrencyLimit leaves the async cap and the
+  # reclaim floor intact. A host that wants several independent async trees sets N
+  # and C as a pair from the table, never one alone.
+  #
+  # Deliberately absent: `parallel.maxTasks` and `parallel.concurrency`. They are
+  # documented (docs/configuration.md:445-456) and typed, but nothing reads them in
+  # 0.76.0: resolveTopLevelParallelMaxTasks/Concurrency
+  # (src/shared/types.js:140-147) have no callers anywhere in the package, and the
+  # runner uses a hardcoded MAX_PARALLEL_CONCURRENCY = 4
+  # (src/runs/shared/parallel-utils.js:125, used at subagent-runner.js:3432 and
+  # :3731). Declaring them would be a bound that binds nothing; re-add only once a
+  # pin bump wires them up. Also absent: maxSubagentSpawnsPerSession /
+  # maxSubagentSpawnsPerRun, which are cumulative budgets rather than concurrency.
+  piSubagentConfig = lib.recursiveUpdate {
+    # C -- children running at once inside one run.
+    globalConcurrencyLimit = 3;
+    # N -- top-level async runs at once across the session.
+    maxActiveAsyncRunsPerSession = 1;
+    capacity = {
+      # Floor of the accepted range; see the sticky-slot note above.
+      abandonedSlotReleaseAfterMs = 5 * 60 * 1000;
+    };
+  } (piCfg.subagentConcurrency or { });
+
+  # Only rendered when pi-subagents is actually pinned above: the file means
+  # nothing without the extension, and a config for a package nobody installed
+  # is one more thing that reads as live.
+  piSubagentsPackage = lib.findFirst (
+    p: lib.hasPrefix "npm:pi-subagents@" p
+  ) null piSettings.packages;
+
+  # Linked into the store, not merged -- see the note on `piSettings` for the
+  # rule. pi-subagents only reads this file: 0.76.0 ships saveConfig/updateConfig
+  # in extensions/subagent/config.js and nothing in the package calls them, so
+  # there is no writer to keep writable. The trade is the same one models.json
+  # makes: if a future version starts persisting settings there, it fails with
+  # EACCES at the moment of the write rather than quietly diverging until the
+  # next switch overwrites it.
+  piSubagentConfigFiles = lib.optionalAttrs (piSubagentsPackage != null) {
+    ".pi/agent/extensions/subagent/config.json" = {
+      source = jsonFormat.generate "pi-subagent-config.json" piSubagentConfig;
+      # A hand-made config is exactly what this collides with. force because Home
+      # Manager refuses to replace one that is not its own symlink, and a refused
+      # link would fail the whole home generation over one file.
+      force = true;
+    };
+  };
+
   # Skills vendored from their upstream repos into pi's personal skills dir.
   # These used to be installed imperatively with the `skills` CLI, which left
   # ~/.agents/skills plus a .skill-lock.json nothing in this repo could
@@ -499,6 +604,16 @@ let
   # vendoring it would freeze it against the next herdr update.
   piForeignExtensionNames = [ "herdr-agent-state.ts" ];
 
+  # Directories under ~/.pi/agent/extensions that this repo owns but does not
+  # vendor as an extension. pi-subagents keeps its config at
+  # extensions/subagent/config.json (linked by `piSubagentConfigFiles` above), and
+  # the startup pruner below walks every entry in that directory. Naming it there
+  # is safe because pi does not load a subdirectory as an extension unless it
+  # holds an index.ts/index.js -- a `subagent` directory holding one JSON file is
+  # inert to the loader -- so this buys a truthful sibling entry rather than an
+  # exemption for something pi might execute.
+  piExtensionDirNames = lib.optionals (piSubagentsPackage != null) [ "subagent" ];
+
   piExtensionFiles = builtins.listToAttrs (
     map (
       n:
@@ -565,7 +680,9 @@ in
 
   # Vendored skills -- see `piVendoredSkills` above. They route to pi, so
   # they go when pi does; Home Manager unlinks the ones it managed.
-  home.file = lib.mkIf piEnable (piSkillFiles // piExtensionFiles // piEgm.agentFiles);
+  home.file = lib.mkIf piEnable (
+    piSkillFiles // piExtensionFiles // piEgm.agentFiles // piSubagentConfigFiles
+  );
 
   # The agent config is rendered even on configOnly hosts: those hosts get the
   # pi binary from the workspace image, but settings and model definitions
@@ -707,8 +824,10 @@ in
           # first move for something this repo only just started declaring. Add the
           # file to piExtensionNames (and vendor it under ./pi/extensions/) to
           # silence the line -- or to piForeignExtensionNames if another tool owns
-          # it and has to keep writing it.
-          _pi_extension_names=" ${lib.concatStringsSep " " piExtensionNames} "
+          # it and has to keep writing it. piExtensionDirNames names the
+          # directories this repo links a config into instead of an extension, so
+          # the walk does not report its own output as drift.
+          _pi_extension_names=" ${lib.concatStringsSep " " (piExtensionNames ++ piExtensionDirNames)} "
           _pi_foreign_extension_names=" ${lib.concatStringsSep " " piForeignExtensionNames} "
           if [ -d "$_pi_agent_dir/extensions" ]; then
             (
