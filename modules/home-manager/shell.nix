@@ -390,20 +390,40 @@ in
       # Bare `gh`, never ${pkgs.gh}/bin/gh: the config files are rendered on the
       # configOnly hosts too, where the image owns every binary and the contract
       # above forbids pulling a closure in through a store path. gh is on PATH on
-      # every host that gets this file (./cli-tools.nix), and an empty answer is
-      # handled below rather than assumed away.
+      # every host that gets this file, but from two different places, and the one
+      # that matters here is not ./cli-tools.nix: that module gates its whole
+      # home.packages on `!configOnly` (./cli-tools.nix), and both coder
+      # workspaces -- the hosts this fix exists for -- are configOnly
+      # (home/hosts/coder-workspace/userOptions.nix, inherited by
+      # coder-workspace-titan). There gh comes from the workspace image. A host
+      # without gh at all falls through the guard below to askpass, i.e. the old
+      # behaviour, which is the right failure.
       #
-      # The guard is the point: when `gh auth token` fails this helper outputs
-      # nothing at all, so git moves on to the next helper or askpass exactly as
-      # it did before. Emitting an empty password instead would present a
-      # credential git then has to reject, which turns "not logged in yet" into a
-      # 401 on every host where nobody ran `gh auth login`.
+      # The guard is the point: when gh cannot answer, the helper must output
+      # nothing at all, so git moves on to the next helper or askpass exactly as it
+      # did before. Emitting an empty password instead would present a credential
+      # git then has to reject, which turns "not logged in yet" into a 401 on every
+      # host where nobody authenticated. Measured 2026-11-10 on gh 2.101.0: `gh
+      # auth token` exits 1 with empty stdout both with no auth file ("no oauth
+      # token found for github.com") and with a hosts.yml whose oauth_token is the
+      # empty string, while GH_TOKEN="" counts as unset and falls back to the
+      # keyring instead of yielding an empty token -- so `|| exit 0` covers every
+      # case this gh produces. The `[ -n \"$t\" ]` half is belt-and-braces for a gh
+      # that exits 0 printing nothing (a shim on a configOnly image, a future gh)
+      # and costs one clause to make "no credential" mean "no output" always rather
+      # than so far.
       #
       # Not set on darwin: osxkeychain is the credential store there, the Coder
       # askpass path does not exist, and a second helper would only cloud which
       # one answered.
+      #
+      # One consequence worth knowing: this attaches the gh identity to every
+      # github.com git operation from these hosts, including a push to a repo that
+      # token can write, which previously stopped at an auth prompt. The rule that
+      # no push happens without explicit confirmation is a process rule; a helper
+      # that makes auth succeed silently does not enforce it.
       credential."https://github.com".helper =
-        "!f() { t=$(gh auth token 2>/dev/null) || exit 0; echo username=x-access-token; echo \"password=$t\"; }; f";
+        "!f() { t=$(gh auth token 2>/dev/null) || exit 0; [ -n \"$t\" ] || exit 0; echo username=x-access-token; echo \"password=$t\"; }; f";
     };
   };
 
