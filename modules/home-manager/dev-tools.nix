@@ -243,6 +243,62 @@ let
   piSettingsFile = jsonFormat.generate "pi-settings.json" piSettings;
   piModelsFile = jsonFormat.generate "pi-models.json" piModels;
 
+  # pi-subagents concurrency. The scarce resource is the endpoint, not the CPU:
+  # llm01's halogen admits HALOGEN_KV_SLOTS=4 requests and halves each one's
+  # throughput when it admits more. pi itself sends one request per turn, so the
+  # fan-out that overruns those slots comes entirely from pi-subagents -- every
+  # child is another request, and a workflow's children run concurrently.
+  #
+  # The numbers below are halogen's, taken from hosts/llm01/configuration.nix:
+  # HALOGEN_CACHE_BRANCHES=3 is sized for one parent forked into two children, so
+  # 3 concurrent children plus the parent's own request is the 4 slots the server
+  # has. Read as a ceiling on requests, not as a queue: a static parallel group
+  # wider than globalConcurrencyLimit fails before it starts any child instead of
+  # waiting for capacity, so raise both together with HALOGEN_KV_SLOTS or a wide
+  # fan-out stops working. parallel.concurrency is kept equal to the global limit
+  # for the same reason -- a higher per-call value is the wider group that fails.
+  #
+  # A host that serves a different endpoint overrides any of these keys under
+  # `pi.subagentConcurrency` in its userOptions.nix; recursiveUpdate keeps the
+  # siblings, so setting only globalConcurrencyLimit leaves `parallel` intact.
+  #
+  # Deliberately NOT set: maxActiveAsyncRunsPerSession. It is the one knob here
+  # that rejects a routine launch outright instead of bounding what that launch
+  # may fan out to, and each tree still runs under the ceiling above. Also not
+  # set: maxSubagentSpawnsPerSession / maxSubagentSpawnsPerRun, which are
+  # cumulative budgets rather than concurrency.
+  piSubagentConfig = lib.recursiveUpdate {
+    globalConcurrencyLimit = 3;
+    parallel = {
+      concurrency = 3;
+      maxTasks = 6;
+    };
+  } (piCfg.subagentConcurrency or { });
+
+  # Only rendered when pi-subagents is actually pinned above: the file means
+  # nothing without the extension, and a config for a package nobody installed
+  # is one more thing that reads as live.
+  piSubagentsPackage = lib.findFirst (
+    p: lib.hasPrefix "npm:pi-subagents@" p
+  ) null piSettings.packages;
+
+  # Linked into the store, not merged -- see the note on `piSettings` for the
+  # rule. pi-subagents only reads this file: 0.76.0 ships saveConfig/updateConfig
+  # in extensions/subagent/config.js and nothing in the package calls them, so
+  # there is no writer to keep writable. The trade is the same one models.json
+  # makes: if a future version starts persisting settings there, it fails with
+  # EACCES at the moment of the write rather than quietly diverging until the
+  # next switch overwrites it.
+  piSubagentConfigFiles = lib.optionalAttrs (piSubagentsPackage != null) {
+    ".pi/agent/extensions/subagent/config.json" = {
+      source = jsonFormat.generate "pi-subagent-config.json" piSubagentConfig;
+      # A hand-made config is exactly what this collides with. force because Home
+      # Manager refuses to replace one that is not its own symlink, and a refused
+      # link would fail the whole home generation over one file.
+      force = true;
+    };
+  };
+
   # Skills vendored from their upstream repos into pi's personal skills dir.
   # These used to be installed imperatively with the `skills` CLI, which left
   # ~/.agents/skills plus a .skill-lock.json nothing in this repo could
@@ -499,6 +555,16 @@ let
   # vendoring it would freeze it against the next herdr update.
   piForeignExtensionNames = [ "herdr-agent-state.ts" ];
 
+  # Directories under ~/.pi/agent/extensions that this repo owns but does not
+  # vendor as an extension. pi-subagents keeps its config at
+  # extensions/subagent/config.json (linked by `piSubagentConfigFiles` above), and
+  # the startup pruner below walks every entry in that directory. Naming it there
+  # is safe because pi does not load a subdirectory as an extension unless it
+  # holds an index.ts/index.js -- a `subagent` directory holding one JSON file is
+  # inert to the loader -- so this buys a truthful sibling entry rather than an
+  # exemption for something pi might execute.
+  piExtensionDirNames = lib.optionals (piSubagentsPackage != null) [ "subagent" ];
+
   piExtensionFiles = builtins.listToAttrs (
     map (
       n:
@@ -565,7 +631,9 @@ in
 
   # Vendored skills -- see `piVendoredSkills` above. They route to pi, so
   # they go when pi does; Home Manager unlinks the ones it managed.
-  home.file = lib.mkIf piEnable (piSkillFiles // piExtensionFiles // piEgm.agentFiles);
+  home.file = lib.mkIf piEnable (
+    piSkillFiles // piExtensionFiles // piEgm.agentFiles // piSubagentConfigFiles
+  );
 
   # The agent config is rendered even on configOnly hosts: those hosts get the
   # pi binary from the workspace image, but settings and model definitions
@@ -707,8 +775,10 @@ in
           # first move for something this repo only just started declaring. Add the
           # file to piExtensionNames (and vendor it under ./pi/extensions/) to
           # silence the line -- or to piForeignExtensionNames if another tool owns
-          # it and has to keep writing it.
-          _pi_extension_names=" ${lib.concatStringsSep " " piExtensionNames} "
+          # it and has to keep writing it. piExtensionDirNames names the
+          # directories this repo links a config into instead of an extension, so
+          # the walk does not report its own output as drift.
+          _pi_extension_names=" ${lib.concatStringsSep " " (piExtensionNames ++ piExtensionDirNames)} "
           _pi_foreign_extension_names=" ${lib.concatStringsSep " " piForeignExtensionNames} "
           if [ -d "$_pi_agent_dir/extensions" ]; then
             (
