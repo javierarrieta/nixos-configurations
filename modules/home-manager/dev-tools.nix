@@ -247,31 +247,80 @@ let
   # llm01's halogen admits HALOGEN_KV_SLOTS=4 requests and halves each one's
   # throughput when it admits more. pi itself sends one request per turn, so the
   # fan-out that overruns those slots comes entirely from pi-subagents -- every
-  # child is another request, and a workflow's children run concurrently.
+  # child is another request.
   #
-  # The numbers below are halogen's, taken from hosts/llm01/configuration.nix:
-  # HALOGEN_CACHE_BRANCHES=3 is sized for one parent forked into two children, so
-  # 3 concurrent children plus the parent's own request is the 4 slots the server
-  # has. Read as a ceiling on requests, not as a queue: a static parallel group
-  # wider than globalConcurrencyLimit fails before it starts any child instead of
-  # waiting for capacity, so raise both together with HALOGEN_KV_SLOTS or a wide
-  # fan-out stops working. parallel.concurrency is kept equal to the global limit
-  # for the same reason -- a higher per-call value is the wider group that fails.
+  # Two knobs, and they bound different scopes. Getting them confused is exactly
+  # what an earlier revision of this block did, so each claim below is against the
+  # 0.76.0 pin in `piSettings.packages`, read out of
+  # ~/.pi/agent/npm/node_modules/pi-subagents:
+  #
+  # - `globalConcurrencyLimit` is PER RUN, not per session. Its semaphore is
+  #   constructed inside runSubagent (src/runs/background/subagent-runner.js:1516)
+  #   and once per runWorkflowScript (src/workflows/scripted-workflow.js:2004), so
+  #   two concurrent async runs get two of them; upstream says the same
+  #   (docs/configuration.md:379, "Caps simultaneously running children inside one
+  #   run"). It also queues rather than failing: Semaphore.acquire pushes onto a
+  #   wait queue (src/runs/shared/parallel-utils.js:38-45) and queued children
+  #   "begin when a running sibling releases capacity".
+  # - `maxActiveAsyncRunsPerSession` is the session-wide one. It caps concurrent
+  #   top-level async runs per parent session and is the knob that refuses a launch
+  #   before any run artifact exists when the capacity cannot fit
+  #   (docs/configuration.md:411, :427).
+  #
+  # So the peak is 1 parent + N async runs x C children per run, against halogen's
+  # 4 slots (numbers from hosts/llm01/configuration.nix):
+  #
+  #   N = maxActiveAsyncRunsPerSession  C = globalConcurrencyLimit  peak requests
+  #   unset (unlimited)                 3                           unbounded
+  #   3                                 3                           10
+  #   2                                 2                           5
+  #   1                                 3                           4   <- below
+  #   3                                 1                           4   <- no fan-out
+  #
+  # The parent is budgeted because an async launch does not block it: a foreground
+  # child leaves the parent waiting on the tool call with no request in flight,
+  # which is why docs/configuration.md:411 charges it no slot, while an async child
+  # lets the parent keep sending. N=1 is not a guess -- it is the only N that keeps
+  # C=3, the fan-out HALOGEN_CACHE_BRANCHES=3 was sized for, inside four slots.
+  # Raising N means lowering C by the same factor, and C=1 is no fan-out at all.
+  #
+  # The price of N=1 is that a slot is sticky: it releases on terminal state plus
+  # observed process-terminal proof, and a wedged run holds it for
+  # capacity.abandonedSlotReleaseAfterMs, which defaults to 20 minutes
+  # (docs/configuration.md:413-421) -- twenty minutes of refusing every async
+  # launch after one bad one. So it goes to its 5-minute floor, the minimum the
+  # validator allows (src/runs/background/active-async-capacity.js:13).
+  #
+  # Note how this file fails if a later edit puts an out-of-range number in it:
+  # config.js validates the whole object on load, and because none of these keys
+  # are in its FAIL_CLOSED_CONFIG_KEYS (src/extension/config.js:16), a validation
+  # error drops every cap here and leaves only a startup console line. Measured:
+  # a file with maxActiveAsyncRunsPerSession = -1 loads as {}. So a typo in the
+  # range-constrained values below is silently permissive, not loudly wrong.
   #
   # A host that serves a different endpoint overrides any of these keys under
   # `pi.subagentConcurrency` in its userOptions.nix; recursiveUpdate keeps the
-  # siblings, so setting only globalConcurrencyLimit leaves `parallel` intact.
+  # siblings, so setting only globalConcurrencyLimit leaves the async cap and the
+  # reclaim floor intact. A host that wants several independent async trees sets N
+  # and C as a pair from the table, never one alone.
   #
-  # Deliberately NOT set: maxActiveAsyncRunsPerSession. It is the one knob here
-  # that rejects a routine launch outright instead of bounding what that launch
-  # may fan out to, and each tree still runs under the ceiling above. Also not
-  # set: maxSubagentSpawnsPerSession / maxSubagentSpawnsPerRun, which are
-  # cumulative budgets rather than concurrency.
+  # Deliberately absent: `parallel.maxTasks` and `parallel.concurrency`. They are
+  # documented (docs/configuration.md:445-456) and typed, but nothing reads them in
+  # 0.76.0: resolveTopLevelParallelMaxTasks/Concurrency
+  # (src/shared/types.js:140-147) have no callers anywhere in the package, and the
+  # runner uses a hardcoded MAX_PARALLEL_CONCURRENCY = 4
+  # (src/runs/shared/parallel-utils.js:125, used at subagent-runner.js:3432 and
+  # :3731). Declaring them would be a bound that binds nothing; re-add only once a
+  # pin bump wires them up. Also absent: maxSubagentSpawnsPerSession /
+  # maxSubagentSpawnsPerRun, which are cumulative budgets rather than concurrency.
   piSubagentConfig = lib.recursiveUpdate {
+    # C -- children running at once inside one run.
     globalConcurrencyLimit = 3;
-    parallel = {
-      concurrency = 3;
-      maxTasks = 6;
+    # N -- top-level async runs at once across the session.
+    maxActiveAsyncRunsPerSession = 1;
+    capacity = {
+      # Floor of the accepted range; see the sticky-slot note above.
+      abandonedSlotReleaseAfterMs = 5 * 60 * 1000;
     };
   } (piCfg.subagentConcurrency or { });
 
