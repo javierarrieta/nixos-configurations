@@ -20,7 +20,7 @@ not discoveries to make during an incident.
 | setting | value | date |
 |---|---|---|
 | Reverse DNS `<OVH_PUBLIC_IP>` → `titan.arrieta.eu` | ____ | ____ |
-| Edge Network Firewall | nine rules below, applied | 2026-10-02 |
+| Edge Network Firewall | ten rules below, applied | 2026-11-13 (panel read); first recorded 2026-10-02 |
 | Rescue mode SSH key (`rescueSshKey`) | ____ | ____ |
 | Proactive maintenance / interventions | **ENABLED** (spec Q20) | 2026-10-02 |
 | Boot mode | hard disk (must be restored after any rescue session) | ____ |
@@ -40,17 +40,40 @@ Panel path: **Network → Public IP addresses → `⁝` on the IPv4 → Configur
 Firewall**. It is per IP (IPv4 only), 20 rules max, lowest priority evaluated first, chain
 stops at the first match.
 
+**Re-read from the panel 2026-11-13. It has drifted from the set recorded on 2026-10-02.**
+Two changes, one benign and one that needs a decision:
+
+1. **Priorities were reshuffled.** The 2026-10-02 order was established/udp53/icmp/22/13491/
+   80/443/51820; the panel now reads icmp/udp53/udp53/established/80/443/13491/22/51820.
+   **This is behaviourally inert today**, because every rule except the catch-all is an Accept
+   on a disjoint match, so first-match-wins cannot pick a different answer regardless of order.
+   It stops being inert the moment a rule is added whose match overlaps another's.
+2. **There are now two UDP/53 Accept rules where the 2026-10-02 set had one.** The original was
+   *source* port 53 — DNS replies, for the reason spelled out below. The second is unrecorded.
+   **Confirm which field it sets.** If it is destination port 53, the ENF now accepts inbound
+   UDP/53 from anywhere, and titan is one misconfigured `bind` away from being an internet
+   resolver: `meshDns` is safe only because it binds the hub's own `wg0` address and nothing
+   else (`modules/nixos/mesh-dns.nix:11-14`), which is a host-side guarantee, not an ENF one.
+   If it is a second source-port-53 rule it is a harmless duplicate and should be deleted for
+   clarity. Either way the panel and this file must agree.
+
 | prio | rule | why |
 |---|---|---|
-| 0 | Accept TCP, TCP state = established, **Fragments unticked** | the ENF is stateless; without this titan cannot `git fetch` or pull from Attic at all |
-| 1 | Accept UDP, **source port 53** | DNS replies. There is no state field on UDP rules — the source port is the only handle. Load-bearing for more than the host's own resolution: `meshDns.forwardAddresses` on titan forwards to `1.1.1.1`/`9.9.9.9`, and without this rule the queries leave and only the replies are dropped, so every mesh client lookup times out while `dig @213.186.33.99` still works (OVH's resolver is inside the OVHcloud network and never hits the ENF). Symptom seen 2026-10-10. |
-| 2 | Accept ICMP | path MTU / diagnostics |
-| 3 | Accept TCP dst 22 | rescue mode only — rescue sshd listens on 22 and has no host firewall. In normal operation nothing listens on 22, so this costs a scanner a `connection refused` |
-| 4 | Accept TCP dst 13491 | SSH |
-| 5 | Accept TCP dst 80 | ingress |
-| 6 | Accept TCP dst 443 | ingress |
-| 7 | Accept UDP dst 51820 | WireGuard |
+| 0 | Accept ICMP | path MTU / diagnostics |
+| 1 | Accept UDP port 53 | DNS replies. There is no state field on UDP rules — the source port is the only handle. Load-bearing for more than the host's own resolution: `meshDns.forwardAddresses` on titan forwards to `1.1.1.1`/`9.9.9.9`, and without this rule the queries leave and only the replies are dropped, so every mesh client lookup times out while `dig @213.186.33.99` still works (OVH's resolver is inside the OVHcloud network and never hits the ENF). Symptom seen 2026-10-10. |
+| 2 | Accept UDP port 53 — **second instance, unrecorded, see drift note above** | |
+| 3 | Accept TCP, TCP state = established, **Fragments unticked** | the ENF is stateless; without this titan cannot `git fetch` or pull from Attic at all |
+| 4 | Accept TCP dst 80 | ingress |
+| 5 | Accept TCP dst 443 | ingress |
+| 6 | Accept TCP dst 13491 | SSH |
+| 7 | Accept TCP dst 22 | rescue mode only — rescue sshd listens on 22 and has no host firewall. In normal operation nothing listens on 22, so this costs a scanner a `connection refused` |
+| 8 | Accept UDP dst 51820 | WireGuard |
 | 19 | **Deny IPv4** | mandatory. OVH warn in terms: a set of Accept rules only is "not effective at all" — the default when nothing matches is accept |
+
+Note the catch-all is **IPv4 only** — there is no IPv6 deny, because the ENF does not exist for
+IPv6. If titan ever gains a public IPv6 address it arrives with no edge filter at all, and the
+host firewall in `public-host.nix` becomes the only wall. Worth re-checking after any OVH
+network change.
 
 Panel fields worth knowing before you touch it: `TCP state` and `Fragments` exist **only on
 TCP rules**. Leave `Fragments` unticked on rule 0 — ticking it widens an Accept to
@@ -74,10 +97,13 @@ Properties of this firewall that bite:
 
 Proof the deny is actually in force, from outside: probe a port that is **not** in the
 allow list — 6443, 9100, 8080 — and expect a **timeout**. Do not use 22/13491/80/443 for
-this test: rules 3–6 explicitly allow them, so the packet reaches the box and
+this test: rules 4–7 explicitly allow them, so the packet reaches the box and
 `connection refused` there is correct behaviour, not a leak. Verified 2026-10-02 with the
 firewall enabled: 22 open (rescue sshd), 13491/80/443 refused, and 6443/9100/8080/3306/
 10250 all dropped.
+
+**Re-verify this after any panel edit.** The rule set has changed since the last verification
+(see the drift note above) and the deny proof has not been re-run since 2026-10-02.
 
 Source: <https://docs.ovhcloud.com/en/guides/bare-metal-cloud/dedicated-servers/firewall-network>
 
