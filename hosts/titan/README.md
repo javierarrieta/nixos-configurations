@@ -48,20 +48,38 @@ Two changes, one benign and one that needs a decision:
    **This is behaviourally inert today**, because every rule except the catch-all is an Accept
    on a disjoint match, so first-match-wins cannot pick a different answer regardless of order.
    It stops being inert the moment a rule is added whose match overlaps another's.
-2. **There are now two UDP/53 Accept rules where the 2026-10-02 set had one.** The original was
-   *source* port 53 — DNS replies, for the reason spelled out below. The second is unrecorded.
-   **Confirm which field it sets.** If it is destination port 53, the ENF now accepts inbound
-   UDP/53 from anywhere, and titan is one misconfigured `bind` away from being an internet
-   resolver: `meshDns` is safe only because it binds the hub's own `wg0` address and nothing
-   else (`modules/nixos/mesh-dns.nix:11-14`), which is a host-side guarantee, not an ENF one.
-   If it is a second source-port-53 rule it is a harmless duplicate and should be deleted for
-   clarity. Either way the panel and this file must agree.
+2. **There are now two UDP/53 Accept rules where the 2026-10-02 set had one.** Confirmed with
+   the operator 2026-11-13: DNS is allowed **both as source and as destination, in separate
+   rules**. The source-port-53 rule is the documented one and is correct — the ENF is stateless
+   and UDP rules have no state field, so the reply's source port is the only handle (see below).
+   The **destination-port-53 rule is not needed by anything in this repo** and should be deleted.
+
+   **It is not a live exposure, for two independent reasons** — and both are host-side, which is
+   the point:
+   - The host firewall does not accept UDP/53. The only `allowedUDPPorts` declaration anywhere in
+     this repo is `wireguard.nix:256` (`[ cfg.listenPort ]` = 51820); `public-host.nix` allows no
+     UDP at all. Inbound 53 is dropped on arrival.
+   - Nothing binds it. `meshDns` derives its listen address from `wireguard.address` and binds
+     the hub's own `wg0` address and nothing else — in its own words, *"unreachable from the
+     internet by construction rather than by firewall luck … the firewall rule below is what makes
+     INPUT accept it, not what hides it"* (`modules/nixos/mesh-dns.nix:11-14`).
+
+   So the ENF is currently permitting something the host refuses twice over. That is exactly the
+   inversion this file warns about — *"the ENF cannot open ports on the server, it can only drop;
+   the OS firewall is the wall this design actually relies on"* — and a dead Accept in the outer
+   filter is defence-in-depth quietly spent for no benefit. If anyone ever runs a DNS listener on
+   titan, that rule is the difference between a mesh-only resolver and an internet amplifier.
+
+   **Likely origin, stated as hypothesis:** the 2026-10-10 DNS symptom recorded under rule 1 was
+   debugged after this table was written, and a destination-53 rule added during that
+   investigation would not have been removed or reflected back here. Consistent with the priority
+   reshuffle in the same window.
 
 | prio | rule | why |
 |---|---|---|
 | 0 | Accept ICMP | path MTU / diagnostics |
-| 1 | Accept UDP port 53 | DNS replies. There is no state field on UDP rules — the source port is the only handle. Load-bearing for more than the host's own resolution: `meshDns.forwardAddresses` on titan forwards to `1.1.1.1`/`9.9.9.9`, and without this rule the queries leave and only the replies are dropped, so every mesh client lookup times out while `dig @213.186.33.99` still works (OVH's resolver is inside the OVHcloud network and never hits the ENF). Symptom seen 2026-10-10. |
-| 2 | Accept UDP port 53 — **second instance, unrecorded, see drift note above** | |
+| 1 | Accept UDP **source port 53** | DNS replies. There is no state field on UDP rules — the source port is the only handle. Load-bearing for more than the host's own resolution: `meshDns.forwardAddresses` on titan forwards to `1.1.1.1`/`9.9.9.9`, and without this rule the queries leave and only the replies are dropped, so every mesh client lookup times out while `dig @213.186.33.99` still works (OVH's resolver is inside the OVHcloud network and never hits the ENF). Symptom seen 2026-10-10. **Note this rule is sufficient on its own** — a reply to a query titan sent from any ephemeral port still arrives with source port 53, so no destination-53 rule is required. |
+| 2 | Accept UDP **destination** port 53 — **unneeded, see drift note above; recommend deleting** | |
 | 3 | Accept TCP, TCP state = established, **Fragments unticked** | the ENF is stateless; without this titan cannot `git fetch` or pull from Attic at all |
 | 4 | Accept TCP dst 80 | ingress |
 | 5 | Accept TCP dst 443 | ingress |
