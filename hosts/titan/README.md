@@ -70,10 +70,25 @@ Two changes, one benign and one that needs a decision:
    filter is defence-in-depth quietly spent for no benefit. If anyone ever runs a DNS listener on
    titan, that rule is the difference between a mesh-only resolver and an internet amplifier.
 
+   **Verified 2026-11-13 that nothing can consume this rule**, which is what makes it safe to
+   delete rather than merely untidy:
+   - No `hostNetwork` pod exists anywhere on the cluster (`kubectl get pods -A` — zero). Nothing
+     in-cluster can bind a host UDP port at all.
+   - The only Service referencing port 53 is `kube-system/kube-dns`, which is a ClusterIP on a
+     pod network address, not a host listener and not a NodePort.
+   - `meshDns` binds `192.168.133.1` (the wg0 address), so traffic arriving at the **public**
+     IP:53 would not match its socket even if the firewall let it through.
+
+   So inbound UDP/53 to titan's public address has no possible listener today. Deleting the rule
+   cannot break a consumer, because there is no consumer; the only thing it can break is a
+   misunderstanding, and the source-port-53 rule above is what actually carries DNS replies.
+
    **Likely origin, stated as hypothesis:** the 2026-10-10 DNS symptom recorded under rule 1 was
    debugged after this table was written, and a destination-53 rule added during that
    investigation would not have been removed or reflected back here. Consistent with the priority
-   reshuffle in the same window.
+   reshuffle in the same window. **The operator does not recall a reason for it** — which is its
+   own finding: an unexplained inbound accept sat on the outermost filter for at least six weeks,
+   invisible to every check in this repo, and surfaced only by reading the panel against the docs.
 
 | prio | rule | why |
 |---|---|---|
