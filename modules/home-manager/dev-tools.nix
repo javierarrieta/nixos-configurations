@@ -589,7 +589,10 @@ let
   # A hand-written extension has to be listed here (and vendored under
   # ./pi/extensions/) to survive a switch; the activation step below names any it
   # does not declare.
-  piExtensionNames = [ "compaction-inkling.ts" ];
+  # Named for where summaries go, not for the model that produces them: the model
+  # ids live in the extension's SUMMARIZERS list, and a file named after one of
+  # them goes stale the first time the catalog changes. It already has once.
+  piExtensionNames = [ "compaction-openrouter.ts" ];
 
   # Extensions another tool owns: it installs them and it updates them in place,
   # so this repo names them without linking them. Deliberately *not* added to

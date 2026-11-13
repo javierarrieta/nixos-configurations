@@ -1,5 +1,5 @@
 /**
- * Compaction model: summarize with a free hosted model instead of the conversation model.
+ * Compaction model: summarize with a chosen OpenRouter model instead of the conversation model.
  *
  * Managed by home-manager: this file is linked read-only into
  * ~/.pi/agent/extensions/ by modules/home-manager/dev-tools.nix (piExtensionNames).
@@ -15,21 +15,27 @@
  * headers change. Works with any selected conversation model, so settings.json stays as
  * home-manager declares it (defaultProvider llm01-halogen).
  *
- * Why SUMMARIZERS is ordered this way -- measured 2026-10-17 on pi's real
- * summarization prompt (18 planted exact identifiers):
- *   inkling:free       18/18 kept, 18.6s, 1M ctx / 262k out
- *   laguna-s-2.1:free  14/18 kept, 14.6s, 262k ctx / 32k out
+ * Why these models -- the operator's OpenRouter guardrail only admits providers that do
+ * not store prompts, and it filters the catalog itself. Measured 2026-11-13 with this
+ * machine's key: GET openrouter.ai/api/v1/models returned exactly three entries --
+ *   deepseek/deepseek-v4.1-flash-1017  1M ctx / 943k out  $0.038/M in, $0.50/M out
+ *   deepseek/deepseek-v4.1-flash       1M ctx / 943k out  $0.051/M in, $0.567/M out
+ *   z-ai/glm-5.3-flash                 1M ctx             $0.0399/M in
+ * A summarizer has to come from that list. The previous entries (thinkingmachines/
+ * inkling:free, poolside/laguna-s-2.1:free) are filtered by the guardrail, so every
+ * compaction fell through to the conversation model.
  *
- * Measured 2026-10-18 against openrouter.ai/api/v1 with this machine's key:
- *   - inkling:free is $0 and answers in ~1.5s.
- *   - The :free tier answers 403 "only available on agentic harnesses" without OpenRouter
- *     app attribution headers, so they are added explicitly below. Pi adds them itself
- *     only in the agent stream function (core/provider-attribution.js) and only while
- *     install telemetry is enabled; compact() is called here without a streamFn, so it
- *     goes through completeSimple() and those headers would be missing.
- *   - inkling reasons by default (66 reasoning tokens on a one-word prompt).
- *     reasoning:{effort:"none"} disables it, but compact() exposes no body override, so
- *     summaries pay the reasoning cost. Free tier, so left alone.
+ * Measured 2026-11-13 against openrouter.ai/api/v1 with this machine's key:
+ *   - deepseek/deepseek-v4.1-flash-1017 answers and accepts reasoning:{effort:"none"}
+ *     (the reply came back with "reasoning": null), so summaries do not pay reasoning
+ *     cost. inkling reasoned by default and compact() exposes no body override.
+ *   - These are paid, not :free -- a 9-token/2-token probe cost $1.3e-6. The :free tier
+ *     answered 403 "only available on agentic harnesses" without OpenRouter app
+ *     attribution headers, so they are added explicitly below: Pi adds them itself only
+ *     in the agent stream function (core/provider-attribution.js) and only while install
+ *     telemetry is enabled; compact() is called here without a streamFn, so it goes
+ *     through completeSimple() and those headers would be missing. Kept for that reason
+ *     even though the current entries are paid and do not need them.
  *
  * Branch summaries (/tree) are NOT routed here; they still use the selected model.
  */
@@ -38,8 +44,8 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 /** Tried in order; the first one in the catalog with working auth wins. */
 const SUMMARIZERS = [
-	{ provider: "openrouter", id: "thinkingmachines/inkling:free" },
-	{ provider: "openrouter", id: "poolside/laguna-s-2.1:free" },
+	{ provider: "openrouter", id: "deepseek/deepseek-v4.1-flash-1017" },
+	{ provider: "openrouter", id: "deepseek/deepseek-v4.1-flash" },
 ];
 
 /** Summaries do not need reasoning, and Pi omits the reasoning param for "off". */
