@@ -35,6 +35,60 @@ let
     ${pkgs.coreutils}/bin/printf 'comin_pending_confirmation %s\n' "$pending" > /tmp/comin.prom.$$
     ${pkgs.coreutils}/bin/printf 'comin_deployer_suspended %s\n' "$suspended" >> /tmp/comin.prom.$$
     ${pkgs.coreutils}/bin/mv /tmp/comin.prom.$$ /var/lib/node-exporter/textfiles/comin.prom
+
+    # nixos_reboot_required: is the booted system older than the deployed one?
+    #
+    # This is deliberately NOT comin's own comin_need_to_reboot. That gauge cannot
+    # be used as a reboot gate, for two reasons read off nlewo/comin at the pinned
+    # rev rather than inferred:
+    #   - internal/prometheus/prometheus.go calls needToReboot.Set exactly once,
+    #     always with true. Nothing ever sets it back to 0, so it is a one-way
+    #     latch: 0 from daemon start until some deploy in this process says
+    #     "reboot", then 1 forever after -- including after the reboot lands.
+    #   - internal/manager/manager.go recomputes the flag at startup from the
+    #     persisted deployment but publishes no event, so any comin restart drops a
+    #     genuinely pending reboot back to 0. Observed 2026-11-17 on node05, titan
+    #     and llm01: all three had deployed a generation carrying a different
+    #     kernel and all three reported comin_need_to_reboot 0.
+    # Measuring it here, on a 60s timer, is what makes it a state rather than a
+    # one-shot edge -- which is the whole property the upstream gauge lacks.
+    #
+    # The compared triple is exactly kured's rebootSentinelCommand (k8s-casa
+    # apply/10-infra/kured.yaml), proven on this fleet since 2026-10-07, so this
+    # metric predicts what kured will act on. It does NOT cover non-kernel reasons
+    # to reboot (a systemd bump, say); that is a deliberate scope limit, not an
+    # oversight -- a kernel bump is the class that silently never activates here,
+    # and it is the one kured exists for.
+    #
+    # 2 = probe broken, matching the convention `pending` above already uses, so a
+    # dead probe is never mistaken for "no reboot needed". comin's own NeedToReboot
+    # fails open to false on a readlink error; this does not.
+    reboot=0
+    booted=""
+    current=""
+    probe_ok=1
+    for node in initrd kernel kernel-modules; do
+      b=$(${pkgs.coreutils}/bin/readlink "/run/booted-system/$node" 2>/dev/null) || probe_ok=0
+      c=$(${pkgs.coreutils}/bin/readlink "/run/current-system/$node" 2>/dev/null) || probe_ok=0
+      booted="$booted $b"
+      current="$current $c"
+    done
+    if [ "$probe_ok" -eq 0 ]; then
+      reboot=2
+    elif [ "$booted" != "$current" ]; then
+      reboot=1
+    fi
+
+    # Same-fs rename, not /tmp: /tmp is tmpfs, so a cross-device mv is a copy and
+    # the collector can observe a half-written file. Same reasoning as
+    # modules/nixos/k3s-snapshot-monitor.nix.
+    rb_out=$(${pkgs.coreutils}/bin/mktemp /var/lib/node-exporter/textfiles/.reboot-required.XXXXXX 2>/dev/null)
+    if [ -n "$rb_out" ]; then
+      ${pkgs.coreutils}/bin/printf 'nixos_reboot_required %s\n' "$reboot" > "$rb_out"
+      ${pkgs.coreutils}/bin/mv "$rb_out" /var/lib/node-exporter/textfiles/reboot-required.prom
+    else
+      ${pkgs.coreutils}/bin/printf 'nixos_reboot_required %s\n' "$reboot" > /var/lib/node-exporter/textfiles/reboot-required.prom
+    fi
   '';
 in
 {
