@@ -85,6 +85,16 @@ let
     rb_out=$(${pkgs.coreutils}/bin/mktemp /var/lib/node-exporter/textfiles/.reboot-required.XXXXXX 2>/dev/null)
     if [ -n "$rb_out" ]; then
       ${pkgs.coreutils}/bin/printf 'nixos_reboot_required %s\n' "$reboot" > "$rb_out"
+      # chmod BEFORE the mv, or node_exporter never sees the file at all. mktemp
+      # creates 0600 and mv preserves it; node_exporter runs as the node-exporter
+      # user, not root. This is the exact trap already written down in
+      # modules/nixos/k3s-snapshot-monitor.nix -- I copied that file's same-fs
+      # mktemp pattern and missed the chmod sitting eight lines below it.
+      # Shipped 5e619d8; measured on titan within minutes of it deploying: the
+      # timer ran (comin.prom mtime advancing every 60s), the file existed, and
+      # nixos_reboot_required was absent from the scrape. The else branch below
+      # was never the problem -- a shell redirect creates 0644 under umask 022.
+      ${pkgs.coreutils}/bin/chmod 0644 "$rb_out"
       ${pkgs.coreutils}/bin/mv "$rb_out" /var/lib/node-exporter/textfiles/reboot-required.prom
     else
       ${pkgs.coreutils}/bin/printf 'nixos_reboot_required %s\n' "$reboot" > /var/lib/node-exporter/textfiles/reboot-required.prom
