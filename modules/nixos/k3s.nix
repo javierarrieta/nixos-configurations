@@ -203,10 +203,14 @@
     # config. Turning dhcpcd off entirely is the right follow-up once anyone
     # knows why it is on, because nothing in this repo asks for it and it is on
     # everywhere regardless of what the hosts ask: evaluated on 2026-11-18,
-    # networking.dhcpcd.enable is true on all of them, including k8s-pi01 where
-    # networking.useDHCP is already false (useNetworkd is false there too, so
-    # nixpkgs' legacy backend is in play and it defaults dhcpcd on). That is also
-    # why `useDHCP = false` alone would not have fixed this.
+    # networking.dhcpcd.enable is true on 16 of the 17 configurations -- only
+    # wsl is false -- including k8s-pi01 where networking.useDHCP is already
+    # false (useNetworkd is false there too, so nixpkgs' legacy backend is in
+    # play and it defaults dhcpcd on). That is also why `useDHCP = false` alone
+    # would not have fixed this. Note the safety net may already be imaginary on
+    # these hosts: the only physical interface is static, so nixpkgs ignores it,
+    # and once the list below lands dhcpcd may manage nothing at all. Check
+    # `dhcpcd --status` on a canary before trusting either story.
     # What is NOT listed, and why: nixpkgs already emits `denyinterfaces ... lo
     # peth* vif* tap* tun* virbr* vnet* vboxnet* sit*` in the dhcpcd.conf it
     # generates, so tap* needs no entry here (veth* genuinely is missing
@@ -215,6 +219,15 @@
     # config.networking.wireguard.interfaces` to the same ignored list and
     # modules/nixos/wireguard.nix declares networking.wireguard.interfaces.wg0,
     # so the mesh is already off-limits to dhcpcd without an entry.
+    #
+    # Two limits worth knowing. This list is flannel-shaped: it names k3s'
+    # embedded CNI, and a switch to cilium (lxc*, cilium_host), calico (cali*,
+    # tunl0) or anything that adds a plain bridge reintroduces the bug silently
+    # -- dhcpcd does not complain about an interface nobody told it about. And
+    # it is scoped to k3s, so llm01 gets none of it while still running dhcpcd
+    # and podman; rootless podman keeps its veths in a rootless netns so the
+    # host netns is clean today, and if anything ever runs rootful containers
+    # there this list belongs in a shared module rather than here.
     networking.dhcpcd.denyInterfaces = [
       "flannel.*"
       "cni0"
