@@ -20,6 +20,47 @@ let
       ""
     else
       lib.concatStringsSep " " config.staticNetwork.routeFlags + " ";
+  # True when this host defers its nameservers to the runtime network_env.
+  needsRuntimeResolv = lib.any isPlaceholder config.staticNetwork.nameservers;
+  # /etc/resolv.conf on those hosts is not managed by NixOS at all: the
+  # `networking.nameservers` assignment below is skipped while the values are
+  # still "$DNS1"/"$DNS2", and a shell snippet in the activation script writes
+  # the file once from the SOPS network_env. That snippet had two silent
+  # failure modes and k8s-node04 walked into one of them on 2026-11-17: a host
+  # with no usable resolv.conf answers `no such host` for every name on it, so
+  # containerd cannot pull and comin cannot fetch, while the node still looks
+  # healthy because its pods, its kubelet and its syslog all keep working on
+  # cached images and IP literals. It stayed invisible for 17 hours and was
+  # only found when kured moved a pod onto the node and that pod needed an
+  # image the node had never cached.
+  #
+  # So: validate before writing, write atomically, and exit non-zero rather than
+  # emit `nameserver ` with an empty address. Callers decide how loud to be.
+  writeResolvConf = pkgs.writeShellScript "static-network-resolv-conf" ''
+    if [ ! -f "${envFile}" ]; then
+      echo "static-network: ${envFile} is missing; leaving /etc/resolv.conf alone" >&2
+      exit 1
+    fi
+    . "${envFile}"
+    if [ -z "''${DNS1:-}" ] || [ -z "''${DNS2:-}" ]; then
+      echo "static-network: DNS1/DNS2 are empty in ${envFile}; refusing to write an invalid /etc/resolv.conf" >&2
+      exit 1
+    fi
+    printf 'nameserver %s\nnameserver %s\n' "$DNS1" "$DNS2" > /etc/resolv.conf.tmp
+    mv /etc/resolv.conf.tmp /etc/resolv.conf
+  '';
+  # Runs every 10s for the life of the boot. Nothing else owns resolv.conf on
+  # these hosts once activation finishes, so anything that rewrites it wins
+  # until the next switch -- which is how a 17-hour outage stayed one.
+  networkWatchLoop = pkgs.writeShellScript "static-network-watch" ''
+    while true; do
+      ${pkgs.iproute2}/bin/ip route replace ${routeFlagsStr}default via "$DEFAULT_GATEWAY" dev ${iface} 2>/dev/null || true
+      ${lib.optionalString needsRuntimeResolv ''
+        ${writeResolvConf} || echo "static-network: /etc/resolv.conf self-heal failed; host DNS is broken" >&2
+      ''}
+      ${pkgs.coreutils}/bin/sleep 10
+    done
+  '';
 in
 {
   options = {
@@ -113,13 +154,7 @@ in
             ip route replace ${routeFlagsStr}default via "$DEFAULT_GATEWAY" dev ${config.staticNetwork.interface}
           ''
         }
-        ${lib.optionalString (lib.any isPlaceholder config.staticNetwork.nameservers) ''
-          rm -f /etc/resolv.conf
-          cat > /etc/resolv.conf <<EOF
-          nameserver $DNS1
-          nameserver $DNS2
-          EOF
-        ''}
+        ${lib.optionalString needsRuntimeResolv "${writeResolvConf}"}
       '';
     };
 
@@ -151,7 +186,7 @@ in
           . "${envFile}"
           ${lib.optionalString (isPlaceholder config.staticNetwork.ipAddress) "${pkgs.iproute2}/bin/ip addr replace \"$IP_ADDRESS\"/${toString config.staticNetwork.prefixLength} dev ${iface}"}
           ${lib.optionalString (isPlaceholder config.staticNetwork.defaultGateway) "${pkgs.iproute2}/bin/ip route replace ${routeFlagsStr}default via \"$DEFAULT_GATEWAY\" dev ${iface}"}
-          ${lib.optionalString (lib.any isPlaceholder config.staticNetwork.nameservers) "rm -f /etc/resolv.conf\nprintf \"nameserver %s\\nnameserver %s\\n\" \"$DNS1\" \"$DNS2\" > /etc/resolv.conf"}
+          ${lib.optionalString needsRuntimeResolv "${writeResolvConf} || echo 'static-network: could not re-assert /etc/resolv.conf during activation' >&2"}
         fi
       '';
     };
@@ -161,8 +196,15 @@ in
     # The activation script above runs on every activation but can still miss
     # the route mid-switch. A persistent watchdog is the only reliable
     # self-heal: it restores the route no matter when or why it is lost.
+    #
+    # It now re-asserts resolv.conf in the same loop, for the same reason: the
+    # route and the resolver are both runtime state that nothing owns after
+    # activation, and the resolver half went unwatched until a node ran 17 hours
+    # with a dead one. The unit keeps its name -- renaming it would mean a switch
+    # has to stop the old unit before the replacement takes over, and the last
+    # thing a half-applied network change needs is a window with no watchdog.
     systemd.services.network-route-watch = lib.mkIf useRuntimeConfig {
-      description = "Self-heal default route if lost during nixos-rebuild switch";
+      description = "Self-heal default route and /etc/resolv.conf if lost or clobbered";
       after = [
         "network.target"
         "setupSecrets.service"
@@ -173,7 +215,7 @@ in
         Type = "simple";
         Restart = "always";
         RestartSec = "10s";
-        ExecStart = "${pkgs.bash}/bin/bash -c 'while true; do ${pkgs.iproute2}/bin/ip route replace ${routeFlagsStr}default via \"$DEFAULT_GATEWAY\" dev ${iface} 2>/dev/null; ${pkgs.coreutils}/bin/sleep 10; done'";
+        ExecStart = networkWatchLoop;
         EnvironmentFile = config.sops.secrets."${config.networking.hostName}/network_env".path;
       };
     };

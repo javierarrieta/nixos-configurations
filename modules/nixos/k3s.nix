@@ -170,6 +170,53 @@
     # without lib.mkForce; every existing host leaves it at false.
     networking.firewall.enable = lib.mkDefault false;
 
+    # Keep the DHCP client off the pod network.
+    #
+    # nixpkgs' dhcpcd module only keeps dhcpcd off interfaces NixOS itself
+    # declares -- it builds `ignoredInterfaces` out of networking.interfaces,
+    # bridges, sits and bonds. k3s creates flannel.1, cni0 and a fresh veth for
+    # every pod sandbox behind NixOS' back, so dhcpcd claims each one: it
+    # solicits a lease, gets nothing, falls back to IPv4LL, and then -- the part
+    # that actually hurts -- installs a default route through the pod overlay.
+    # Measured on k8s-node04, 2026-11-18:
+    #
+    #   flannel.1: soliciting a DHCP lease
+    #   flannel.1: adding default route
+    #   flannel.1: using IPv4LL address 169.254.219.67
+    #
+    # Upstream carries the same defect for Docker-created veths, route overwrite
+    # included (NetworkConfiguration/dhcpcd#531), and the crash is the one
+    # container-runtime hosts are known for: dhcpcd dies in ipv6nd_expire under
+    # veth churn and systemd restarts it straight into the next one. Every pod
+    # sandbox makes more veths, so the workload feeds the loop. Core dumps in 24h
+    # on 2026-11-18: k8s-node04 112, k8s-node02 100, and nine hosts total with
+    # dhcpcd touching flannel.1.
+    #
+    # It lives here rather than in k8s-network.nix because the interfaces are
+    # k3s', and the three k8s-pi* hosts run k3s without enabling k8sNetwork --
+    # they would have stayed exposed.
+    #
+    # Denying the overlay is preferred over `networking.dhcpcd.enable = false`
+    # because it removes the observed harm without pulling the DHCP safety net
+    # out from under the physical interfaces; static-network.nix records a host
+    # that went dark when a lease was the only thing covering a bad static
+    # config. Turning dhcpcd off entirely is the right follow-up once anyone
+    # knows why it is on, because nothing in this repo asks for it and it is on
+    # everywhere regardless of what the hosts ask: evaluated on 2026-11-18,
+    # networking.dhcpcd.enable is true on all of them, including k8s-pi01 where
+    # networking.useDHCP is already false (useNetworkd is false there too, so
+    # nixpkgs' legacy backend is in play and it defaults dhcpcd on). That is also
+    # why `useDHCP = false` alone would not have fixed this.
+    networking.dhcpcd.denyInterfaces = [
+      "flannel.*"
+      "cni0"
+      "veth*"
+      "kube*"
+      "docker*"
+      "br-*"
+      "tap*"
+    ];
+
     # Required for NetworkPolicy to actually be enforced, not merely accepted.
     #
     # K3s' embedded flannel puts pods on a vxlan bridge (cni0), and bridged
