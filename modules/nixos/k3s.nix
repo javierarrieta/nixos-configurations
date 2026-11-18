@@ -183,19 +183,25 @@
     # metric. The full incident, the measurements and the rejected alternatives are
     # in docs/superpowers/incidents/2026-11-17-k8s-node04-dead-host-resolver.md.
     #
-    # Only the interfaces k3s itself creates are listed. `kube*`, `docker*` and
-    # `br-*` were dropped as dead weight: k3s' embedded containerd makes none of
-    # them, and a pattern that matches nothing reads as coverage it does not give.
-    # nixpkgs already denies lo, peth*, vif*, tap*, tun*, virbr*, vnet*, vboxnet*
-    # and sit*, and wg0 is covered by `networking.wireguard.interfaces` names
-    # reaching the same ignored list.
+    # Only the interfaces k3s creates on this fleet are listed. `docker*` and
+    # `br-*` were dropped as dead weight: k3s' embedded containerd makes neither,
+    # and a pattern that matches nothing reads as coverage it does not give.
+    # `kube*` went on the same reasoning and is the one with a caveat -- see the
+    # proxy-mode limit below. nixpkgs already denies lo, peth*, vif*, tap*, tun*,
+    # virbr*, vnet*, vboxnet* and sit*, and wg0 is covered by
+    # `networking.wireguard.interfaces` names reaching the same ignored list.
     #
-    # Two limits worth knowing:
+    # Three limits worth knowing:
     #
     #   * This list is flannel-shaped and fails silently if the CNI changes. A
     #     switch to cilium needs `lxc*` and `cilium_*`, calico needs `cali*` and
     #     `tunl0`. dhcpcd does not complain about an interface nobody told it
     #     about, so nothing here would catch that.
+    #   * Same shape, same silence, for kube-proxy. `--proxy-mode=ipvs` makes it
+    #     create `kube-ipvs0`, a dummy interface this list does not cover. The
+    #     fleet runs the default iptables mode, so the pattern is dead today and
+    #     is left out for exactly the reason above; if IPVS is ever enabled,
+    #     `kube-ipvs0` belongs in this list in that same change.
     #   * It is scoped to k3s, so llm01 gets none of it. That costs nothing today
     #     because llm01 has no dhcpcd unit at all (useDHCP is false and no declared
     #     interface asks for DHCP) and rootless podman keeps its veths in a
