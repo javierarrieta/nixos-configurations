@@ -173,85 +173,48 @@
     # Keep the DHCP client off the pod network.
     #
     # nixpkgs' dhcpcd module only keeps dhcpcd off interfaces NixOS itself
-    # declares -- it builds `ignoredInterfaces` out of networking.interfaces,
-    # bridges, sits and bonds. k3s creates flannel.1, cni0 and a fresh veth for
-    # every pod sandbox behind NixOS' back, so dhcpcd claims each one: it
-    # solicits a lease, gets nothing, falls back to IPv4LL, and then -- the part
-    # that actually hurts -- installs a default route through the pod overlay.
-    # Measured on k8s-node04, 2026-11-18:
+    # declares, so it claims flannel.1, cni0 and every fresh pod veth: it solicits
+    # a lease, gets nothing, falls back to IPv4LL and -- the part that hurts --
+    # installs a default route through the pod overlay. It also crash-loops under
+    # veth churn (dhcpcd dies in ipv6nd_expire, systemd restarts it into the next
+    # one, and every pod sandbox makes more veths). Denial is proven to stop the
+    # lease solicitation; whether it also stops the SEGV is an empirical question,
+    # so the canary's coredump delta is the pass/fail gate for this half, not a
+    # metric. The full incident, the measurements and the rejected alternatives are
+    # in docs/superpowers/incidents/2026-11-17-k8s-node04-dead-host-resolver.md.
     #
-    #   flannel.1: soliciting a DHCP lease
-    #   flannel.1: adding default route
-    #   flannel.1: using IPv4LL address 169.254.219.67
+    # Only the interfaces k3s itself creates are listed. `kube*`, `docker*` and
+    # `br-*` were dropped as dead weight: k3s' embedded containerd makes none of
+    # them, and a pattern that matches nothing reads as coverage it does not give.
+    # nixpkgs already denies lo, peth*, vif*, tap*, tun*, virbr*, vnet*, vboxnet*
+    # and sit*, and wg0 is covered by `networking.wireguard.interfaces` names
+    # reaching the same ignored list.
     #
-    # Upstream carries the same defect for Docker-created veths, route overwrite
-    # included (NetworkConfiguration/dhcpcd#531), and the crash is the one
-    # container-runtime hosts are known for: dhcpcd dies in ipv6nd_expire under
-    # veth churn and systemd restarts it straight into the next one. Every pod
-    # sandbox makes more veths, so the workload feeds the loop. Core dumps in 24h
-    # on 2026-11-18: k8s-node04 112, k8s-node02 100, and nine hosts total with
-    # dhcpcd touching flannel.1.
+    # Two limits worth knowing:
     #
-    # It lives here rather than in k8s-network.nix because the interfaces are
-    # k3s': k3s.nix is the one module every k3s host includes, and
-    # k8s-network.nix is not included by the Raspberry Pi workers. That is a
-    # placement argument and nothing more -- the Pi workers do not run a DHCP
-    # client at all (see the enableDHCP note below), so there was nothing there
-    # waiting to be rescued.
+    #   * This list is flannel-shaped and fails silently if the CNI changes. A
+    #     switch to cilium needs `lxc*` and `cilium_*`, calico needs `cali*` and
+    #     `tunl0`. dhcpcd does not complain about an interface nobody told it
+    #     about, so nothing here would catch that.
+    #   * It is scoped to k3s, so llm01 gets none of it. That costs nothing today
+    #     because llm01 has no dhcpcd unit at all (useDHCP is false and no declared
+    #     interface asks for DHCP) and rootless podman keeps its veths in a
+    #     rootless netns. Setting networking.useDHCP there, or declaring any
+    #     interface with useDHCP = true, would hand it a client that has never been
+    #     denied anything; if that ever happens this list belongs in a shared
+    #     module.
     #
-    # Denying the overlay is preferred over `networking.dhcpcd.enable = false`
-    # because it removes the observed harm without pulling the DHCP safety net
-    # out from under the physical interfaces; static-network.nix records a host
-    # that went dark when a lease was the only thing covering a bad static
-    # config. Turning dhcpcd off entirely is the right follow-up, because nothing
-    # in this repo asks for it -- and note that the option is not the client.
-    # nixpkgs gates the unit on `dhcpcd.enable && (networking.useDHCP || any
-    # declared interface with useDHCP = true)`, so although
-    # networking.dhcpcd.enable reads true on 16 of the 17 configurations (only
-    # wsl is false), a dhcpcd unit exists on exactly nine: k8s-node01..05,
-    # k8s-server01..03 and titan -- the same nine that showed the crash loop,
-    # which is the honest way to read the "nine hosts" figure above. The Pi
-    # workers, the three *-minimal images and llm01 have no dhcpcd unit at all:
-    # useDHCP is false there and no declared interface asks for DHCP. That is why
-    # `useDHCP = false` alone would not have fixed this, and why the list below is
-    # inert on those hosts.
-    #
-    # The safety net is already imaginary on the nine that do run it. Every
-    # declared interface is static, so nixpkgs ignores it (enp1s0/enp3s0, enp2s0,
-    # eno1/eno2), wg0 is ignored through networking.wireguard.interfaces, and the
-    # list below denies the overlay -- so what is left for dhcpcd to manage is
-    # nothing. `networking.dhcpcd.enable = false` is therefore equivalent rather
-    # than risky, and it deletes the crash source outright instead of fencing it
-    # in. Keep it as its own change with its own canary; `dhcpcd --status` on one
-    # host is the proof, and this is a style choice now rather than an unknown.
-    #
-    # What is NOT listed, and why: nixpkgs already emits `denyinterfaces ... lo
-    # peth* vif* tap* tun* virbr* vnet* vboxnet* sit*` in the dhcpcd.conf it
-    # generates, so tap* needs no entry here (veth* genuinely is missing
-    # upstream -- that is the one that was biting). wg0 is covered by a
-    # different route: the module adds `lib.attrNames
-    # config.networking.wireguard.interfaces` to the same ignored list and
-    # modules/nixos/wireguard.nix declares networking.wireguard.interfaces.wg0,
-    # so the mesh is already off-limits to dhcpcd without an entry.
-    #
-    # Two limits worth knowing. This list is flannel-shaped: it names k3s'
-    # embedded CNI, and a switch to cilium (lxc*, cilium_host), calico (cali*,
-    # tunl0) or anything that adds a plain bridge reintroduces the bug silently
-    # -- dhcpcd does not complain about an interface nobody told it about. And
-    # it is scoped to k3s, so llm01 gets none of it. Today that costs nothing --
-    # llm01 has no dhcpcd unit either -- but it is one line of config away from
-    # being wrong: setting networking.useDHCP, or declaring any interface with
-    # useDHCP = true, hands llm01 a DHCP client that has never been denied
-    # anything. Rootless podman keeps its veths in a rootless netns so the host
-    # netns is clean; if rootful containers or a useDHCP ever land there, this
-    # list belongs in a shared module rather than here.
+    # The same gate means `networking.dhcpcd.enable` is not the client: a dhcpcd
+    # unit exists on exactly nine of the seventeen configurations (k8s-node01..05,
+    # k8s-server01..03, titan) even though the option reads true on sixteen. On
+    # those nine every declared interface is static and so ignored, wg0 is
+    # ignored, and the overlay is denied -- so dhcpcd manages nothing, and
+    # `networking.dhcpcd.enable = false` is equivalent rather than risky. It is
+    # still its own change with its own canary; prove it with `dhcpcd --status`.
     networking.dhcpcd.denyInterfaces = [
       "flannel.*"
       "cni0"
       "veth*"
-      "kube*"
-      "docker*"
-      "br-*"
     ];
 
     # Required for NetworkPolicy to actually be enforced, not merely accepted.
