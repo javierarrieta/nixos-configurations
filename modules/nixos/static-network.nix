@@ -24,39 +24,112 @@ let
   needsRuntimeResolv = lib.any isPlaceholder config.staticNetwork.nameservers;
   # /etc/resolv.conf on those hosts is not managed by NixOS at all: the
   # `networking.nameservers` assignment below is skipped while the values are
-  # still "$DNS1"/"$DNS2", and a shell snippet in the activation script writes
-  # the file once from the SOPS network_env. That snippet had two silent
-  # failure modes and k8s-node04 walked into one of them on 2026-11-17: a host
-  # with no usable resolv.conf answers `no such host` for every name on it, so
-  # containerd cannot pull and comin cannot fetch, while the node still looks
-  # healthy because its pods, its kubelet and its syslog all keep working on
-  # cached images and IP literals. It stayed invisible for 17 hours and was
-  # only found when kured moved a pod onto the node and that pod needed an
-  # image the node had never cached.
+  # still "$DNS1"/"$DNS2", `environment.etc` has no "resolv.conf" entry to
+  # write, and a shell snippet in the activation script writes the file once
+  # from the SOPS network_env. That snippet had two silent failure modes and
+  # k8s-node04 walked into one of them on 2026-11-17: a host with no usable
+  # resolv.conf answers `no such host` for every name on it, so containerd
+  # cannot pull and comin cannot fetch, while the node still looks healthy
+  # because its pods, its kubelet and its syslog all keep working on cached
+  # images and IP literals. It stayed invisible for 17 hours and was only found
+  # when kured moved a pod onto the node and that pod needed an image the node
+  # had never cached.
+  #
+  # The activation snippet is not the only writer, and it is worth being blunt
+  # about that because the PR that found this proved the gap, not the cause.
+  # networking.resolvconf.enable is true on these hosts, so resolvconf.service
+  # runs `resolvconf -u` at multi-user.target -- after the activation script has
+  # written the file -- and regenerates /etc/resolv.conf from
+  # /run/resolvconf/interface/*; dhcpcd's run-hook calls resolvconf on every
+  # BOUND/REBIND as well, which on node04 meant once per SEGV restart. Nothing
+  # here proves which of the three touched the file at 14:41. What is proved is
+  # that after activation nothing re-asserted it, and that is what the watchdog
+  # below closes.
   #
   # So: validate before writing, write atomically, and exit non-zero rather than
   # emit `nameserver ` with an empty address. Callers decide how loud to be.
+  # Exit codes: 2 = the secret is not on disk yet, which is normal for a moment
+  # at boot; 1 = the secret is there and unusable, which means host DNS really
+  # is broken. The watchdog uses that difference to stay quiet about the first
+  # and shout about the second.
   writeResolvConf = pkgs.writeShellScript "static-network-resolv-conf" ''
     if [ ! -f "${envFile}" ]; then
-      echo "static-network: ${envFile} is missing; leaving /etc/resolv.conf alone" >&2
-      exit 1
+      echo "${envFile} is missing; leaving /etc/resolv.conf alone" >&2
+      exit 2
     fi
     . "${envFile}"
     if [ -z "''${DNS1:-}" ] || [ -z "''${DNS2:-}" ]; then
-      echo "static-network: DNS1/DNS2 are empty in ${envFile}; refusing to write an invalid /etc/resolv.conf" >&2
+      echo "DNS1/DNS2 are empty in ${envFile}; refusing to write an invalid /etc/resolv.conf" >&2
       exit 1
     fi
-    printf 'nameserver %s\nnameserver %s\n' "$DNS1" "$DNS2" > /etc/resolv.conf.tmp
-    mv /etc/resolv.conf.tmp /etc/resolv.conf
+    # Non-empty is not the same as valid. A stray space, a CR from a secret
+    # pasted out of a Windows editor, a quote -- all pass -z and all still
+    # produce a resolv.conf every resolver on the host rejects, which is the
+    # exact failure this script exists to make impossible.
+    case "''${DNS1}''${DNS2}" in
+      *[!0-9a-fA-F.:]*)
+        echo "DNS1/DNS2 in ${envFile} are not plain IPv4/IPv6 addresses; refusing to write /etc/resolv.conf" >&2
+        exit 1
+        ;;
+    esac
+    # Unique temp name: the activation script and the 10s watchdog can land here
+    # at the same instant, and a shared name lets one mv the other's half-written
+    # file into /etc/resolv.conf.
+    tmp=$(${pkgs.coreutils}/bin/mktemp /etc/resolv.conf.tmp.XXXXXX) || exit 1
+    printf 'nameserver %s\nnameserver %s\n' "$DNS1" "$DNS2" > "$tmp"
+    # mv swaps the inode, and resolvconf.service keeps /etc/resolv.conf
+    # group-writable for the resolvconf group so dhcpcd's hook can write it. A
+    # bare mv throws that away every 10s and locks dhcpcd out of the file, so
+    # carry the mode over instead of inventing one. (chgrp is a no-op where the
+    # group does not exist.)
+    ${pkgs.coreutils}/bin/chgrp resolvconf "$tmp" 2>/dev/null || true
+    ${pkgs.coreutils}/bin/chmod 0664 "$tmp"
+    # Only write when it actually changed: the loop below runs 8640 times a day
+    # and an unconditional rewrite is 8640 rewrites of a file nobody changed.
+    # cmp is diffutils, not coreutils -- coreutils 9.x does not ship it, and a
+    # missing binary here would print an error every 10s while silently falling
+    # through to the mv.
+    if [ -f /etc/resolv.conf ] && ${pkgs.diffutils}/bin/cmp -s "$tmp" /etc/resolv.conf; then
+      ${pkgs.coreutils}/bin/rm -f "$tmp"
+      exit 0
+    fi
+    ${pkgs.coreutils}/bin/mv "$tmp" /etc/resolv.conf
   '';
-  # Runs every 10s for the life of the boot. Nothing else owns resolv.conf on
-  # these hosts once activation finishes, so anything that rewrites it wins
-  # until the next switch -- which is how a 17-hour outage stayed one.
+  # Runs every 10s for the life of the boot. Nothing re-asserts resolv.conf after
+  # activation -- NixOS does not own it, and resolvconf.service is itself one of
+  # the things that can clobber it -- so anything that rewrites it wins until the
+  # next switch, which is how a 17-hour outage stayed one.
+  #
+  # Diagnostics are edge-triggered, on purpose. This loop runs 8640 times a day;
+  # printing on every iteration would push ~17k lines a day through journald and
+  # rsyslog into /var/log/messages, which is the watchdog failure mode already
+  # recorded in AGENTS.md (2026-08-27, k8s-node03, a runaway loop filling the
+  # root filesystem). A message goes out when the state changes and when it
+  # recovers, and not in between.
   networkWatchLoop = pkgs.writeShellScript "static-network-watch" ''
+    last_rc=0
+    last_msg=""
     while true; do
       ${pkgs.iproute2}/bin/ip route replace ${routeFlagsStr}default via "$DEFAULT_GATEWAY" dev ${iface} 2>/dev/null || true
       ${lib.optionalString needsRuntimeResolv ''
-        ${writeResolvConf} || echo "static-network: /etc/resolv.conf self-heal failed; host DNS is broken" >&2
+        msg=$(${writeResolvConf} 2>&1) && rc=0 || rc=$?
+        if [ "$rc" != "$last_rc" ] || [ "$msg" != "$last_msg" ]; then
+          case "$rc" in
+            0)
+              if [ "$last_rc" != 0 ]; then
+                echo "static-network: /etc/resolv.conf self-heal recovered" >&2
+              fi
+              ;;
+            2)
+              echo "static-network: $msg (retrying every 10s)" >&2
+              ;;
+            *)
+              echo "static-network: $msg -- host DNS is broken until this clears" >&2
+              ;;
+          esac
+        fi
+        last_rc=$rc
+        last_msg=$msg
       ''}
       ${pkgs.coreutils}/bin/sleep 10
     done
@@ -154,7 +227,7 @@ in
             ip route replace ${routeFlagsStr}default via "$DEFAULT_GATEWAY" dev ${config.staticNetwork.interface}
           ''
         }
-        ${lib.optionalString needsRuntimeResolv "${writeResolvConf}"}
+        ${lib.optionalString needsRuntimeResolv "${writeResolvConf} || echo 'static-network: could not write /etc/resolv.conf at boot; the watchdog keeps retrying' >&2"}
       '';
     };
 
@@ -205,6 +278,11 @@ in
     # thing a half-applied network change needs is a window with no watchdog.
     systemd.services.network-route-watch = lib.mkIf useRuntimeConfig {
       description = "Self-heal default route and /etc/resolv.conf if lost or clobbered";
+      # setupSecrets is an activation script in sops-nix, not a systemd unit --
+      # `config.systemd.services ? setupSecrets` is false on every host here --
+      # so this After= orders against nothing and the loop can genuinely start
+      # before network_env exists. That is what writeResolvConf's exit 2 is for:
+      # a missing secret at boot is a retry, not an outage.
       after = [
         "network.target"
         "setupSecrets.service"
@@ -215,6 +293,12 @@ in
         Type = "simple";
         Restart = "always";
         RestartSec = "10s";
+        # Generation-specific store path, which is the same shape as the
+        # health-gate ENOENT-after-GC incident: if a switch ever dies before the
+        # unit is restarted, this path is only reachable from the generation that
+        # is no longer current and nix-sweep can collect it. Left as-is because
+        # switch-to-configuration does restart a unit whose ExecStart changed;
+        # if this unit ever stops self-healing, check here first.
         ExecStart = networkWatchLoop;
         EnvironmentFile = config.sops.secrets."${config.networking.hostName}/network_env".path;
       };

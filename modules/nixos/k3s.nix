@@ -207,6 +207,14 @@
     # networking.useDHCP is already false (useNetworkd is false there too, so
     # nixpkgs' legacy backend is in play and it defaults dhcpcd on). That is also
     # why `useDHCP = false` alone would not have fixed this.
+    # What is NOT listed, and why: nixpkgs already emits `denyinterfaces ... lo
+    # peth* vif* tap* tun* virbr* vnet* vboxnet* sit*` in the dhcpcd.conf it
+    # generates, so tap* needs no entry here (veth* genuinely is missing
+    # upstream -- that is the one that was biting). wg0 is covered by a
+    # different route: the module adds `lib.attrNames
+    # config.networking.wireguard.interfaces` to the same ignored list and
+    # modules/nixos/wireguard.nix declares networking.wireguard.interfaces.wg0,
+    # so the mesh is already off-limits to dhcpcd without an entry.
     networking.dhcpcd.denyInterfaces = [
       "flannel.*"
       "cni0"
@@ -214,7 +222,6 @@
       "kube*"
       "docker*"
       "br-*"
-      "tap*"
     ];
 
     # Required for NetworkPolicy to actually be enforced, not merely accepted.
