@@ -107,7 +107,7 @@ let
         exit 1
         ;;
     esac
-    # Unique temp name: the activation script and the 10s watchdog can land here
+    # Unique temp name: the activation script and the watchdog can land here
     # at the same instant, and a shared name lets one mv the other's half-written
     # file into /etc/resolv.conf.
     tmp=$(${pkgs.coreutils}/bin/mktemp /etc/resolv.conf.tmp.XXXXXX) || exit 1
@@ -120,33 +120,34 @@ let
     printf 'nameserver %s\nnameserver %s\n' "$DNS1" "$DNS2" > "$tmp"
     # mv swaps the inode, and resolvconf.service keeps /etc/resolv.conf
     # group-writable for the resolvconf group so dhcpcd's hook can write it. A
-    # bare mv throws that away every 10s and locks dhcpcd out of the file, so
-    # carry the mode over instead of inventing one. (chgrp is a no-op where the
+    # bare mv throws that away on every rewrite and locks dhcpcd out of the file,
+    # so carry the mode over instead of inventing one. (chgrp is a no-op where the
     # group does not exist.)
     ${pkgs.coreutils}/bin/chgrp resolvconf "$tmp" 2>/dev/null || true
     ${pkgs.coreutils}/bin/chmod 0664 "$tmp"
-    # Only write when it actually changed: the loop below runs 8640 times a day
-    # and an unconditional rewrite is 8640 rewrites of a file nobody changed.
-    # cmp is diffutils, not coreutils -- coreutils 9.x does not ship it, and a
-    # missing binary here would print an error every 10s while silently falling
-    # through to the mv.
+    # Only write when it actually changed: the loop below runs around the clock,
+    # and an unconditional rewrite is one rewrite per tick of a file nobody
+    # changed. cmp is diffutils, not coreutils -- coreutils 9.x does not ship it,
+    # and a missing binary here would print an error on every tick while silently
+    # falling through to the mv.
     if [ -f /etc/resolv.conf ] && ${pkgs.diffutils}/bin/cmp -s "$tmp" /etc/resolv.conf; then
       ${pkgs.coreutils}/bin/rm -f "$tmp"
       exit 0
     fi
     ${pkgs.coreutils}/bin/mv "$tmp" /etc/resolv.conf
   '';
-  # Runs every 10s for the life of the boot. Nothing re-asserts resolv.conf after
-  # activation -- NixOS does not own it, and resolvconf.service is itself one of
-  # the things that can clobber it -- so anything that rewrites it wins until the
-  # next switch, which is how a 17-hour outage stayed one.
+  # Runs on the resolvWatchIntervalSec interval for the life of the boot. Nothing
+  # re-asserts resolv.conf after activation -- NixOS does not own it, and
+  # resolvconf.service is itself one of the things that can clobber it -- so
+  # anything that rewrites it wins until the next switch, which is how a 17-hour
+  # outage stayed one.
   #
-  # Diagnostics are edge-triggered, on purpose. This loop runs 8640 times a day;
-  # printing on every iteration would push ~17k lines a day through journald and
-  # rsyslog into /var/log/messages, which is the watchdog failure mode already
-  # recorded in AGENTS.md (2026-08-27, k8s-node03, a runaway loop filling the
-  # root filesystem). A message goes out when the state changes and when it
-  # recovers, and not in between.
+  # Diagnostics are edge-triggered, on purpose. This loop runs around the clock;
+  # at the default interval, printing on every failure would push ~17k lines a day
+  # through journald and rsyslog into /var/log/messages, which is the watchdog
+  # failure mode already recorded in AGENTS.md (2026-08-27, k8s-node03, a runaway
+  # loop filling the root filesystem). A message goes out when the state changes
+  # and when it recovers, and not in between.
   networkWatchLoop = pkgs.writeShellScript "static-network-watch" ''
     last_rc=0
     last_msg=""
