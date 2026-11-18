@@ -204,11 +204,15 @@
     #     denied anything; if that ever happens this list belongs in a shared
     #     module.
     #
-    # The same gate means `networking.dhcpcd.enable` is not the client: a dhcpcd
-    # unit exists on exactly nine of the seventeen configurations (k8s-node01..05,
-    # k8s-server01..03, titan) even though the option reads true on sixteen. On
-    # those nine every declared interface is static and so ignored, wg0 is
-    # ignored, and the overlay is denied -- so dhcpcd manages nothing, and
+    # Invariant, not a census: `networking.dhcpcd.enable` is not the client.
+    # nixpkgs gates the unit on that option *and* on networking.useDHCP (or any
+    # declared interface asking for DHCP), so the option reading true says nothing
+    # about a dhcpcd.service existing. Which hosts actually have one is measured
+    # and listed in the incident doc rather than repeated here -- this is the third
+    # place that count has been written and the second time it was wrong, so the
+    # number lives in one file now. What is stable is the shape: on every host that
+    # does run a client, each declared interface is static and so ignored, wg0 is
+    # ignored, and the overlay is denied here -- so dhcpcd manages nothing, and
     # `networking.dhcpcd.enable = false` is equivalent rather than risky. It is
     # still its own change with its own canary; prove it with `dhcpcd --status`.
     networking.dhcpcd.denyInterfaces = [

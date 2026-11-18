@@ -38,14 +38,19 @@ let
   # (resolvconf -a, networking.resolvconf.enable = false, networking.dhcpcd.enable
   # = false) -- is docs/superpowers/incidents/2026-11-17-k8s-node04-dead-host-resolver.md.
   #
-  # What clobbers the file is resolvconf. resolvconf.service is
-  # `Before = network-pre.target`, so `resolvconf -u` runs after activation and
+  # What clobbers the file is resolvconf, from two directions. resolvconf.service
+  # is `Before = network-pre.target`, so `resolvconf -u` runs after activation and
   # before network-runtime-config, and with an empty /run/resolvconf/interface it
-  # regenerates the file with zero nameservers and exit 0. dhcpcd's 20-resolv.conf
-  # hook calls it on every BOUND, REBIND or restart. A boot survives by accident,
-  # because network-runtime-config writes the nameservers back; a switch does not
-  # re-run that oneshot, which is why the watchdog is the only thing standing
-  # between a switch and an empty resolver.
+  # regenerates the file with zero nameservers and exit 0. And nixpkgs' own
+  # `resolvconf -m 1 -a static`, in network-local-commands.service, is the
+  # publisher that would normally fill that registry -- on these hosts it registers
+  # nothing, because networking.nameservers is mkIf'd off, and it fails outright
+  # once the file has been rewritten under it. Both are ordered ahead of the
+  # restore now. dhcpcd's 20-resolv.conf hook calls resolvconf on every BOUND,
+  # REBIND or restart. A boot survives by accident, because network-runtime-config
+  # writes the nameservers back; a switch does not re-run that oneshot, which is
+  # why the watchdog is the only thing standing between a switch and an empty
+  # resolver.
   #
   # Both scripts are installed into the system environment and invoked as
   # /run/current-system/sw/bin/..., not as generation-specific store paths. That
@@ -56,7 +61,10 @@ let
   # using the store path -- it runs BEFORE /run/current-system is repointed, so
   # the sw/bin path there is the previous generation's script, or absent on a
   # first deploy.
-  resolvWatchIntervalSec = 10;
+  # One interval paces the whole loop. The route half and the resolver half are
+  # re-asserted in the same tick, so they share the number; the message that
+  # quotes it is built from it too.
+  watchIntervalSec = 10;
   resolvConfPath = "/run/current-system/sw/bin/static-network-resolv-conf";
   networkWatchPath = "/run/current-system/sw/bin/static-network-watch";
   writeResolvConf = pkgs.writeShellScriptBin "static-network-resolv-conf" ''
@@ -65,16 +73,28 @@ let
       exit 2
     fi
     . "${envFile}"
-    # Journal hygiene. A CR from a secret pasted out of a Windows editor is one of
-    # the shapes this script exists to reject -- and echoing it straight back
-    # overwrites the journal line it is being reported on. Strip control
-    # characters from anything taken out of the secret before it goes to stderr.
+    # Strip control characters from the values themselves, not only from what gets
+    # logged. `.` keeps a CR as part of the value, so without this a CRLF
+    # network_env -- a secret pasted out of a Windows editor, one of the shapes
+    # this script exists to survive -- makes BOTH nameservers invalid and the
+    # script exits 1 with zero nameservers written. That is the outage this module
+    # exists to prevent, reached through a secret whose addresses were fine. It was
+    # measured: DNS1=192.168.0.1<CR> gave exit 1 and left /etc/resolv.conf alone.
+    #
+    # The logging reason is the same CR: echoed straight back it overwrites the
+    # journal line it is being reported on.
     # (Single backslashes: a Nix indented string passes them through untouched and
     # tr is the thing that interprets them. Writing \\r here would hand tr a
     # literal backslash plus the letters r and n.)
     scrub() {
       ${pkgs.coreutils}/bin/printf '%s' "$1" | ${pkgs.coreutils}/bin/tr -d '\r\n'
     }
+    # Raw copies first, so the failure message can still tell an unset key from an
+    # empty one after the scrub has flattened both to "".
+    raw_dns1="''${DNS1-<unset>}"
+    raw_dns2="''${DNS2-<unset>}"
+    DNS1="$(scrub "''${DNS1:-}")"
+    DNS2="$(scrub "''${DNS2:-}")"
     # Non-empty is not the same as valid, and a charset is not an address. A
     # stray space, a CR, a quote -- all pass -z. So does 999.1.1.1, and an
     # unparseable nameserver line is skipped: with no parseable nameserver left
@@ -97,6 +117,8 @@ let
     # at most one `::`, eight groups without it, 1-4 hex digits per group, optional
     # dotted-quad tail -- rather than loosening this.
     valid_ns() {
+      local oct
+      local -a octets
       case "$1" in
         # IPv6: refused, see above.
         *:*) return 1 ;;
@@ -106,13 +128,18 @@ let
           # rejects the ones with too many. set -f first because the split is
           # unquoted and a value like `*.*.*` would otherwise glob against the
           # working directory and be judged on whatever files are there.
+          #
+          # A local array rather than `set -- $1`: `set` is not function-local in
+          # bash, so a positional split here would overwrite the script's own
+          # positional parameters. Harmless while the script takes no arguments,
+          # and a trap for whoever adds one.
           set -f
           IFS=.
-          set -- $1
+          octets=( $1 )
           unset IFS
           set +f
-          [ "$#" -eq 4 ] || return 1
-          for oct in "$@"; do
+          [ "''${#octets[@]}" -eq 4 ] || return 1
+          for oct in "''${octets[@]}"; do
             case "$oct" in "" | *[!0-9]*) return 1 ;; esac
             # Length before value: `[ 99999999999999999999 -le 255 ]` is not a
             # false, it is bash complaining on stderr, and the watchdog forwards
@@ -138,7 +165,7 @@ let
     if valid_ns "''${DNS1:-}"; then ns1="$DNS1"; else dropped="DNS1"; fi
     if valid_ns "''${DNS2:-}"; then ns2="$DNS2"; else dropped="''${dropped:+$dropped }DNS2"; fi
     if [ -z "$ns1" ] && [ -z "$ns2" ]; then
-      echo "no usable nameserver in ${envFile} (DNS1=$(scrub "''${DNS1:-<unset>}") DNS2=$(scrub "''${DNS2:-<unset>}")); refusing to write /etc/resolv.conf" >&2
+      echo "no usable nameserver in ${envFile} (DNS1=$(scrub "$raw_dns1") DNS2=$(scrub "$raw_dns2")); refusing to write /etc/resolv.conf" >&2
       exit 1
     fi
     if [ -n "$ns1" ] && [ -n "$ns2" ]; then
@@ -169,35 +196,53 @@ let
       ${pkgs.coreutils}/bin/chmod 0664 /etc/resolv.conf
       exit 0
     fi
-    # Second-writer tripwire. The resolvconf stub this module exists to survive
-    # carries no nameserver line at all, so a file that carries one which did not
-    # come from network_env means something else is publishing resolvers --
-    # wg-quick with a DNS= line, NetworkManager, a VPN client that speaks
-    # resolvconf. This module is the declared owner and overwrites it either way,
-    # but it says so once: winning a fight in silence is the same invisibility as
-    # the bug this module fixes. A legitimate nameserver change in the secret trips
-    # this once too, which is why the message names both possibilities.
+    # Second-writer tripwire, read line by line because the writer's contract is
+    # lines: it replaces /etc/resolv.conf with nameserver lines and nothing else.
+    # Two things are worth reporting and only one of them was.
     #
-    # set -f because $old is split unquoted and its content is not ours to trust.
-    set -f
-    prev=""
+    #   * a nameserver that did not come from network_env. The resolvconf stub
+    #     this module exists to survive carries no nameserver line at all, so one
+    #     means a second publisher: wg-quick with a DNS= line, NetworkManager, a
+    #     VPN client that speaks resolvconf.
+    #   * every other line the rewrite discards -- `search`, `domain`, `options`,
+    #     `sortlist`. Dropping those unseen is the same invisibility as the bug
+    #     this module fixes: an option another publisher thought it had set simply
+    #     stops existing. `options edns0` from the resolvconf stub is the one this
+    #     fleet hits daily (see networking.resolvconf.dnsExtensionMechanism).
+    #
+    # This module is the declared owner and overwrites either way; it just says so.
+    # A legitimate nameserver change in the secret trips the first message too,
+    # which is why it names both possibilities. Both are edge-triggered by the
+    # watchdog's changed-message guard and only reached when the content differs,
+    # so neither can flood.
+    #
+    # `read` splits the line, so there is no unquoted expansion to glob and no
+    # `set -f` needed; the bare `nameserver` keyword with no address is junk being
+    # removed, not a foreign address, and is not reported as one.
     foreign=""
     nforeign=0
-    for tok in $old; do
-      if [ "$prev" = nameserver ]; then
-        case "$tok" in
-          "$ns1" | "$ns2") ;;
-          *)
+    discarded=""
+    ndiscarded=0
+    while read -r kw rest; do
+      case "$kw" in
+        "" | "#"* | ";"*) continue ;;
+        nameserver)
+          if [ -n "$rest" ] && [ "$rest" != "$ns1" ] && [ "$rest" != "$ns2" ]; then
             nforeign=$((nforeign + 1))
-            foreign="$foreign $tok"
-            ;;
-        esac
-      fi
-      prev="$tok"
-    done
-    set +f
+            foreign="''${foreign:+$foreign, }$rest"
+          fi
+          ;;
+        *)
+          ndiscarded=$((ndiscarded + 1))
+          discarded="''${discarded:+$discarded, }[$kw''${rest:+ $rest}]"
+          ;;
+      esac
+    done <<< "$old"
     if [ "$nforeign" -gt 0 ]; then
       echo "replacing foreign nameservers ($(scrub "$foreign")) in /etc/resolv.conf: they did not come from ${envFile}, so either something else is publishing resolvers or the nameservers changed in the secret" >&2
+    fi
+    if [ "$ndiscarded" -gt 0 ]; then
+      echo "dropping $ndiscarded non-nameserver line(s) from /etc/resolv.conf: $(scrub "$discarded"). This module writes nameserver lines only, so anything another publisher put there is discarded; if a search domain or resolver option has gone missing, that is why" >&2
     fi
     # Unique temp name: the activation script and the watchdog can land here
     # at the same instant, and a shared name lets one mv the other's half-written
@@ -219,7 +264,7 @@ let
     ${pkgs.coreutils}/bin/chmod 0664 "$tmp"
     ${pkgs.coreutils}/bin/mv "$tmp" /etc/resolv.conf
   '';
-  # Runs on the resolvWatchIntervalSec interval for the life of the boot. Nothing
+  # Runs on the watchIntervalSec interval for the life of the boot. Nothing
   # re-asserts resolv.conf after activation -- NixOS does not own it, and
   # resolvconf.service is itself one of the things that can clobber it -- so
   # anything that rewrites it wins until the next switch, which is how a 17-hour
@@ -287,7 +332,7 @@ let
               fi
               ;;
             2)
-              echo "static-network: $msg (retrying every ${toString resolvWatchIntervalSec}s)" >&2
+              echo "static-network: $msg (retrying every ${toString watchIntervalSec}s)" >&2
               ;;
             *)
               echo "static-network: $msg -- host DNS is broken until this clears" >&2
@@ -297,7 +342,7 @@ let
         last_rc=$rc
         last_msg=$msg
       ''}
-      ${pkgs.coreutils}/bin/sleep ${toString resolvWatchIntervalSec}
+      ${pkgs.coreutils}/bin/sleep ${toString watchIntervalSec}
     done
   '';
 in
@@ -393,9 +438,23 @@ in
       # resolvconf.service is Before=network-pre.target and wipes the file; this
       # unit is the restore. Ordering it explicitly instead of relying on
       # network-pre.target sorting before network.target.
+      #
+      # network-local-commands.service is the other clobberer and the easy one to
+      # miss. nixpkgs renders networking.localCommands as
+      # `resolvconf -m 1 -a static`, fed from networking.nameservers -- and on
+      # these hosts that option is mkIf'd off, so the heredoc it registers is
+      # empty. That unit is WantedBy=network.target with no ordering against this
+      # one, so the two race on every boot. Measured with openresolv 3.17.4 in a
+      # mount namespace: run after this unit it exits 1 with `signature mismatch:
+      # /etc/resolv.conf` and never writes /run/resolvconf/interface/static --
+      # openresolv refuses to update a file it no longer recognises. The resolver
+      # survives that (the refusal is what protects the file), but a boot unit is
+      # left failing, and it has been failing since the activation snippet first
+      # started rewriting the file. Order after it so the restore is last.
       after = [
         "network-addresses-${config.staticNetwork.interface}.service"
         "resolvconf.service"
+        "network-local-commands.service"
       ];
       wantedBy = [ "network.target" ];
       path = [ pkgs.iproute2 ];
@@ -453,6 +512,12 @@ in
         if [ -f "${envFile}" ]; then
           . "${envFile}"
           ${lib.optionalString (isPlaceholder config.staticNetwork.ipAddress) "${pkgs.iproute2}/bin/ip addr replace \"$IP_ADDRESS\"/${toString config.staticNetwork.prefixLength} dev ${iface}"}
+          # Deliberately unguarded here, unlike the same line in
+          # network-runtime-config: this runs during activation, so an empty
+          # DEFAULT_GATEWAY fails the switch loudly instead of activating a host
+          # with no route and no complaint. That is the behaviour wanted for a
+          # half-written secret at deploy time; the boot unit above is the one
+          # that has to survive it and leave the machine reachable.
           ${lib.optionalString (isPlaceholder config.staticNetwork.defaultGateway) "${pkgs.iproute2}/bin/ip route replace ${routeFlagsStr}default via \"$DEFAULT_GATEWAY\" dev ${iface}"}
           # Deliberately the store path and not /run/current-system/sw/bin: an
           # activation script runs BEFORE switch-to-configuration repoints
