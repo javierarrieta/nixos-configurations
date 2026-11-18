@@ -36,7 +36,9 @@ let
   # What wipes the file is resolvconf, and the ordering is the whole story, so
   # it is written down here instead of being left in a PR description:
   #
-  #   * networking.resolvconf.enable is true on every host in this fleet.
+  #   * networking.resolvconf.enable is true on every host that runs this
+  #     module (wsl is the only host in the repo without it, and it has no
+  #     resolvconf unit at all).
   #   * resolvconf.service is `Before = network-pre.target`, so at boot it runs
   #     `resolvconf -u` EARLY -- after the activation script, before the
   #     network-runtime-config oneshot that is WantedBy network.target.
@@ -97,16 +99,48 @@ let
       echo "DNS1/DNS2 are empty in ${envFile}; refusing to write an invalid /etc/resolv.conf" >&2
       exit 1
     fi
-    # Non-empty is not the same as valid. A stray space, a CR from a secret
-    # pasted out of a Windows editor, a quote -- all pass -z and all still
-    # produce a resolv.conf every resolver on the host rejects, which is the
-    # exact failure this script exists to make impossible.
-    case "''${DNS1}''${DNS2}" in
-      *[!0-9a-fA-F.:]*)
-        echo "DNS1/DNS2 in ${envFile} are not plain IPv4/IPv6 addresses; refusing to write /etc/resolv.conf" >&2
-        exit 1
-        ;;
-    esac
+    # Non-empty is not the same as valid, and a charset is not an address. A
+    # stray space, a CR from a secret pasted out of a Windows editor, a quote --
+    # all pass -z. So does 999.1.1.1, and glibc's inet_pton rejects that just as
+    # flatly as it rejects nothing: an unparseable nameserver line is skipped,
+    # and with no parseable nameserver left the host is back in the exact outage
+    # this script exists to prevent. Measured: a charset-only check let
+    # 999.1.1.1, 1.2.3.4.5, 1.1.1.1:53 and ... all through.
+    valid_ns() {
+      case "$1" in
+        *:*)
+          # IPv6: hex, colons and dots only (for v4-mapped forms). No %zone, no
+          # port, and at least two colons -- `::` is the shortest real address,
+          # while `1.1.1.1:53`, the shape that arrives from a URL, has one.
+          case "$1" in *[!0-9a-fA-F.:]*) return 1 ;; esac
+          colons=''${1//[!:]}
+          [ "''${#colons}" -ge 2 ]
+          ;;
+        *.*.*)
+          # IPv4: exactly four decimal octets, each <= 255. The pattern above
+          # already rejected anything with fewer than two dots; the count check
+          # rejects the ones with too many. set -f first because the split is
+          # unquoted and a value like `*.*.*` would otherwise glob against the
+          # working directory and be judged on whatever files are there.
+          set -f
+          IFS=.
+          set -- $1
+          unset IFS
+          set +f
+          [ "$#" -eq 4 ] || return 1
+          for oct in "$@"; do
+            case "$oct" in "" | *[!0-9]*) return 1 ;; esac
+            [ "$oct" -le 255 ] || return 1
+          done
+          ;;
+        # No colon and fewer than three dots: not an address of either family.
+        *) return 1 ;;
+      esac
+    }
+    if ! valid_ns "$DNS1" || ! valid_ns "$DNS2"; then
+      echo "DNS1/DNS2 in ${envFile} are not plain IPv4/IPv6 addresses; refusing to write /etc/resolv.conf" >&2
+      exit 1
+    fi
     # Unique temp name: the activation script and the watchdog can land here
     # at the same instant, and a shared name lets one mv the other's half-written
     # file into /etc/resolv.conf.
@@ -151,8 +185,28 @@ let
   networkWatchLoop = pkgs.writeShellScript "static-network-watch" ''
     last_rc=0
     last_msg=""
+    last_rt_rc=0
     while true; do
-      ${pkgs.iproute2}/bin/ip route replace ${routeFlagsStr}default via "$DEFAULT_GATEWAY" dev ${iface} 2>/dev/null || true
+      # The route half is edge-triggered for the same reason the resolver half is,
+      # and it used to be worse: `|| true` with stderr on the floor meant a route
+      # that could not be restored was indistinguishable from one that was. That
+      # is exactly how the last silent failure stayed silent.
+      if [ -n "''${DEFAULT_GATEWAY:-}" ]; then
+        ${pkgs.iproute2}/bin/ip route replace ${routeFlagsStr}default via "$DEFAULT_GATEWAY" dev ${iface} 2>/dev/null
+        rt_rc=$?
+      else
+        # EnvironmentFile is optional (see the unit), so an unloaded secret shows
+        # up here as an empty variable rather than a unit that never started.
+        rt_rc=3
+      fi
+      if [ "$rt_rc" != "$last_rt_rc" ]; then
+        case "$rt_rc" in
+          0) echo "static-network: default route self-heal recovered" >&2 ;;
+          3) echo "static-network: DEFAULT_GATEWAY is unset; cannot self-heal the default route" >&2 ;;
+          *) echo "static-network: default route self-heal failing (ip route replace exit $rt_rc)" >&2 ;;
+        esac
+        last_rt_rc=$rt_rc
+      fi
       ${lib.optionalString needsRuntimeResolv ''
         msg=$(${writeResolvConf} 2>&1) && rc=0 || rc=$?
         if [ "$rc" != "$last_rc" ] || [ "$msg" != "$last_msg" ]; then
@@ -266,13 +320,22 @@ in
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        EnvironmentFile = config.sops.secrets."${config.networking.hostName}/network_env".path;
+        # '-' on purpose. Without it a missing network_env is not a degraded
+        # start, it is `Result: resources` and no unit at all -- k3s.nix records
+        # that failure mode from titan on 2026-10-03. This unit is the restore,
+        # so it has to survive the thing it is restoring after; the script below
+        # checks each variable instead of assuming the file landed.
+        EnvironmentFile = [ "-${config.sops.secrets."${config.networking.hostName}/network_env".path}" ];
       };
       script = ''
         ${lib.optionalString
           (isPlaceholder config.staticNetwork.ipAddress || isPlaceholder config.staticNetwork.defaultGateway)
           ''
-            ip route replace ${routeFlagsStr}default via "$DEFAULT_GATEWAY" dev ${config.staticNetwork.interface}
+            if [ -n "$DEFAULT_GATEWAY" ]; then
+              ip route replace ${routeFlagsStr}default via "$DEFAULT_GATEWAY" dev ${config.staticNetwork.interface}
+            else
+              echo "static-network: network_env not loaded; skipping the default route at boot, the watchdog owns it now" >&2
+            fi
           ''
         }
         ${lib.optionalString needsRuntimeResolv "${writeResolvConf} || echo 'static-network: could not write /etc/resolv.conf at boot; the watchdog keeps retrying' >&2"}
@@ -349,7 +412,13 @@ in
         # switch-to-configuration does restart a unit whose ExecStart changed;
         # if this unit ever stops self-healing, check here first.
         ExecStart = networkWatchLoop;
-        EnvironmentFile = config.sops.secrets."${config.networking.hostName}/network_env".path;
+        # '-' on purpose, and it changes what the loop can see: without it a
+        # missing network_env kills the unit with `Result: resources` before
+        # anything runs, which takes the route self-heal down with it -- the
+        # half that predates this PR and the half AGENTS.md records hosts losing
+        # mid-switch. With it, the loop starts, reports DEFAULT_GATEWAY unset,
+        # and writeResolvConf's exit 2 is the real missing-secret path.
+        EnvironmentFile = [ "-${config.sops.secrets."${config.networking.hostName}/network_env".path}" ];
       };
     };
   };
