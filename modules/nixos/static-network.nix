@@ -182,6 +182,27 @@ let
   # failure mode already recorded in AGENTS.md (2026-08-27, k8s-node03, a runaway
   # loop filling the root filesystem). A message goes out when the state changes
   # and when it recovers, and not in between.
+  #
+  # One assumption this writer makes: it is the ONLY writer of /etc/resolv.conf.
+  # That holds here because nothing publishes to resolvconf -- measured 0 files
+  # in /run/resolvconf/interface on k8s-node01 -- and the only thing on this
+  # fleet that would, dhcpcd, is denied the overlay by k3s.nix. Worth naming the
+  # things that are NOT in that set, because they look like they might be: k3s
+  # only ever reads the file (kubelet's --resolv-conf chooses which file is
+  # copied into pods, nothing writes the host's, and CoreDNS answers pods rather
+  # than the node), and networking.wireguard.interfaces configures wg0 through
+  # systemd-networkd, with no DNS declared in modules/nixos/wireguard.nix at
+  # all. The set that would conflict is wg-quick with a DNS= line, NetworkManager,
+  # or a VPN client that speaks resolvconf.
+  #
+  # If one of those ever arrives, this loop overwrites what it published every
+  # resolvWatchIntervalSec and logs nothing -- the same invisibility as the bug
+  # this module fixes, pointed the other way. The fix then is to publish through
+  # resolvconf (write the two nameservers with `resolvconf -a static.network`)
+  # so the merge happens instead of a fight, not to make the loop cleverer. A
+  # second option, if the host ever needs a resolver that Nix knows about: drop
+  # $DNS1/$DNS2 from network_env and set networking.nameservers for real, which
+  # hands the file back to NixOS and deletes this half of the module.
   networkWatchLoop = pkgs.writeShellScript "static-network-watch" ''
     last_rc=0
     last_msg=""
