@@ -193,24 +193,38 @@
     # dhcpcd touching flannel.1.
     #
     # It lives here rather than in k8s-network.nix because the interfaces are
-    # k3s', and the three k8s-pi* hosts run k3s without enabling k8sNetwork --
-    # they would have stayed exposed.
+    # k3s': k3s.nix is the one module every k3s host includes, and
+    # k8s-network.nix is not included by the Raspberry Pi workers. That is a
+    # placement argument and nothing more -- the Pi workers do not run a DHCP
+    # client at all (see the enableDHCP note below), so there was nothing there
+    # waiting to be rescued.
     #
     # Denying the overlay is preferred over `networking.dhcpcd.enable = false`
     # because it removes the observed harm without pulling the DHCP safety net
     # out from under the physical interfaces; static-network.nix records a host
     # that went dark when a lease was the only thing covering a bad static
-    # config. Turning dhcpcd off entirely is the right follow-up once anyone
-    # knows why it is on, because nothing in this repo asks for it and it is on
-    # everywhere regardless of what the hosts ask: evaluated on 2026-11-18,
-    # networking.dhcpcd.enable is true on 16 of the 17 configurations -- only
-    # wsl is false -- including k8s-pi01 where networking.useDHCP is already
-    # false (useNetworkd is false there too, so nixpkgs' legacy backend is in
-    # play and it defaults dhcpcd on). That is also why `useDHCP = false` alone
-    # would not have fixed this. Note the safety net may already be imaginary on
-    # these hosts: the only physical interface is static, so nixpkgs ignores it,
-    # and once the list below lands dhcpcd may manage nothing at all. Check
-    # `dhcpcd --status` on a canary before trusting either story.
+    # config. Turning dhcpcd off entirely is the right follow-up, because nothing
+    # in this repo asks for it -- and note that the option is not the client.
+    # nixpkgs gates the unit on `dhcpcd.enable && (networking.useDHCP || any
+    # declared interface with useDHCP = true)`, so although
+    # networking.dhcpcd.enable reads true on 16 of the 17 configurations (only
+    # wsl is false), a dhcpcd unit exists on exactly nine: k8s-node01..05,
+    # k8s-server01..03 and titan -- the same nine that showed the crash loop,
+    # which is the honest way to read the "nine hosts" figure above. The Pi
+    # workers, the three *-minimal images and llm01 have no dhcpcd unit at all:
+    # useDHCP is false there and no declared interface asks for DHCP. That is why
+    # `useDHCP = false` alone would not have fixed this, and why the list below is
+    # inert on those hosts.
+    #
+    # The safety net is already imaginary on the nine that do run it. Every
+    # declared interface is static, so nixpkgs ignores it (enp1s0/enp3s0, enp2s0,
+    # eno1/eno2), wg0 is ignored through networking.wireguard.interfaces, and the
+    # list below denies the overlay -- so what is left for dhcpcd to manage is
+    # nothing. `networking.dhcpcd.enable = false` is therefore equivalent rather
+    # than risky, and it deletes the crash source outright instead of fencing it
+    # in. Keep it as its own change with its own canary; `dhcpcd --status` on one
+    # host is the proof, and this is a style choice now rather than an unknown.
+    #
     # What is NOT listed, and why: nixpkgs already emits `denyinterfaces ... lo
     # peth* vif* tap* tun* virbr* vnet* vboxnet* sit*` in the dhcpcd.conf it
     # generates, so tap* needs no entry here (veth* genuinely is missing
@@ -224,10 +238,13 @@
     # embedded CNI, and a switch to cilium (lxc*, cilium_host), calico (cali*,
     # tunl0) or anything that adds a plain bridge reintroduces the bug silently
     # -- dhcpcd does not complain about an interface nobody told it about. And
-    # it is scoped to k3s, so llm01 gets none of it while still running dhcpcd
-    # and podman; rootless podman keeps its veths in a rootless netns so the
-    # host netns is clean today, and if anything ever runs rootful containers
-    # there this list belongs in a shared module rather than here.
+    # it is scoped to k3s, so llm01 gets none of it. Today that costs nothing --
+    # llm01 has no dhcpcd unit either -- but it is one line of config away from
+    # being wrong: setting networking.useDHCP, or declaring any interface with
+    # useDHCP = true, hands llm01 a DHCP client that has never been denied
+    # anything. Rootless podman keeps its veths in a rootless netns so the host
+    # netns is clean; if rootful containers or a useDHCP ever land there, this
+    # list belongs in a shared module rather than here.
     networking.dhcpcd.denyInterfaces = [
       "flannel.*"
       "cni0"

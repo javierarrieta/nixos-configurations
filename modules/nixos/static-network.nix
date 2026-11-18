@@ -85,9 +85,10 @@ let
   # So: validate before writing, write atomically, and exit non-zero rather than
   # emit `nameserver ` with an empty address. Callers decide how loud to be.
   # Exit codes: 2 = the secret is not on disk yet, which is normal for a moment
-  # at boot; 1 = the secret is there and unusable, which means host DNS really
-  # is broken. The watchdog uses that difference to stay quiet about the first
-  # and shout about the second.
+  # at boot; 1 = the secret is there and holds no usable nameserver at all,
+  # which means host DNS really is broken. One usable address out of the two is
+  # enough to write -- see the ns1/ns2 selection below. The watchdog uses that
+  # difference to stay quiet about the first and shout about the second.
   resolvWatchIntervalSec = 10;
   writeResolvConf = pkgs.writeShellScript "static-network-resolv-conf" ''
     if [ ! -f "${envFile}" ]; then
@@ -95,10 +96,6 @@ let
       exit 2
     fi
     . "${envFile}"
-    if [ -z "''${DNS1:-}" ] || [ -z "''${DNS2:-}" ]; then
-      echo "DNS1/DNS2 are empty in ${envFile}; refusing to write an invalid /etc/resolv.conf" >&2
-      exit 1
-    fi
     # Non-empty is not the same as valid, and a charset is not an address. A
     # stray space, a CR from a secret pasted out of a Windows editor, a quote --
     # all pass -z. So does 999.1.1.1, and glibc's inet_pton rejects that just as
@@ -106,16 +103,20 @@ let
     # and with no parseable nameserver left the host is back in the exact outage
     # this script exists to prevent. Measured: a charset-only check let
     # 999.1.1.1, 1.2.3.4.5, 1.1.1.1:53 and ... all through.
+    #
+    # IPv4 only, and that is a decision rather than an oversight. No host on this
+    # fleet has an IPv6 nameserver -- all nine network_env secrets hold a bare
+    # IPv4 in DNS1 and DNS2 -- and the first cut of this branch tried to accept v6
+    # on a charset plus a colon count, which let `::::`, `1:2:3`, `2001:db8:1`
+    # and a nine-group string through, every one of them rejected by inet_pton.
+    # An unparseable line is exactly the outage this script exists to close, so
+    # refuse what cannot be validated. If a v6 resolver ever arrives, validate it
+    # properly -- at most one `::`, eight groups without it, 1-4 hex digits per
+    # group, optional dotted-quad tail -- rather than loosening this.
     valid_ns() {
       case "$1" in
-        *:*)
-          # IPv6: hex, colons and dots only (for v4-mapped forms). No %zone, no
-          # port, and at least two colons -- `::` is the shortest real address,
-          # while `1.1.1.1:53`, the shape that arrives from a URL, has one.
-          case "$1" in *[!0-9a-fA-F.:]*) return 1 ;; esac
-          colons=''${1//[!:]}
-          [ "''${#colons}" -ge 2 ]
-          ;;
+        # IPv6: refused, see above.
+        *:*) return 1 ;;
         *.*.*)
           # IPv4: exactly four decimal octets, each <= 255. The pattern above
           # already rejected anything with fewer than two dots; the count check
@@ -130,16 +131,56 @@ let
           [ "$#" -eq 4 ] || return 1
           for oct in "$@"; do
             case "$oct" in "" | *[!0-9]*) return 1 ;; esac
+            # Length before value: `[ 99999999999999999999 -le 255 ]` is not a
+            # false, it is bash complaining on stderr, and the watchdog forwards
+            # stderr straight into the journal line.
+            [ "''${#oct}" -le 3 ] || return 1
             [ "$oct" -le 255 ] || return 1
           done
           ;;
-        # No colon and fewer than three dots: not an address of either family.
+        # No colon and fewer than three dots: not an IPv4 address.
         *) return 1 ;;
       esac
     }
-    if ! valid_ns "$DNS1" || ! valid_ns "$DNS2"; then
-      echo "DNS1/DNS2 in ${envFile} are not plain IPv4/IPv6 addresses; refusing to write /etc/resolv.conf" >&2
+    # One usable resolver is worth writing; two is better. Requiring both is
+    # stricter than resolv.conf needs: the snippet this replaced wrote
+    # `nameserver ` with an empty second address, glibc skipped the unparseable
+    # line, and the host resolved fine on the first one. Refusing to write
+    # anything at all in that case is how a degraded secret becomes the outage
+    # this module exists to prevent. A dropped nameserver is reported rather than
+    # eaten -- the watchdog prints a message that changed, once.
+    ns1=""
+    ns2=""
+    dropped=""
+    if valid_ns "''${DNS1:-}"; then ns1="$DNS1"; else dropped="DNS1"; fi
+    if valid_ns "''${DNS2:-}"; then ns2="$DNS2"; else dropped="''${dropped:+$dropped }DNS2"; fi
+    if [ -z "$ns1" ] && [ -z "$ns2" ]; then
+      echo "no usable nameserver in ${envFile} (DNS1=''${DNS1:-<unset>} DNS2=''${DNS2:-<unset>}); refusing to write /etc/resolv.conf" >&2
       exit 1
+    fi
+    if [ -n "$ns1" ] && [ -n "$ns2" ]; then
+      new=$(printf 'nameserver %s\nnameserver %s\n' "$ns1" "$ns2")
+    elif [ -n "$ns1" ]; then
+      new=$(printf 'nameserver %s\n' "$ns1")
+    else
+      new=$(printf 'nameserver %s\n' "$ns2")
+    fi
+    if [ -n "$dropped" ]; then
+      echo "writing one nameserver only; $dropped is not a usable IPv4 address in ${envFile}" >&2
+    fi
+    # Compare before touching /etc, and only write when it actually changed: the
+    # loop runs around the clock, and a temp file created just to discover nothing
+    # changed is ~8.6k create/unlink pairs a day in /etc for a file that never
+    # moved. Command substitution strips trailing newlines on both sides, so this
+    # compares content rather than bytes.
+    if [ -f /etc/resolv.conf ] && [ "$(${pkgs.coreutils}/bin/cat /etc/resolv.conf)" = "$new" ]; then
+      # Content is not the whole contract. resolvconf.service hands the file back
+      # with `chgrp resolvconf; chmod g=u` on every run, so an early exit on
+      # content alone left mode drift in place; re-asserting costs two syscalls a
+      # tick and never changes the inode.
+      ${pkgs.coreutils}/bin/chgrp resolvconf /etc/resolv.conf 2>/dev/null || true
+      ${pkgs.coreutils}/bin/chmod 0664 /etc/resolv.conf
+      exit 0
     fi
     # Unique temp name: the activation script and the watchdog can land here
     # at the same instant, and a shared name lets one mv the other's half-written
@@ -151,7 +192,7 @@ let
     # would let the script carry on and write the file anyway.
     trap '${pkgs.coreutils}/bin/rm -f "$tmp"' EXIT
     trap '${pkgs.coreutils}/bin/rm -f "$tmp"; exit 1' HUP INT TERM
-    printf 'nameserver %s\nnameserver %s\n' "$DNS1" "$DNS2" > "$tmp"
+    printf '%s\n' "$new" > "$tmp"
     # mv swaps the inode, and resolvconf.service keeps /etc/resolv.conf
     # group-writable for the resolvconf group so dhcpcd's hook can write it. A
     # bare mv throws that away on every rewrite and locks dhcpcd out of the file,
@@ -159,15 +200,6 @@ let
     # group does not exist.)
     ${pkgs.coreutils}/bin/chgrp resolvconf "$tmp" 2>/dev/null || true
     ${pkgs.coreutils}/bin/chmod 0664 "$tmp"
-    # Only write when it actually changed: the loop below runs around the clock,
-    # and an unconditional rewrite is one rewrite per tick of a file nobody
-    # changed. cmp is diffutils, not coreutils -- coreutils 9.x does not ship it,
-    # and a missing binary here would print an error on every tick while silently
-    # falling through to the mv.
-    if [ -f /etc/resolv.conf ] && ${pkgs.diffutils}/bin/cmp -s "$tmp" /etc/resolv.conf; then
-      ${pkgs.coreutils}/bin/rm -f "$tmp"
-      exit 0
-    fi
     ${pkgs.coreutils}/bin/mv "$tmp" /etc/resolv.conf
   '';
   # Runs on the resolvWatchIntervalSec interval for the life of the boot. Nothing
@@ -208,6 +240,17 @@ let
     last_msg=""
     last_rt_rc=0
     while true; do
+      # Re-read the secret on every tick. systemd reads EnvironmentFile once, at
+      # unit start, and this loop outlives that moment: setupSecrets is an
+      # activation script and not a unit, so network_env can land long after the
+      # loop started. Taking DEFAULT_GATEWAY from the unit environment alone made
+      # a late secret permanent -- one journal line, then an empty variable for
+      # the rest of the boot and no route self-heal at all, which is worse than
+      # the mandatory EnvironmentFile this replaced: that failed the unit, and
+      # Restart=always re-exec'd it every RestartSec until the file appeared.
+      if [ -f "${envFile}" ]; then
+        . "${envFile}"
+      fi
       # The route half is edge-triggered for the same reason the resolver half is,
       # and it used to be worse: `|| true` with stderr on the floor meant a route
       # that could not be restored was indistinguishable from one that was. That
@@ -216,8 +259,9 @@ let
         ${pkgs.iproute2}/bin/ip route replace ${routeFlagsStr}default via "$DEFAULT_GATEWAY" dev ${iface} 2>/dev/null
         rt_rc=$?
       else
-        # EnvironmentFile is optional (see the unit), so an unloaded secret shows
-        # up here as an empty variable rather than a unit that never started.
+        # The secret is not on disk yet, or carries no DEFAULT_GATEWAY. The
+        # source above re-reads it every tick, so this state clears itself and
+        # the edge-trigger below prints the recovery.
         rt_rc=3
       fi
       if [ "$rt_rc" != "$last_rt_rc" ]; then
@@ -235,6 +279,12 @@ let
             0)
               if [ "$last_rc" != 0 ]; then
                 echo "static-network: /etc/resolv.conf self-heal recovered" >&2
+              fi
+              # rc 0 with a message is a warning the writer chose to emit -- one
+              # usable nameserver out of two, say. The guard above only lets a
+              # changed message through, so this prints once, not per tick.
+              if [ -n "$msg" ]; then
+                echo "static-network: $msg" >&2
               fi
               ;;
             2)
@@ -433,12 +483,13 @@ in
         # switch-to-configuration does restart a unit whose ExecStart changed;
         # if this unit ever stops self-healing, check here first.
         ExecStart = networkWatchLoop;
-        # '-' on purpose, and it changes what the loop can see: without it a
-        # missing network_env kills the unit with `Result: resources` before
-        # anything runs, which takes the route self-heal down with it -- the
-        # half that predates this PR and the half AGENTS.md records hosts losing
-        # mid-switch. With it, the loop starts, reports DEFAULT_GATEWAY unset,
-        # and writeResolvConf's exit 2 is the real missing-secret path.
+        # '-' on purpose: without it a missing network_env kills the unit with
+        # `Result: resources` before anything runs and the watchdog is gone for
+        # the boot. It is NOT what makes a late secret recoverable, though --
+        # systemd reads EnvironmentFile once, at unit start, so the loop sources
+        # the file itself every tick. Keep both: this one gets the values onto
+        # tick one when the secret is already there, and the source in the loop
+        # is what picks the secret up when it is not.
         EnvironmentFile = [ "-${config.sops.secrets."${config.networking.hostName}/network_env".path}" ];
       };
     };
