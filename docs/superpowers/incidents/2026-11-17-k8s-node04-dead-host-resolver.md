@@ -352,24 +352,159 @@ Five gates, because `deploy done` proves nothing about any of them:
 
    The restore's exit must precede k3s's start, and
    `journalctl -b -u network-runtime-config` must be clean. If k3s still starts
-   first, the barrier did not take and the boot window is still open. node04 owes a
-   reboot anyway (§7), so it is the host to check first.
+   first, the barrier did not take and the boot window is still open. node04 was
+   the host checked, on its 2026-11-19 14:53:33 reboot; result in §8.
 
 ## 7. Not covered here
 
-- **node04 does not recover from this change alone.** It needs its reboot (already
-  flagged `Reboot required`) or a manual resolv restore.
+- **node04 needed a boot to recover, and got one at 2026-11-18 07:46** -- before
+  this change even merged. It recovered exactly as §4 predicted a boot would: 1466
+  `no such host` lines in the 48 h before that boot, zero after. Nothing has owed a
+  reboot since (`nixos_reboot_required` is 0 on all thirteen hosts), which is why
+  gate 5 sat unverified until a reboot was done deliberately for it (§8).
 - **Nothing probes host DNS.** Detection still depends on something failing
   loudly, which is what made this a 17-hour incident. A textfile-metric timer
   resolving one name, following the existing `comin-pending-metric` pattern,
   would close that gap. A `systemctl is-active network-route-watch` check in the
   comin health gate belongs in the same change, not folded into a DNS fix: the
   gate rolls a host back when a check fails.
-- `k8s-node02` has the same dhcpcd crash load **and** `DiskPressure=True`
-  (10.3 GiB free on `/`, the tightest in the cluster).
+- `k8s-node02` is written up above as carrying the same dhcpcd crash load. Its 24 h
+  baseline immediately before its 2026-11-19 deploy was 18 dhcpcd lines, 0
+  coredumps and zero `no such host`, so whatever it was doing in mid-November had
+  stopped by then; the two counts were taken differently (§8) and the disagreement
+  is unresolved rather than refuted. The `DiskPressure=True` half (10.3 GiB free on
+  `/`, the tightest in the cluster) is unchanged and still worth attention.
 - The writer asserts a `resolv.conf` of `nameserver` lines and nothing else, so
   `networking.resolvconf.dnsExtensionMechanism` (default true -> `options edns0`)
   is defeated on the nine re-asserting hosts. Pre-existing; publishing through
   resolvconf (§5) is the fix. It is at least no longer silent -- the writer names
   the lines it discards, so `options edns0` disappearing shows up in the journal
   once per rewrite.
+
+## 8. Rollout results (2026-11-19)
+
+Everything in this section was read from Loki, Prometheus and `kubectl`. The
+workspace that watched the rollout has no SSH to the fleet, so anything that needs
+a shell on a host says so instead of claiming a result.
+
+`main` -> `stable` was a fast-forward to `e0b1000`, carrying #181 (this fix), #182
+(an unrelated Pi refactor) and #183 (a side finding, below).
+
+| host | switched | how |
+|---|---|---|
+| titan | 08:59:53 | canary, auto |
+| k8s-node05 | 09:04:11 | canary, auto |
+| llm01 | skipped | `out path ... has already been deployed` -- correct, its toplevel did not change |
+| k8s-node01 | 12:34:37 | fleet, manual accept |
+| k8s-node02 | 12:38:40 | fleet, manual accept |
+| k8s-node03 | 14:06:02 | fleet, manual accept |
+| k8s-node04 | 14:11:18 | fleet, manual accept; rebooted 14:53:33 for gate 5 |
+
+### Gate 1 -- the crash loop: pass, on node04 only
+
+node04 is the only host that ever had the pathology, so it is the only host where
+this gate carries information. Matched five-minute windows of raw log lines, the
+after-window starting two minutes past the switch so the switch minute cannot leak
+into it:
+
+| signal | 5 min before | 5 min after |
+|---|---|---|
+| dhcpcd log lines | 15 (177/h) | 0 |
+| coredumps | 2 (24/h) | 0 |
+| lease solicitations | 276 (3261/h) | 0 |
+
+Across the six hours before the switch: 201 dhcpcd lines/h, 26 coredumps/h, 3360
+lease solicitations/h. At that rate the after-window should have held ~272 lease
+solicitations and held none. The cold boot at 14:53:33 was clean too -- dhcpcd's
+unit started (`Started DHCP Client.`) and emitted nothing at all, which is the
+point: denied the overlay it has no interface to work on, and that survives a boot
+rather than only a `switch`.
+
+The four other fleet hosts could not demonstrate this and should not be counted as
+passing it. Their 24 h baselines before their own deploys were 18 dhcpcd lines and
+0-2 coredumps with zero `no such host` -- they never had the crash loop, so zero
+after is not evidence of anything.
+
+### Gates 3 and 4 -- pass
+
+Zero `signature mismatch`, zero failed units, and zero
+`could not re-assert /etc/resolv.conf during activation` across all six hosts that
+switched and across node04's reboot. Gate 3 was the one most likely to go red, since
+it is the first ordering that has ever existed between `resolvconf -u` and
+`resolvconf -a static`.
+
+### Gate 5 -- the boot barrier: pass, with a caveat that matters
+
+On node04 after the reboot, monotonic microseconds from the host:
+
+| | |
+|---|---|
+| `network-runtime-config` start | 8.253 s |
+| `network-runtime-config` exit | 8.303 s (ran 50 ms) |
+| `network-online.target` reached | 33.367 s |
+| `k3s.service` start | 38.301 s |
+
+The restore finished half a minute before k3s started, and `critical-chain` confirms
+`network-online.target` sits on k3s's dependency path, which is the edge the fix
+added. What this does **not** establish is that the barrier was the binding
+constraint: dhcpcd's own 30 s timeout put `network-online.target` at 33.367 s
+regardless, so the barrier was handed ~30 s of slack. Showing necessity would need a
+host with the barrier and the deny list removed, which is not something to do to a
+production node. Recorded so nobody over-reads the green.
+
+### Gate 2 -- not demonstrable
+
+No host still holds the bad state, so the positive branch of this gate cannot be
+exercised anywhere. What exists is the negative: the writer ran on six hosts and
+never emitted the fail-loud warning, and no `static-network:` watchdog line appeared
+on any of them. `systemctl is-active network-route-watch` still needs someone with a
+shell.
+
+### Follow-up: dhcpcd costs ~30 s of every boot on the nine placeholder hosts
+
+`systemd-analyze critical-chain k3s.service` on node04 after the reboot:
+
+```
+k3s.service +24ms
+└─network-online.target @33.367s
+  └─dhcpcd.service @3.012s +30.352s
+```
+
+dhcpcd runs, cannot get a lease on a statically configured interface, times out after
+30 s, and `network-online.target` waits for it. This is **not** a regression from
+`denyInterfaces`: node01 booted with 33.890 s of userspace on 2026-11-18 and node02
+with 33.433 s, both before this change existed, against node04's 33.541 s after it.
+It has been there the whole time.
+
+Since dhcpcd now does nothing useful on these nine hosts and caused this incident,
+`networking.dhcpcd.enable = false` deserves weighing on its own merits -- it would
+cut ~30 s from every boot and delete the crash-loop class outright instead of fencing
+it. Deliberately not folded into this change: it is a different decision from the one
+#181 carried, and it needs a look at whether anything else expects a DHCP client.
+
+### Side finding: the comin gauges were blind for the first half of this rollout
+
+`comin_pending_confirmation` and `comin_deployer_suspended` read 2 (probe broken) on
+all three canaries from each host's own deploy until ~10:42, because
+`comin status --json` embeds the deployment's build log and passes the 128 KiB
+per-argument `execve` limit. Fixed in #183. The lesson is not the fix, it is the
+window: the two gauges the rollout gatekeeper depends on were unreadable during
+exactly the ~1 h 45 m after a deploy in which a health-gate rollback would have shown
+up, and they healed on their own once a smaller deploy rotated the record out.
+
+### Measurement traps hit while reading these gates
+
+- Loki's `query_range` caps at 5000 entries and returns exactly 5000 when it hits
+  the cap. A count of 5000 means at least 5000. Use `sum(count_over_time(...))` for
+  anything that could exceed it.
+- `count_over_time(sel[1m])` stepped across a window inflates a post-event rate,
+  because the sample at the boundary reaches a minute before it. The first version
+  of the gate 1 table said 93 dhcpcd lines/h after the switch; the raw log count was
+  0. The contradiction is what caught it.
+- Early-boot journald lines arrive stamped with the NTP sync, not the event. node04's
+  entire boot arrived as 14:54:12 because rsyslog's forward action had been blocked
+  and flushed at `Initial clock synchronization`. Ordering cannot be read out of Loki
+  for that window -- gate 5 needed on-host monotonic timestamps, and the first
+  attempt to derive it from Loki was worthless.
+- Every journald line arrives twice (imjournal and rsyslog both ship). Deduplicate
+  before counting anything.
