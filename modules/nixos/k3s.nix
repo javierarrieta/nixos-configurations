@@ -227,6 +227,46 @@
       "veth*"
     ];
 
+    # dhcpcd costs 30 s of every boot on these hosts, and it does it while managing
+    # nothing. The chain, measured on k8s-node04 on 2026-11-19 and read out of the
+    # pinned nixpkgs dhcpcd module:
+    #
+    #   1. `networking.dhcpcd.wait` defaults to "any" (dhcpcd.nix:252), which the
+    #      module turns into the line `waitip` in the generated dhcpcd.conf
+    #      (dhcpcd.nix:98-108). `waitip` means: do not fork to background until an
+    #      address has been assigned.
+    #   2. ExecStart is `dhcpcd --quiet --config ...` with no `-b` (dhcpcd.nix:331),
+    #      so backgrounding is decided entirely by that line, and the unit is
+    #      `Type = "forking"` (dhcpcd.nix:312) -- systemd considers it started only
+    #      when the parent forks.
+    #   3. Every declared interface here is static and therefore in `denyinterfaces`
+    #      (dhcpcd.nix:29-31), wg0 is ignored, and the overlay is denied above. So
+    #      `waitip` is not merely slow, it is unsatisfiable by construction.
+    #   4. dhcpcd gives up after its `timeout`, which defaults to 30 s
+    #      (dhcpcd.conf(5): "Time out after seconds, instead of the default 30 ...
+    #      otherwise dhcpcd will fork into the background"). It logs `timed out`,
+    #      forks, and only then does `network-online.target` complete -- and k3s is
+    #      After=network-online.target.
+    #
+    # Measured: `dhcpcd.service @3.012s +30.352s` on the critical chain to k3s,
+    # against a 33.5 s userspace boot. It predates this repo's deny list entirely:
+    # k8s-node01 booted with 33.890 s of userspace and k8s-node02 with 33.433 s on
+    # 2026-11-18, both before `denyInterfaces` existed. Nine hosts, every boot,
+    # since provisioning.
+    #
+    # `background` is the option upstream added for exactly this (nixpkgs #50930,
+    # PR #58526): dhcpcd forks immediately and `waitip` never applies. It is chosen
+    # over `networking.dhcpcd.enable = false` for now not because disabling is wrong
+    # -- the comment above argues it is equivalent -- but because `background` needs
+    # no proof about which interfaces dhcpcd ends up managing, and it keeps the
+    # deny list meaningful if that ever changes. Once `dhcpcd --status` has been run
+    # on a host and confirms nothing is managed, `enable = false` subsumes this and
+    # should replace it rather than sit alongside it.
+    #
+    # `wait = "if-carrier-up"` is NOT a fix: it is equivalent to "any" whenever
+    # ethernet has carrier, which on every one of these hosts it does.
+    networking.dhcpcd.wait = "background";
+
     # Required for NetworkPolicy to actually be enforced, not merely accepted.
     #
     # K3s' embedded flannel puts pods on a vxlan bridge (cni0), and bridged
