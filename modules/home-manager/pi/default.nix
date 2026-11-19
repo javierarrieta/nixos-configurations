@@ -616,6 +616,11 @@ let
       }
     ) piExtensionNames
   );
+  # The declared copy of the global agent instructions. Linked by neither
+  # home.file nor activation -- see the AGENTS.md block in the activation entry
+  # for why it is seeded rather than owned.
+  piAgentsMdFile = ./AGENTS.md;
+
 in
 {
   # pi comes from the `piPkg` special arg (nixos-unstable's `pi-coding-agent`;
@@ -739,6 +744,39 @@ in
 
           _merge_pi_json "${piSettingsFile}" "$_pi_agent_dir/settings.json"
           _link_pi_json "${piModelsFile}" "$_pi_agent_dir/models.json"
+
+          # AGENTS.md -- the global agent instructions. Seeded, never overwritten.
+          #
+          # This is the one declared file that the human and the agent both edit:
+          # every "written 2026-XX-XX after this bit me" entry in it started life
+          # as a lesson recorded mid-session, in a session that had no thought for
+          # git. So the two honest options were a read-only link (models.json's
+          # treatment) or a silent overwrite, and both lose the lesson: a link
+          # makes the append fail with EACCES and the agent moves on, and an
+          # overwrite deletes it on the next switch without a word.
+          #
+          # The rule here is seed-once plus a loud divergence report. A new
+          # machine gets the declared copy on its first switch -- that is the
+          # sharing this file exists for -- and a machine with local edits keeps
+          # them and is told, on every switch, exactly how far it has drifted and
+          # which two commands end the disagreement. Same contract as the
+          # settings.json merge above and the extensions report below: nothing is
+          # rewritten without saying so.
+          #
+          # Guarded on DRY_RUN because this block writes; see the note in
+          # base.nix's cleanup entry about the 2026-10-12 dry-run incident.
+          _pi_agents_declared="${piAgentsMdFile}"
+          _pi_agents_local="$_pi_agent_dir/AGENTS.md"
+          if [ ! -e "$_pi_agents_local" ]; then
+            if [ -z "''${DRY_RUN:-}" ]; then
+              cp "$_pi_agents_declared" "$_pi_agents_local"
+              chmod 0644 "$_pi_agents_local"
+              echo "piAgentConfig: seeded $_pi_agents_local from the declared copy" >&2
+            fi
+          elif ! cmp -s "$_pi_agents_local" "$_pi_agents_declared"; then
+            _pi_agents_drift="$(diff "$_pi_agents_declared" "$_pi_agents_local" | grep -c '^[<>]' || true)"
+            echo "piAgentConfig: $_pi_agents_local differs from the declared copy by ''${_pi_agents_drift} line(s); local file kept. Land the lesson with cp $_pi_agents_local modules/home-manager/pi/AGENTS.md, or accept the flake with cp $_pi_agents_declared $_pi_agents_local" >&2
+          fi
 
           # Unmanaged skills must not be present. A SKILL.md backed by no flake
           # input joins the model's routing table silently, and cannot be
