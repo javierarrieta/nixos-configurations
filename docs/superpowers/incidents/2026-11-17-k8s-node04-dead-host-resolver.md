@@ -388,7 +388,8 @@ workspace that watched the rollout has no SSH to the fleet, so anything that nee
 a shell on a host says so instead of claiming a result.
 
 `main` -> `stable` was a fast-forward to `e0b1000`, carrying #181 (this fix), #182
-(an unrelated Pi refactor) and #183 (a side finding, below).
+(an unrelated Pi refactor) and #183 (a side finding, below). It was fast-forwarded
+again to `70d12dd` later the same day to carry #185, the dhcpcd boot-wait fix below.
 
 | host | switched | how |
 |---|---|---|
@@ -452,6 +453,24 @@ regardless, so the barrier was handed ~30 s of slack. Showing necessity would ne
 host with the barrier and the deny list removed, which is not something to do to a
 production node. Recorded so nobody over-reads the green.
 
+**This caveat is retired by §8's dhcpcd fix.** Once `wait = "background"` landed and
+node04 rebooted at 20:38:07, the chain has nothing left between the barrier and
+`network-online.target`:
+
+```
+network-online.target                @3.198s
+  └─network.target                   @3.198s
+    └─network-runtime-config.service @3.154s +43ms
+      └─network-addresses-enp2s0.service @2.879s +272ms
+```
+
+The barrier exits at 3.197 s and `network-online.target` completes at 3.198 s -- one
+millisecond later. The barrier is now the only thing gating it, so it is visibly
+load-bearing rather than hidden behind a 30 s timeout. Still not a direct test of the
+no-barrier case, but the slack is gone: remove the barrier and `network-online.target`
+fires before the writer has run. The whole fix for this incident's class costs 43 ms of
+boot.
+
 ### Gate 2 -- not demonstrable
 
 No host still holds the bad state, so the positive branch of this gate cannot be
@@ -460,7 +479,7 @@ never emitted the fail-loud warning, and no `static-network:` watchdog line appe
 on any of them. `systemctl is-active network-route-watch` still needs someone with a
 shell.
 
-### Follow-up: dhcpcd costs ~30 s of every boot on the nine placeholder hosts
+### Follow-up, diagnosed and fixed: dhcpcd costs ~30 s of every boot on the nine placeholder hosts
 
 `systemd-analyze critical-chain k3s.service` on node04 after the reboot:
 
@@ -529,10 +548,46 @@ What is proven from here, and what is not: the option flips to `background` on a
 nine hosts and on none of the eight that have no unit, and node04's generated
 `dhcpcd.conf` store path changes with `wait` as the only changed input. The
 `waitip` -> `background` line itself is derived from `dhcpcd.nix:101-102` rather than
-read directly, because the module exposes the conf only through `ExecStart`. The
-field confirmation is the next reboot: `dhcpcd.service` should leave
-`systemd-analyze critical-chain k3s.service` entirely, and userspace boot should fall
-from ~33.5 s to roughly 3.5 s.
+read directly, because the module exposes the conf only through `ExecStart`.
+
+### Confirmed on node04: 33.4 s of userspace becomes 3.8 s
+
+node04 rebooted at 20:38:07 with the fix live. `systemd-analyze` on the host:
+
+| | before (20:09:23 boot) | after (20:38:07 boot) | delta |
+|---|---|---|---|
+| userspace | 33.393 s | **3.771 s** | **-29.6 s** |
+| `network-online.target` | 33.367 s | 3.198 s | -30.2 s |
+| `dhcpcd.service` on the critical chain | `@3.012s +30.352s` | **absent** | gone |
+
+The prediction was ~3.5 s against a measured 3.771 s, so the diagnosis holds: the
+entire 30 s was the unsatisfiable `waitip` timing out, on nine hosts, on every boot,
+since provisioning. `multi-user.target` now also arrives at 3.771 s, i.e. nothing else
+on the boot path was waiting on dhcpcd.
+
+One caveat on how this was measured: the boot journal for this boot never reached Loki
+(see below), so these numbers come from `systemd-analyze` run on the host, not from
+the log pipeline the earlier gates used.
+
+### Side finding: the boot journal for the verified reboot never reached Loki
+
+The 14:53:33 and 20:09:23 boots are both fully queryable in Loki, each arriving as one
+flush stamped ~40 s after boot start -- rsyslog's queue draining once the network came
+up. The 20:38:07 boot produced **nothing**: no `Startup finished` summary, no `Started
+DHCP Client.`, no `Reached target Network is Online.`, while node04 streamed normally
+from ~20:39 onward. The pipeline was healthy before and after, so this is not an
+outage.
+
+The likely cause is Loki rejecting the early-boot entries as out-of-bounds, because
+they carry pre-NTP timestamps and arrived much later than the ~40 s flush of the two
+earlier boots. Not proven from here, and it matters: the boot journal is the evidence
+base for every boot-path gate in this document, and it silently went missing for the
+one reboot that would have verified the fix from the console-free side. Anyone
+verifying a boot change remotely should plan on `systemd-analyze` on the host, not on
+Loki, and should confirm the boot journal arrived before trusting its absence.
+
+Worth a follow-up outside this incident: check the rsyslog omfwd queue and Loki's
+acceptance window for backdated entries.
 
 ### Side finding: the comin gauges were blind for the first half of this rollout
 
