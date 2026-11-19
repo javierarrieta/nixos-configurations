@@ -471,16 +471,68 @@ k3s.service +24ms
 ```
 
 dhcpcd runs, cannot get a lease on a statically configured interface, times out after
-30 s, and `network-online.target` waits for it. This is **not** a regression from
-`denyInterfaces`: node01 booted with 33.890 s of userspace on 2026-11-18 and node02
-with 33.433 s, both before this change existed, against node04's 33.541 s after it.
-It has been there the whole time.
+30 s, and `network-online.target` waits for it. That framing was close but not
+right -- see the next subsection for the actual mechanism, which is that dhcpcd
+manages no interface at all. What is measured and stands: this is **not** a
+regression from `denyInterfaces`. node01 booted with 33.890 s of userspace on
+2026-11-18 and node02 with 33.433 s, both before this change existed, against
+node04's 33.541 s after it. It has been there the whole time.
 
 Since dhcpcd now does nothing useful on these nine hosts and caused this incident,
 `networking.dhcpcd.enable = false` deserves weighing on its own merits -- it would
 cut ~30 s from every boot and delete the crash-loop class outright instead of fencing
 it. Deliberately not folded into this change: it is a different decision from the one
 #181 carried, and it needs a look at whether anything else expects a DHCP client.
+
+### Resolved the same day: why a host with no DHCP waits 30 s anyway
+
+The subsection above left the cause open -- "why does DHCP wait 30 s on a host that
+does not use DHCP" had been unanswered since provisioning. It is a nixpkgs default
+interacting with the fact that these hosts configure their addresses out of band.
+Four links, each checked against the pinned nixpkgs and a live eval of node04:
+
+1. **`networking.dhcpcd.wait` defaults to `"any"`** (`dhcpcd.nix:252`), and the module
+   turns that value into the line `waitip` in the generated `dhcpcd.conf`
+   (`dhcpcd.nix:98-108`). `waitip` means *do not fork to background until an address
+   has been assigned*.
+2. **`ExecStart` carries no `-b`** (`dhcpcd.nix:331`, confirmed by eval: `dhcpcd
+   --quiet --config ...`), so whether dhcpcd backgrounds is decided entirely by that
+   line. The unit is `Type = "forking"` (`dhcpcd.nix:312`), so systemd considers it
+   started only once the parent forks.
+3. **The condition is unsatisfiable by construction.** Every declared interface here
+   is static, which puts it in `denyinterfaces` via `dhcpcd.nix:29-31`; `wg0` is
+   ignored; the overlay is denied by §3 above. dhcpcd manages nothing, so `waitip`
+   can never be met. It is not slow, it is impossible.
+4. **dhcpcd's give-up timer is 30 s.** From `dhcpcd.conf(5)`, `timeout seconds`:
+   "Time out after seconds, instead of the default 30 ... otherwise dhcpcd will fork
+   into the background." It sits in the foreground for exactly that, logs the bare
+   `timed out` visible in the boot journal, forks, and only then does
+   `network-online.target` complete -- which k3s is `After=`.
+
+So the host is not waiting for configuration it needs. It is waiting on a condition
+that cannot be met, and 30 s is just how long it is willing to wait before giving up.
+It would pay this with no interfaces at all, which is why "the host does not use DHCP"
+never explained it on its own.
+
+Known upstream papercut: nixpkgs issue #50930 and PR #58526 exist because `wait` had
+no non-blocking mode, and `background` was added as the escape hatch.
+
+Fixed by `networking.dhcpcd.wait = "background"` in `modules/nixos/k3s.nix`, which
+reaches exactly the nine hosts that have the unit. Chosen over `enable = false`
+because it needs no proof about what dhcpcd ends up managing and keeps the deny list
+meaningful; once `dhcpcd --status` confirms nothing is managed on a live host,
+`enable = false` should replace it rather than sit alongside it. `wait =
+"if-carrier-up"` is not a fix -- it behaves like `any` whenever ethernet has carrier,
+which it does on all nine.
+
+What is proven from here, and what is not: the option flips to `background` on all
+nine hosts and on none of the eight that have no unit, and node04's generated
+`dhcpcd.conf` store path changes with `wait` as the only changed input. The
+`waitip` -> `background` line itself is derived from `dhcpcd.nix:101-102` rather than
+read directly, because the module exposes the conf only through `ExecStart`. The
+field confirmation is the next reboot: `dhcpcd.service` should leave
+`systemd-analyze critical-chain k3s.service` entirely, and userspace boot should fall
+from ~33.5 s to roughly 3.5 s.
 
 ### Side finding: the comin gauges were blind for the first half of this rollout
 
