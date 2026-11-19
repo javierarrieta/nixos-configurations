@@ -14,9 +14,21 @@ let
     # indistinguishable from a healthy idle host.
     read_field() { # jq-filter -> value, or 2 when the probe cannot answer
       local out
-      out=$(${pkgs.coreutils}/bin/printf '%s' "$json" | ${pkgs.jq}/bin/jq -r "$1" 2>/dev/null) || out=""
+      # A here-string, deliberately, and the builtin printf, deliberately. The
+      # payload is the whole `comin status --json`, which embeds the deployment's
+      # build log and goes past 128 KiB as soon as a deploy has actually built
+      # something -- and Linux caps one execve argument at MAX_ARG_STRLEN (32
+      # pages). Measured 2026-11-19 on all three canaries the first time a deploy
+      # was big enough to trip it: coreutils printf died with `Argument list too
+      # long`, `out` came back empty, and both gauges below reported 2 -- so the
+      # fleet lost its only view of a pending confirmation and of a health-gate
+      # suspension on exactly the hosts that had just deployed, while the hosts
+      # that had not deployed kept reporting 0 and looked fine. Do not re-qualify
+      # either printf with ${pkgs.coreutils}: a builtin never execs, so it has no
+      # argv limit, and that is the whole fix.
+      out=$(${pkgs.jq}/bin/jq -r "$1" <<<"$json" 2>/dev/null) || out=""
       if [ -z "$out" ]; then out=2; fi
-      ${pkgs.coreutils}/bin/printf '%s' "$out"
+      printf '%s' "$out"
     }
 
     if [ -z "$json" ]; then
