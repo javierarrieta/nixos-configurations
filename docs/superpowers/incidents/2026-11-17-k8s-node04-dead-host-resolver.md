@@ -193,9 +193,32 @@ this design working, not a leftover.
   rejects both. Do not "tighten" the leading-zero case; it is not a bug.
 - `network-route-watch` re-asserts `resolv.conf` every 10s for the same reason it
   re-asserts the route: both are runtime state nothing owns after activation, and
-  the resolver half went unwatched. Diagnostics are edge-triggered -- printing on
-  every failure would push ~17k lines/day into `/var/log/messages`, the watchdog
-  failure mode already recorded in AGENTS.md (2026-08-27, k8s-node03).
+  the resolver half went unwatched.
+- Diagnostics are edge-triggered -- printing on every failure would push ~17k
+  lines/day into `/var/log/messages`, the watchdog failure mode already recorded
+  in AGENTS.md (2026-08-27, k8s-node03). That edge-triggering only protects
+  messages the loop itself produces. Its own `source` of `network_env` was outside
+  it, and bash prints parse errors for a sourced file: a secret line written
+  `DNS1= 192.168.0.1` (space after `=`) makes bash try to *run* the value, so the
+  unit logged `192.168.0.1: command not found` once a tick. Measured in a sandbox:
+  10 lines in 2s at the test interval, ~8.6k/day at the real one, which is the
+  same flood AGENTS.md records from the other direction. The loop's `source` now
+  sends stderr to the floor; nothing is hidden, because a gateway the source
+  failed to set is reported by the edge-triggered `no_gw` branch and the writer
+  re-reads the same file and reports its own parse errors through `$msg`.
+- The writer call in the loop is bounded by `timeout 5`. The route half and the
+  resolver half share one loop, so a writer that blocks -- hung `/etc`, stuck
+  filesystem -- would also stop the default-route self-heal, and a loop that never
+  finishes a tick logs nothing at all: the silence this change exists to end. With
+  a bound the route half keeps ticking and the hang becomes a journal line naming
+  the writer, rather than an empty message that reads like a resolver fault.
+- `network-runtime-config` is `Before=network-online.target` and wanted by it.
+  `WantedBy=network.target` alone makes nothing wait for the restore: `network.target`
+  activates without it, and `k3s.service` is `After=network-online.target`, so
+  containerd could reach the network barrier while `/etc/resolv.conf` was still
+  the zero-nameserver stub `resolvconf.service` had just written. Same failure mode
+  as §4, bounded by a boot instead of by 17 hours. `network-online.target` is
+  `After=network.target` in systemd's own unit, so this adds an edge and no cycle.
 - Both scripts are installed into the system environment and started as
   `/run/current-system/sw/bin/...`, not as generation-specific store paths. This
   is the health-gate ENOENT-after-GC incident (AGENTS.md 2026-08-29) avoided at
@@ -209,7 +232,18 @@ this design working, not a leftover.
 - The writer treats a `/etc/resolv.conf` that carries nameservers from anywhere
   other than `network_env` as a second writer and says so once. wg-quick with a
   `DNS=` line, NetworkManager, or a VPN client that speaks resolvconf would all
-  qualify.
+  qualify. The comparison is against scrubbed addresses: a CRLF file holds the
+  same servers with a trailing `\r`, and comparing raw reported them as foreign --
+  a tripwire that fires on a file it is describing is a tripwire nobody believes
+  when it fires for real.
+- Three smaller writer tightenings, all of them the same "do not create the thing
+  you are about to report as unchanged" rule the temp-file guard came from:
+  `0.0.0.0` and `255.255.255.255` are refused (four well-formed octets is not the
+  same as a resolver that answers); `DNS1 == DNS2` writes one nameserver and says
+  it is a duplicate rather than a dropped entry, because glibc would send every
+  retry to the same box; and the mode re-assert on the unchanged path is guarded
+  on the mode actually being wrong, since `chmod` bumps ctime every tick for a file
+  that never moved.
 
 Rejected, with reasons:
 
@@ -265,7 +299,7 @@ ip -4 addr show flannel.1                    # no 169.254.x/16 once dhcpcd has r
 
 Read `ip route show default` **after** the dhcpcd restart, not before.
 
-Four gates, because `deploy done` proves nothing about any of them:
+Five gates, because `deploy done` proves nothing about any of them:
 
 1. **The crash loop is the pass/fail gate for defect 1**, not a metric:
    `ls /var/lib/systemd/coredump | wc -l` before and after (node04 was 112/24h,
@@ -306,6 +340,20 @@ Four gates, because `deploy done` proves nothing about any of them:
 
    Silence is the pass. If it prints, the resolver was not written at activation
    and only the <=10 s watchdog tick is holding it up.
+5. **The boot barrier only proves itself on a reboot.** A switch does not re-run
+   `network-runtime-config`, so nothing short of a boot shows whether k3s now waits
+   for the resolver restore instead of racing it (§5):
+
+   ```sh
+   systemctl show network-runtime-config -p ExecMainExitTimestamp
+   systemctl show k3s -p ExecMainStartTimestamp
+   systemd-analyze critical-chain k3s.service
+   ```
+
+   The restore's exit must precede k3s's start, and
+   `journalctl -b -u network-runtime-config` must be clean. If k3s still starts
+   first, the barrier did not take and the boot window is still open. node04 owes a
+   reboot anyway (§7), so it is the host to check first.
 
 ## 7. Not covered here
 

@@ -66,6 +66,10 @@ let
   # re-asserted in the same tick, so they share the number; the message that
   # quotes it is built from it too.
   watchIntervalSec = 10;
+  # How long the resolver half of the loop may take before the tick is abandoned.
+  # The writer is a handful of file operations; anything still running after this
+  # is blocked, not slow. See the timeout call site in networkWatchLoop.
+  writerTimeoutSec = 5;
   resolvConfPath = "/run/current-system/sw/bin/static-network-resolv-conf";
   networkWatchPath = "/run/current-system/sw/bin/static-network-watch";
   writeResolvConf = pkgs.writeShellScriptBin "static-network-resolv-conf" ''
@@ -148,6 +152,16 @@ let
             [ "''${#oct}" -le 3 ] || return 1
             [ "$oct" -le 255 ] || return 1
           done
+          # Four well-formed octets is not the same thing as a usable resolver.
+          # These two parse and neither answers a query: 0.0.0.0 is "no address"
+          # and 255.255.255.255 is limited broadcast. The list is deliberately
+          # two entries -- a loopback or link-local address is a resolver someone
+          # might genuinely run (this fleet resolves via a LAN bind9), and
+          # refusing those would be the validator inventing policy the secret
+          # never stated.
+          case "$1" in
+            0.0.0.0 | 255.255.255.255) return 1 ;;
+          esac
           ;;
         # No colon and fewer than three dots: not an IPv4 address.
         *) return 1 ;;
@@ -165,6 +179,13 @@ let
     dropped=""
     if valid_ns "''${DNS1:-}"; then ns1="$DNS1"; else dropped="DNS1"; fi
     if valid_ns "''${DNS2:-}"; then ns2="$DNS2"; else dropped="''${dropped:+$dropped }DNS2"; fi
+    # The same address twice is one resolver, not two: glibc would send every
+    # retry to the same box and call it redundancy. Reported separately from
+    # `dropped` because DNS2 was usable -- it just was not a second one.
+    if [ -n "$ns1" ] && [ "$ns2" = "$ns1" ]; then
+      echo "DNS2 duplicates DNS1 in ${envFile}; writing one nameserver" >&2
+      ns2=""
+    fi
     if [ -z "$ns1" ] && [ -z "$ns2" ]; then
       echo "no usable nameserver in ${envFile} (DNS1=$(scrub "$raw_dns1") DNS2=$(scrub "$raw_dns2")); refusing to write /etc/resolv.conf" >&2
       exit 1
@@ -191,10 +212,19 @@ let
     if [ "$old" = "$new" ]; then
       # Content is not the whole contract. resolvconf.service hands the file back
       # with `chgrp resolvconf; chmod g=u` on every run, so an early exit on
-      # content alone left mode drift in place; re-asserting costs two syscalls a
-      # tick and never changes the inode.
-      ${pkgs.coreutils}/bin/chgrp resolvconf /etc/resolv.conf 2>/dev/null || true
-      ${pkgs.coreutils}/bin/chmod 0664 /etc/resolv.conf
+      # content alone left mode drift in place.
+      #
+      # Guarded on the mode actually being wrong, because chmod bumps ctime even
+      # when the mode already matches, and this path runs every tick for the life
+      # of the boot: an unguarded re-assert dirties the inode ~8.6k times a day
+      # for a file that never moved, which is the same self-inflicted churn as
+      # the temp file the content guard above exists to avoid. Group drift without
+      # mode drift goes undetected; resolvconf's own unit sets both together and
+      # so does the mv below.
+      if [ "$(${pkgs.coreutils}/bin/stat -c %a /etc/resolv.conf 2>/dev/null)" != "664" ]; then
+        ${pkgs.coreutils}/bin/chgrp resolvconf /etc/resolv.conf 2>/dev/null || true
+        ${pkgs.coreutils}/bin/chmod 0664 /etc/resolv.conf
+      fi
       exit 0
     fi
     # Second-writer tripwire, read line by line because the writer's contract is
@@ -228,9 +258,14 @@ let
       case "$kw" in
         "" | "#"* | ";"*) continue ;;
         nameserver)
-          if [ -n "$rest" ] && [ "$rest" != "$ns1" ] && [ "$rest" != "$ns2" ]; then
+          # Scrub before comparing. A CRLF file holds the SAME addresses with a
+          # trailing CR, and comparing raw reported them as foreign: a tripwire
+          # that fires on a file it is actually describing is a tripwire nobody
+          # will believe the next time it fires for real.
+          addr=$(scrub "$rest")
+          if [ -n "$addr" ] && [ "$addr" != "$ns1" ] && [ "$addr" != "$ns2" ]; then
             nforeign=$((nforeign + 1))
-            foreign="''${foreign:+$foreign, }$rest"
+            foreign="''${foreign:+$foreign, }$addr"
           fi
           ;;
         *)
@@ -240,7 +275,7 @@ let
       esac
     done <<< "$old"
     if [ "$nforeign" -gt 0 ]; then
-      echo "replacing foreign nameservers ($(scrub "$foreign")) in /etc/resolv.conf: they did not come from ${envFile}, so either something else is publishing resolvers or the nameservers changed in the secret" >&2
+      echo "replacing foreign nameservers ($foreign) in /etc/resolv.conf: they did not come from ${envFile}, so either something else is publishing resolvers or the nameservers changed in the secret" >&2
     fi
     if [ "$ndiscarded" -gt 0 ]; then
       echo "dropping $ndiscarded non-nameserver line(s) from /etc/resolv.conf: $(scrub "$discarded"). This module writes nameserver lines only, so anything another publisher put there is discarded; if a search domain or resolver option has gone missing, that is why" >&2
@@ -292,8 +327,17 @@ let
       # replace` on a stale gateway while reporting that everything is fine.
       # writeResolvConf re-reads the file itself for the same reason.
       unset DEFAULT_GATEWAY
+      # stderr on the floor, on purpose. `source` prints bash's own parse errors,
+      # and a secret line written `DNS1= 192.168.0.1` (space after the =) makes
+      # bash try to *run* the value: `192.168.0.1: command not found`. Unlike the
+      # writer's source, this one is not inside a command substitution, so each
+      # line reaches the unit's stderr once a tick -- ~8.6k lines a day into
+      # /var/log/messages, the flood AGENTS.md records for the 2026-08-27 runaway
+      # loop. Nothing is hidden by it: a gateway the source failed to set is
+      # reported by the edge-triggered no_gw branch below, and the writer re-reads
+      # the same file and reports its own parse errors through $msg.
       if [ -f "${envFile}" ]; then
-        . "${envFile}"
+        . "${envFile}" 2>/dev/null
       fi
       # The route half is edge-triggered for the same reason the resolver half is,
       # and it used to be worse: `|| true` with stderr on the floor meant a route
@@ -321,7 +365,19 @@ let
         last_rt_rc=$rt_rc
       fi
       ${lib.optionalString needsRuntimeResolv ''
-        msg=$(${resolvConfPath} 2>&1) && rc=0 || rc=$?
+        # Bounded, because the route half and the resolver half share this one
+        # loop: a writer that blocks (hung /etc, stuck filesystem) would otherwise
+        # stop the default-route self-heal too, and a loop that never finishes a
+        # tick logs nothing -- the silence this module exists to end. With a
+        # timeout the route half keeps ticking and the hang becomes a journal line.
+        msg=$(${pkgs.coreutils}/bin/timeout ${toString writerTimeoutSec} ${resolvConfPath} 2>&1) && rc=0 || rc=$?
+        # timeout(1) is silent on expiry, and an empty $msg would print as
+        # `static-network:  -- host DNS is broken...`: a gap where the cause
+        # belongs, reading like a resolver fault rather than a writer that never
+        # came back.
+        if [ "$rc" = 124 ] && [ -z "$msg" ]; then
+          msg="static-network-resolv-conf did not finish in ${toString writerTimeoutSec}s"
+        fi
         if [ "$rc" != "$last_rc" ] || [ "$msg" != "$last_msg" ]; then
           case "$rc" in
             0)
@@ -465,7 +521,19 @@ in
         "resolvconf.service"
         "network-local-commands.service"
       ];
-      wantedBy = [ "network.target" ];
+      wantedBy = [
+        "network.target"
+        "network-online.target"
+      ];
+      # WantedBy alone does not make anything wait for this unit: network.target
+      # activates without it, so k3s -- which is After=network-online.target --
+      # could reach the network barrier while /etc/resolv.conf was still the
+      # zero-nameserver stub resolvconf.service had just written. That is the
+      # incident's own failure mode (containerd cannot pull an uncached image with
+      # no resolver), only bounded by a boot instead of by 17 hours. Before=
+      # network-online.target is what puts the restore inside the barrier k3s
+      # waits on; the target is After=network.target, so this adds no cycle.
+      before = [ "network-online.target" ];
       path = [ pkgs.iproute2 ];
       serviceConfig = {
         Type = "oneshot";
@@ -557,15 +625,15 @@ in
     # thing a half-applied network change needs is a window with no watchdog.
     systemd.services.network-route-watch = lib.mkIf useRuntimeConfig {
       description = "Self-heal default route and /etc/resolv.conf if lost or clobbered";
-      # setupSecrets is an activation script in sops-nix, not a systemd unit --
-      # `config.systemd.services ? setupSecrets` is false on every host here --
-      # so this After= orders against nothing and the loop can genuinely start
-      # before network_env exists. That is what writeResolvConf's exit 2 is for:
-      # a missing secret at boot is a retry, not an outage.
+      # No After= on setupSecrets. It is an activation script in sops-nix, not a
+      # systemd unit -- `config.systemd.services ? setupSecrets` is false on every
+      # host here -- so ordering against it ordered against nothing while reading
+      # like coverage, and the loop can genuinely start before network_env exists
+      # either way. That is what writeResolvConf's exit 2 is for: a missing secret
+      # at boot is a retry, not an outage.
       after = [
         "network.target"
         "resolvconf.service"
-        "setupSecrets.service"
       ];
       wants = [ "network.target" ];
       wantedBy = [ "multi-user.target" ];

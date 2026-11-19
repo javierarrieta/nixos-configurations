@@ -888,15 +888,16 @@ known caveats:
    `sudo iscsid stop`, `rm -rf /etc/iscsi/nodes /etc/iscsi/send_targets`,
    `sudo mkdir -p /etc/iscsi/nodes /etc/iscsi/send_targets`, `sudo iscsid start`,
    then verify `iscsiadm -m node` is clean.
-5. **On the nine placeholder hosts, `/etc/resolv.conf` is runtime state, not
+5. **On the placeholder hosts, `/etc/resolv.conf` is runtime state, not
    NixOS-owned state** -- `networking.nameservers` is `mkIf`'d off while the
    values are still `$DNS1`/`$DNS2`, so nothing in `environment.etc` writes it,
    `resolvconf -u` can regenerate it to zero nameservers with exit 0, and
    `network-route-watch` is what re-asserts it every 10s. `k8s-node04` ran 17
-   hours on a dead resolver this way on 2026-11-17 and nothing noticed. Its §3
-   covers the other half: dhcpcd claims `flannel.1`/`cni0`/every pod veth because
-   nixpkgs only ignores interfaces NixOS declares, and installs a default route
-   through the pod overlay. Full write-up, measurements and rollout gates:
+   hours on a dead resolver this way on 2026-11-17 and nothing noticed. Which
+   hosts those are, and how many, is derived in one place: the write-up below.
+   Its §3 covers the other half: dhcpcd claims `flannel.1`/`cni0`/every pod veth
+   because nixpkgs only ignores interfaces NixOS declares, and installs a default
+   route through the pod overlay. Full write-up, measurements and rollout gates:
    `docs/superpowers/incidents/2026-11-17-k8s-node04-dead-host-resolver.md`.
 
 ### Route Watchdog Pattern (2026-08-26)
