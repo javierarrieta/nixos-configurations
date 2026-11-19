@@ -170,6 +170,63 @@
     # without lib.mkForce; every existing host leaves it at false.
     networking.firewall.enable = lib.mkDefault false;
 
+    # Keep the DHCP client off the pod network.
+    #
+    # nixpkgs' dhcpcd module only keeps dhcpcd off interfaces NixOS itself
+    # declares, so it claims flannel.1, cni0 and every fresh pod veth: it solicits
+    # a lease, gets nothing, falls back to IPv4LL and -- the part that hurts --
+    # installs a default route through the pod overlay. It also crash-loops under
+    # veth churn (dhcpcd dies in ipv6nd_expire, systemd restarts it into the next
+    # one, and every pod sandbox makes more veths). Denial is proven to stop the
+    # lease solicitation; whether it also stops the SEGV is an empirical question,
+    # so the canary's coredump delta is the pass/fail gate for this half, not a
+    # metric. The full incident, the measurements and the rejected alternatives are
+    # in docs/superpowers/incidents/2026-11-17-k8s-node04-dead-host-resolver.md.
+    #
+    # Only the interfaces k3s creates on this fleet are listed. `docker*` and
+    # `br-*` were dropped as dead weight: k3s' embedded containerd makes neither,
+    # and a pattern that matches nothing reads as coverage it does not give.
+    # `kube*` went on the same reasoning and is the one with a caveat -- see the
+    # proxy-mode limit below. nixpkgs already denies lo, peth*, vif*, tap*, tun*,
+    # virbr*, vnet*, vboxnet* and sit*, and wg0 is covered by
+    # `networking.wireguard.interfaces` names reaching the same ignored list.
+    #
+    # Three limits worth knowing:
+    #
+    #   * This list is flannel-shaped and fails silently if the CNI changes. A
+    #     switch to cilium needs `lxc*` and `cilium_*`, calico needs `cali*` and
+    #     `tunl0`. dhcpcd does not complain about an interface nobody told it
+    #     about, so nothing here would catch that.
+    #   * Same shape, same silence, for kube-proxy. `--proxy-mode=ipvs` makes it
+    #     create `kube-ipvs0`, a dummy interface this list does not cover. The
+    #     fleet runs the default iptables mode, so the pattern is dead today and
+    #     is left out for exactly the reason above; if IPVS is ever enabled,
+    #     `kube-ipvs0` belongs in this list in that same change.
+    #   * It is scoped to k3s, so llm01 gets none of it. That costs nothing today
+    #     because llm01 has no dhcpcd unit at all (useDHCP is false and no declared
+    #     interface asks for DHCP) and rootless podman keeps its veths in a
+    #     rootless netns. Setting networking.useDHCP there, or declaring any
+    #     interface with useDHCP = true, would hand it a client that has never been
+    #     denied anything; if that ever happens this list belongs in a shared
+    #     module.
+    #
+    # Invariant, not a census: `networking.dhcpcd.enable` is not the client.
+    # nixpkgs gates the unit on that option *and* on networking.useDHCP (or any
+    # declared interface asking for DHCP), so the option reading true says nothing
+    # about a dhcpcd.service existing. Which hosts actually have one is measured
+    # and listed in the incident doc rather than repeated here -- this is the third
+    # place that count has been written and the second time it was wrong, so the
+    # number lives in one file now. What is stable is the shape: on every host that
+    # does run a client, each declared interface is static and so ignored, wg0 is
+    # ignored, and the overlay is denied here -- so dhcpcd manages nothing, and
+    # `networking.dhcpcd.enable = false` is equivalent rather than risky. It is
+    # still its own change with its own canary; prove it with `dhcpcd --status`.
+    networking.dhcpcd.denyInterfaces = [
+      "flannel.*"
+      "cni0"
+      "veth*"
+    ];
+
     # Required for NetworkPolicy to actually be enforced, not merely accepted.
     #
     # K3s' embedded flannel puts pods on a vxlan bridge (cni0), and bridged
