@@ -53,6 +53,7 @@ images. `ryzen7` was removed on 2026-10-03 -- the box was rebuilt as Windows.
 | `host-common.nix` | User options and base settings |
 | `shell.nix` | Shell configuration (fish, zsh, starship, fzf, zoxide, git, tmux) |
 | `dev-tools.nix` | Development tools |
+| `pi/` | The pi coding agent, imported by `dev-tools.nix`: settings, model catalog, vendored skills, extensions, EGM personas, and the declared copy of the global `AGENTS.md` |
 | `python.nix` | Python configuration |
 | `k8s.nix` | Kubernetes tools |
 | `coder.nix` | One coder CLI config dir per Coder server (`coder-titan` / `coder-casa`) |
