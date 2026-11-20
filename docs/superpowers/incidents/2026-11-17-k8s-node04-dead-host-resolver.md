@@ -299,6 +299,14 @@ ip -4 addr show flannel.1                    # no 169.254.x/16 once dhcpcd has r
 
 Read `ip route show default` **after** the dhcpcd restart, not before.
 
+**Do not debug this by hand with `dhcpcd -d <iface>`.** A manual invocation carries none
+of the `denyInterfaces` from `modules/nixos/k3s.nix`, because those live only in the
+generated `--config` file that the unit's `ExecStart` names. So running dhcpcd against
+`flannel.1` or `cni0` by hand reproduces the exact crash this section is about, on a
+host whose shipped configuration is correct -- which reads like a regression in the fix
+when it is only the missing config. If a foreground dhcpcd is genuinely needed, pass it
+the same `--config` the unit uses.
+
 Five gates, because `deploy done` proves nothing about any of them:
 
 1. **The crash loop is the pass/fail gate for defect 1**, not a metric:
