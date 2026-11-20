@@ -79,24 +79,63 @@ OPNsense (4 NICs: WAN, LAN, 2 free)            rack switch (model unknown)
 ### 3.2 Logical `[measured]`
 
 - Flat `192.168.0.0/24`, gateway `192.168.0.1`, prefix length 24.
-- Static per-host addresses delivered from the SOPS secret
-  `secrets.yaml#<host>/network_env` at activation; `vars.nix` holds `$IP_ADDRESS`
-  placeholders that Nix ignores. Since nixpkgs 26.05 the module parses addresses at
-  eval time, so the runtime layer is the only place real values can appear.
-- k3s control plane endpoint is a **bare IP**, `https://192.168.0.11:6443`, hardcoded in
-  every agent's `vars.nix`. There is no VIP.
+- Static per-host addresses arrive by **three different mechanisms**, and an
+  implementer who assumes one will silently miss four hosts. Verified per host against
+  `hosts/*/vars.nix` and `secrets.yaml`:
+
+  | mechanism | hosts |
+  |---|---|
+  | `$IP_ADDRESS` placeholder resolved from `secrets.yaml#<host>/network_env` at activation | `k8s-server01/02/03`, `k8s-node01/02/03`, `k8s-node05` — **seven** |
+  | `$IP_ADDRESS` resolved from **`secrets/titan.yaml`**, not `secrets.yaml` | `titan` |
+  | **build-time literal** in `vars.nix` — no SOPS layer at all | `k8s-node04` (`192.168.0.17`), `k8s-pi01/02/03` (`.21/.22/.23`) |
+  | NetworkManager-managed, no `vars.nix` address | `llm01` |
+
+  `modules/nixos/static-network.nix:8-12` is what makes the literals bypass SOPS:
+  `useRuntimeConfig` is true only when the address, gateway or a nameserver starts with
+  `$`. Note the trap on `k8s-node04`: a `k8s-node04/network_env` key **does** exist in
+  `secrets.yaml`, and editing it changes nothing, because `vars.nix` hands the module a
+  literal. Since nixpkgs 26.05 the module parses addresses at eval time, so the runtime
+  layer is the only place real values can appear — for the hosts that use it.
+- k3s control plane endpoint is a **bare IP**, hardcoded in every agent's `vars.nix`, and
+  there is no VIP — but it is **not one literal**. `k8s-server01` and `k8s-server03` use
+  `https://192.168.0.12:6443`; `k8s-server02` and all eight agents use
+  `https://192.168.0.11:6443`. Grepping for `.11` therefore leaves two control-plane
+  members pointing at the old range.
 - `networking.firewall.enable` is `mkDefault false` on k3s hosts, so nothing on the LAN
-  is fenced from the control plane. `hosts/k8s-server01/vars.nix` documents that etcd's
-  `2381/metrics` is bound to `0.0.0.0` and is **unauthenticated**.
+  is fenced from the control plane. Two different etcd/control-plane metrics binds are
+  easy to conflate, and conflating them overstates the exposure:
+  - **`2381/metrics` (etcd)** is published on the **node address** by
+    `--etcd-expose-metrics` in addition to loopback, and is **unauthenticated**. It is
+    reachable from the LAN only because the host firewall is off — it is not bound to
+    `0.0.0.0`.
+  - **`10257`/`10259`** (scheduler, controller-manager) are the `0.0.0.0` bind, via
+    `controlPlaneMetricsBindAddress`, and those **are** authenticated.
+
+    See `hosts/k8s-server01/vars.nix:32-40`, which says this in words. The repo already
+    contains the purpose-built answer to the etcd case — `modules/nixos/etcd-metrics-proxy.nix`,
+    which refuses a wildcard bind and forwards to loopback — in use on `titan`.
 - WireGuard mesh `192.168.133.0/24`, hub on `titan`, with `forwardToLan` SNAT-ing mesh
   traffic into `192.168.0.0/24`.
 - `192.168.0.41` is `DNS2`, the rsyslog target, and answers `l.arrieta.eu`.
 - `192.168.0.6` is the out-of-cluster MinIO (`:9000`) and the iSCSI portal (`:3260`)
   used by the coder helper.
-- `192.168.0.29` is `llm01`, referenced from `modules/nixos/ssh.nix`,
-  `coderHost.allowedApiSources`, and the titan coder workspace's `pi.baseUrl`.
-- Longhorn uses iSCSI to TrueNAS over this LAN. The comin health gate runs an `iscsi`
-  check on every deploy and **rolls the host back** if it breaks.
+- `192.168.0.29` is `llm01`, referenced from `coderHost.allowedApiSources`,
+  `home/hosts/coder-workspace-titan/userOptions.nix`, and the titan coder workspace's
+  `pi.baseUrl`. `modules/nixos/ssh.nix` mentions it only as an `example`, so it is not a
+  live site despite matching a grep.
+- Longhorn uses iSCSI to TrueNAS over this LAN. **There is no automated safety net for
+  that path**, which matters because §8 recommends a VLAN layout on the strength of one.
+  The comin health gate's `iscsi` check (`modules/nixos/comin-health-gate.nix:114-146`)
+  runs `iscsiadm -m node`, which reads the host's **local node DB** — it contacts no
+  portal and performs no I/O. Exit 21 ("no records found") is deliberately treated as
+  healthy, and the module's own comment at `:102-107` states that **Longhorn is invisible
+  to this check**, with a 2026-09-21 measurement behind it: `-m node` and `-m session`
+  both 21, empty `/etc/iscsi/nodes`, 20 healthy Longhorn pods running. A routing change
+  that breaks the path to the portal therefore yields exit 0 or 21 and **nothing rolls
+  back**. Scope is narrower than "every deploy" too: the check is emitted only where
+  `openiscsi.enable` is set *and* `iscsi` is in `cominGitOps.healthGate.checks` — so not
+  on `titan` (no `openiscsi` import at all) and not on `llm01` (its checks are
+  `current-system` and `halogen-flash` only).
 
 ### 3.3 What is not known
 
@@ -384,17 +423,26 @@ What must change together, `[measured]` from this repo:
 
 | Item | Where |
 |---|---|
-| Per-host address, gateway, DNS | `secrets.yaml#<host>/network_env`, all 13 hosts |
-| k3s API endpoint | `k3s.serverAddr` hardcoded as `https://192.168.0.11:6443` in every agent `vars.nix` |
+| Per-host address, gateway, DNS — **SOPS-resolved** | `secrets.yaml#<host>/network_env` for `k8s-server01/02/03`, `k8s-node01/02/03`, `k8s-node05` (seven hosts) |
+| Per-host address — **separate secret file** | `secrets/titan.yaml` for `titan`; not in `secrets.yaml` |
+| Per-host address — **build-time literals, no SOPS** | `hosts/k8s-node04/vars.nix` (`192.168.0.17`), `hosts/k8s-pi01/02/03/vars.nix` (`.21/.22/.23`). Re-keying `network_env` changes nothing here and raises no error |
+| Per-host address — **not managed here** | `llm01`, NetworkManager-managed |
+| k3s API endpoint | `k3s.serverAddr`, hardcoded in every agent `vars.nix` — as **two** literals: `https://192.168.0.12:6443` on `k8s-server01`/`k8s-server03`, `https://192.168.0.11:6443` on `k8s-server02` and the agents |
 | etcd member peer and client URLs | live etcd cluster — members are IP-pinned |
 | k3s serving certificate SANs | include the node IP and API endpoint `[unverified]` — confirm against the running k3s version before planning around it |
-| MinIO and iSCSI portal | `common/etcd-snapshot-s3.nix`, `modules/nixos/coder-host.nix` (`192.168.0.6`) |
-| `l.arrieta.eu` split-horizon record | `modules/nixos/mesh-dns.nix` (`192.168.0.41`) |
+| MinIO and iSCSI portal | `common/etcd-snapshot-s3.nix` (the live flag is a **hostname**; `192.168.0.6` appears there only in a comment), `modules/nixos/coder-host.nix`, and two hardcoded `.6` defaults in `pkgs/coder-iscsi-helper/helper.py` |
+| `l.arrieta.eu` split-horizon record | live data is `hosts/titan/configuration.nix` `meshDns.splitZones` (`192.168.0.41`); `modules/nixos/mesh-dns.nix` holds only an `example`. The `casa.arrieta.` half of the split is named nowhere in this spec |
 | rsyslog target | `modules/nixos/rsyslog.nix` default (`192.168.0.41`) |
-| llm01 references | `modules/nixos/ssh.nix`, `hosts/llm01/configuration.nix` `allowedApiSources`, `home/hosts/coder-workspace-titan` |
-| Mesh LAN CIDR | `wireguard.lanSubnet`, `wireguard.forwardToLan` SNAT, `modules/nixos/public-host.nix` LAN allow-list, `hosts/titan/configuration.nix` |
+| llm01 references | `hosts/llm01/configuration.nix` `allowedApiSources`, `home/hosts/coder-workspace-titan/userOptions.nix`, and a module-level default in `modules/home-manager/pi/default.nix`. `modules/nixos/ssh.nix` holds `.29` only inside an `example = [...]` for `listenAddresses`, so grepping it produces a false positive |
+| Mesh LAN CIDR | `wireguard.lanSubnet` (**currently unset** — inherited from the module default, so this is a new override, not an edit), `wireguard.forwardToLan` SNAT, `hosts/titan/configuration.nix` `publicHost.meshTCPPortExtraSources`, the OPNsense WireGuard peer's `allowedIPs` (the one edit that actually moves the route), `meshDns.splitZones`, and `networking.hosts` (pins `s3.l.arrieta.eu` to `192.168.0.42`) |
+| `AGENTS.md` | runbook examples, routewatch commands, and a k3s snippet already stale in both option name and address |
 | Cluster side | `k8s-casa` Prometheus static scrape list, app DNS, anything with a hardcoded node IP |
 | Rollout | `scripts/comin-approve.sh` bind zone `casa.arrieta` resolution |
+
+**Re-derive this table before acting on it.** It rotted within days of being written —
+four rows were wrong when checked against the repository. Run a fresh
+`grep -rn '192\.168\.0\.'` across the tree at planning time and treat the table as a
+starting checklist, not as ground truth.
 
 Two ways to do it, and the choice should be made with the etcd risk in view:
 
@@ -413,9 +461,17 @@ tested. Phase 3 should not be scheduled until an etcd snapshot and a Longhorn ba
 both been restored successfully at least once.
 
 **Recommended Phase 3 scope:** servers to VLAN 30, desktops already on 50, NAS left on
-the flat segment it is on. Routing Longhorn's iSCSI across a router removes jumbo frames
-and adds latency, and the comin health gate's `iscsi` check will roll a host back if that
-degrades — so VLAN 40 stays reserved and unused unless there is a specific reason.
+the flat segment it is on. Routing Longhorn's iSCSI across a router is a real risk and
+**nothing in the current toolchain would detect it**: MTU is a path property, so routing
+does not "remove" jumbo frames — it makes end-to-end MTU ≥ 9000 a requirement on every
+segment, switch port and VLAN interface in between, and a path that advertises 9000 but
+silently fragments or drops is exactly the failure Longhorn would eat. The comin health
+gate's `iscsi` check would **not** catch it: it reads only the local node DB, treats an
+empty DB as healthy, cannot see Longhorn at all, and does not run on `titan` or `llm01`
+(§3.2). So VLAN 40 stays reserved and unused unless there is a specific reason, and
+Phase 3 must carry its own per-node Longhorn attach-and-IO verification step rather than
+leaning on the deploy gate. `[unverified]` whether OPNsense and both switches support
+MTU 9000 on a VLAN interface at all.
 
 ### 8.1 Phase 3 gets its own spec
 
@@ -498,8 +554,11 @@ Deliberately excluded, each additive, none requiring a VLAN change to add later:
   pairs. Add it when a device needs it; nothing about the VLAN plan changes.
 - **Cluster control-plane inbound allow-list.** Today the control plane is reachable from
   anywhere on the LAN because the firewall is off on k3s hosts by design, and etcd's
-  `2381/metrics` is unauthenticated on `0.0.0.0`. A one-way rule — only the rack and the
-  mesh may reach `6443`, `10250`, `2379`, `2380`, `2381` — costs nothing to maintain
+  `2381/metrics` is unauthenticated — published on the node address by
+  `--etcd-expose-metrics`, not bound to `0.0.0.0` (see §3.2 for the distinction and for
+  `modules/nixos/etcd-metrics-proxy.nix`, which already solves the etcd case on `titan`
+  by binding one address and forwarding to loopback). A one-way rule — only the rack and
+  the mesh may reach `6443`, `10250`, `2379`, `2380`, `2381` — costs nothing to maintain
   because it never needs editing for new workloads. This is the cheap half of the
   containment goal and it is independent of every phase here.
 - **Kitchen and entrance VLAN coverage.** Needs a cable, not more mesh.
@@ -509,5 +568,8 @@ Deliberately excluded, each additive, none requiring a VLAN change to add later:
 ## 14. Out of scope
 
 Cluster-internal segmentation, captive portal, bandwidth control, IDS/IPS, replacing the
-Omada controller, and any change to `titan` beyond the `wireguard.lanSubnet` value in
-Phase 3.
+Omada controller, and any change to `titan` in Phase 3 beyond the mesh LAN-CIDR items
+listed in the Phase 3 table — `wireguard.lanSubnet` (**currently unset**, inherited from
+the module default, so setting it is a new override rather than an edit),
+`wireguard.forwardToLan`, the OPNsense peer's `allowedIPs`,
+`publicHost.meshTCPPortExtraSources`, `meshDns.splitZones`, and `networking.hosts`.

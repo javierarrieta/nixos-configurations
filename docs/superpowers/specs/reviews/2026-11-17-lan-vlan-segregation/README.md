@@ -7,6 +7,20 @@ Multi-agent review of `../../2026-11-17-lan-vlan-segregation-design.md`, run 202
 what was reviewed. These files are kept so the review is not silently lost, not because
 they are documentation.
 
+**Update — the four blockers that were false claims about this repository are now fixed**
+(B-03, B-04, B-05, B-06), each re-verified against `origin/main` rather than taken on
+trust. Two of the review's own citations did not survive that check:
+
+- B-03 said "only nine" hosts resolve their address from `network_env`. It is **seven**
+  via `secrets.yaml`, plus `titan` from `secrets/titan.yaml`, four build-time literals
+  (`k8s-node04`, `k8s-pi01/02/03`) and `llm01` on NetworkManager.
+- B-03 cited `modules/home-manager/dev-tools.nix:146` for the `.29` default. That moved
+  to `modules/home-manager/pi/default.nix` when #182 extracted the pi config — the
+  review rotted in the four days between itself and this correction, which is the
+  argument for re-deriving rather than archiving.
+
+The remaining 18 blockers and all 78 majors are untouched.
+
 | file | what it is |
 |---|---|
 | `consolidated_review_report.md` | the one to read — **22 blockers, 78 majors**, deduplicated across the stages below |
