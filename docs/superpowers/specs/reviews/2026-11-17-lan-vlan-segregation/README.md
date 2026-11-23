@@ -27,13 +27,17 @@ literally would have introduced the very bug class they were reporting:
   conditional Zigbee allow moved above the block.
 - **B-11** asked for a `GUEST_NET` alias; added, plus alias creation as an explicit step,
   since a rule naming a missing alias matches nothing silently.
-- **B-13** is not fixed — it is **converted into an explicit blocking decision (§8.2)**,
-  because it is the operator's call, not a fact. It needs an answer before Phase 1a step 12.
+- **B-13** was converted into an explicit blocking decision (§8.2) rather than guessed at,
+  then **decided by the operator: option (a), retire the old guest SSID everywhere,
+  2026-11-23.** Guest Wi-Fi is therefore absent from kitchen, entrance and garage until the
+  §13 cabling lands, and that is recorded in §11 as a certainty so it is not mistaken for
+  an oversight.
 - **B-16** was resolved by **deferral** ("not yet planned", mirroring §8.1) rather than by
   writing Phase 2 to plan standard. That is a judgement call and is reversible if the
   operator wants the phase written out.
 
-All 78 majors remain unaddressed.
+All 22 blockers are addressed and no decision is outstanding. All 78 majors remain
+unaddressed.
 
 | file | what it is |
 |---|---|

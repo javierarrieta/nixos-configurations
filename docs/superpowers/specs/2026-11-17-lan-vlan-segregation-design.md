@@ -458,8 +458,9 @@ exercising the entire path: trunk, VLAN, DHCP, DNS, firewall.
     cannot reach `192.168.0.1`, HA, `.6`, or any node — and the block appears in
     Firewall → Live View filtered on the GUEST interface, which distinguishes "blocked"
     from "target happens to be down".
-12. Only then disable the old guest SSID, using the name recorded in Phase 0.9. See the
-    open decision below: retiring it removes guest coverage from three rooms.
+12. Disable the old guest SSID, using the name recorded in Phase 0.9. **Decision (§8.2):**
+    retire it everywhere, including the mesh and garage APs. Guest Wi-Fi stops working in
+    the kitchen, entrance and garage at this step — that is the plan working, not a fault.
 
 **Open decision required before step 12** — see §8.2.
 
@@ -584,11 +585,9 @@ against each other. It should be written up as its own spec, after Phase 0.5 has
 the authoritative IP map and after a restore has actually been tested. Do not fold it
 into the Phase 1 plan.
 
-### 8.2 Open decision — guest coverage in the mesh rooms
+### 8.2 Decision — guest coverage in the mesh rooms
 
-**This needs the operator's decision before Phase 1a step 12, and the plan deliberately
-picks neither.** Leaving it implicit means whoever runs the phase decides at 11pm, under
-pressure, with guest Wi-Fi down in three rooms.
+**Decided: option (a), retire the old guest SSID everywhere. 2026-11-23.**
 
 The kitchen, entrance and garage APs are the mesh/bridge units — the APs most likely to
 be broadcasting today's guest SSID. The new `home-guest` SSID is enabled only on the two
@@ -597,14 +596,24 @@ So retiring the old SSID removes guest coverage from those three rooms; leaving 
 running keeps an unfiltered guest network on the flat LAN, which is the hole this whole
 project exists to close.
 
+The two options as they were weighed:
+
 | option | what you get | what it costs |
 |---|---|---|
-| **(a) Retire the old SSID everywhere** | no residual hole; the plan is honest | no guest Wi-Fi in kitchen, entrance and garage until the cables in §13 are pulled |
-| **(b) Keep the old SSID on the mesh APs** | guest coverage everywhere today | an unfiltered guest network on the trusted LAN persists; per-AP Omada isolation stays on and is **per-AP only** `[community]`, so it is not a boundary. Must be recorded in §11 as an accepted risk, not left as a footnote |
+| **(a) Retire the old SSID everywhere** — **chosen** | no residual hole; the plan is honest | no guest Wi-Fi in kitchen, entrance and garage until the cables in §13 are pulled |
+| **(b) Keep the old SSID on the mesh APs** | guest coverage everywhere today | an unfiltered guest network on the trusted LAN persists; per-AP Omada isolation stays on and is **per-AP only** `[community]`, so it is not a boundary |
 
-Record the choice, and the date, in the Phase 0 findings artifact. If (b) is chosen, §11
-must name the rooms and the reason, and §13's cable-pulling item becomes the remediation
-with a real dependency attached.
+Consequences of (a), stated so nobody rediscovers them mid-phase:
+
+- Guest Wi-Fi stops working in the kitchen, entrance and garage the moment Phase 1a step 12
+  runs. That is the intended outcome, not a regression to chase.
+- The coverage gap is closed only by pulling cables (§13), which is now a remediation with a
+  dependency rather than a nice-to-have.
+- No accepted security risk results from this choice, so §11 gains no entry — the gap is a
+  coverage consequence, recorded in §11 as a certainty so it is not mistaken for an
+  oversight.
+- Record the decision and its date in the Phase 0 findings artifact alongside the Phase 0.9
+  SSID inventory, since step 12 acts on those recorded names.
 
 ## 9. Landmines
 
@@ -670,6 +679,7 @@ named private targets above is logged as a drop on the GUEST interface.*
 | Trunk change drops the inter-room link during a deploy | low | fleet host mid-switch | schedule the change; check no comin deploy is running |
 | Phase 3 etcd IP migration goes wrong | medium | cluster down | rebuild alternative; restore tested before scheduling |
 | Guest intra-VLAN traffic | certain | guests can reach each other | accepted and documented, not hidden |
+| No guest Wi-Fi in kitchen, entrance, garage | certain | guests have no coverage in three rooms | **decided** (§8.2, option a, 2026-11-23): retire the old SSID rather than leave an unfiltered guest net on the LAN. §13 cabling is the remediation |
 
 ## 12. Config as code — an open gap
 
@@ -706,9 +716,9 @@ Deliberately excluded, each additive, none requiring a VLAN change to add later:
   allow-list is additive and is worth doing per device as each one is retired from its
   vendor cloud, not as a blanket rule on day one.
 - **Kitchen and entrance VLAN coverage.** Needs a cable, not more mesh. This is the
-  remediation behind the §8.2 guest-coverage decision: if option (a) is chosen, guest Wi-Fi
-  stays absent from those rooms until this lands, and this item acquires a real dependency
-  rather than being a nice-to-have.
+  remediation behind the §8.2 decision — option (a) was chosen on 2026-11-23, so guest Wi-Fi
+  is absent from those rooms until this lands. It is a dependency with a consequence now,
+  not a nice-to-have.
 - **Guest intra-VLAN isolation.** Needs switch private-VLAN or ACL support.
 - **IPv6 on IoT and Guest.** Only with a plan for RA-based SLAAC and prefix changes.
 
