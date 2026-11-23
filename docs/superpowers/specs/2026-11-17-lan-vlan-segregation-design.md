@@ -2,11 +2,12 @@
 
 - **Status:** draft for review
 - **Date:** 2026-11-17
-- **Scope:** OPNsense, two managed switches, Omada wireless, and (in later phases) the
+- **Scope:** OPNsense, two switches (management capability **unconfirmed** — see
+  Phase 0.1/0.2), Omada wireless, and (in later phases) the
   NixOS fleet's addressing.
 - **Owner repos:** this repo (`nixos-configurations`) for the fleet side; `k8s-casa` for
   cluster-side scrape lists and app DNS. OPNsense and Omada config is manual today and
-  has no repo — see [Config as code](#12-config-as-code-an-open-gap).
+  has no repo — see [Config as code](#12-config-as-code--an-open-gap).
 
 ## Confidence markers
 
@@ -35,7 +36,9 @@ their own local network. `[measured]` — `wireguard.lanSubnet` defaults to
 **Success criteria**
 
 1. An IoT device on the IoT SSID cannot reach any host on the trusted LAN, and cannot
-   initiate any connection to the LAN at all.
+   initiate a connection to any trusted-LAN host — except the single documented Zigbee
+   flow, and only if Phase 0.4 measures that flow as coordinator-initiated. It **can**
+   still reach the public internet (see §7.3, rule 4); that is deliberate.
 2. Home Assistant controls every IoT device it controls today, with no regression.
 3. A guest on the Guest SSID has internet and nothing else — no LAN, no IoT, no
    cluster, no mesh.
@@ -48,14 +51,14 @@ their own local network. `[measured]` — `wireguard.lanSubnet` defaults to
   unrestricted node-to-node traffic. Fencing the cluster from itself is a permanent
   maintenance tax for a threat this homelab does not have. Explicitly rejected.
 - **A dedicated management VLAN for switches and APs.** See
-  [Landmine: the management VLAN breaks mesh](#landmine-the-management-vlan-breaks-mesh).
+  [Landmine: the management VLAN breaks mesh](#91-the-management-vlan-breaks-mesh).
   Rejected on evidence.
 - **mDNS/SSDP reflection.** Not needed today. Documented as an additive seam in
   [Deferred seams](#13-deferred-seams) — it can be turned on later without touching a
   single VLAN assignment.
 - **Guest captive portal, bandwidth shaping, per-client quotas.** YAGNI.
 - **IPv6 on IoT and Guest.** Out of scope and actively undesirable; see
-  [IPv6 policy](#ipv6-policy).
+  [IPv6 policy](#74-ipv6-policy).
 
 ## 3. Current state
 
@@ -65,7 +68,7 @@ their own local network. `[measured]` — `wireguard.lanSubnet` defaults to
 LIVING ROOM                                    OFFICE
 OPNsense (4 NICs: WAN, LAN, 2 free)            rack switch (model unknown)
   ├─ WAN                                       ├─ k8s-server01/02/03   .11 .12 .13
-  └─ LAN ── 8-port managed switch ──┐          ├─ k8s-node01..04, k8s-pi01..03
+  └─ LAN ── 8-port switch (managed?) ──┐          ├─ k8s-node01..04, k8s-pi01..03
               EAP225 (wired)        └─────────├─ TrueNAS / MinIO        .6 [unverified]
                                     [inter-room cable]                 ├─ Home Assistant   IP unknown
                                                                        ├─ desktops (mac/win/linux)
@@ -203,18 +206,21 @@ forward-compatibility rules hold:
 
 ## 6. VLAN and addressing plan
 
-The final scheme is chosen now so no segment is migrated twice. New segments get their
-final addresses in Phase 1 even though the legacy LAN keeps its old range until Phase 3.
+The scheme below is chosen now so no segment is migrated **twice** — but it is not the
+whole scheme. The replacement CIDR for the legacy LAN is deliberately **not** decided
+here; naming it is the first deliverable of the Phase 3 spec (§8.1), because it depends on
+the Phase 0.5 IP map and on a tested restore. Claiming a complete scheme now would be a
+deferral dressed as a decision.
 
 | VLAN | Name | Subnet | Phase | Notes |
 |---|---|---|---|---|
-| 1 | native / legacy LAN | `192.168.0.0/24` | 1 unchanged | Untagged everywhere today. Servers, HA, TrueNAS, desktops, AP management. Retired in Phase 3. |
+| 1 | native / legacy LAN | `192.168.0.0/24` | 1 unchanged | Untagged everywhere today. Servers, HA, TrueNAS, desktops, AP management. **Re-addressed** in Phase 3, not retired: it stays the untagged native VLAN and the documented break-glass path (§7.6), and the NAS stays on it (§8 Phase 3 scope). Its replacement CIDR is a Phase 3 deliverable. |
 | 10 | iot | `10.60.10.0/24` | 1b | Wireless only, EAP225 + EAP610. |
 | 20 | guest | `10.60.20.0/24` | 1a | Wireless only. No inbound hole, ever. |
 | 30 | servers | `10.60.30.0/24` | 3 reserved | Only if the control plane moves. |
 | 40 | storage | `10.60.40.0/24` | 3 reserved | Only if iSCSI is deliberately routed. Not recommended. |
 | 50 | users | `10.60.50.0/24` | 2 | Desktops. |
-| 99 | mgmt | — | never | Deliberately unused. See the mesh landmine. |
+| 99 | mgmt | — | never | Deliberately unused. See [the mesh landmine](#91-the-management-vlan-breaks-mesh). |
 
 **Why `10.60.0.0/16`.** Chosen to avoid every range this fleet already owns:
 `10.42.0.0/16` and `10.43.0.0/16` (k3s pods and services), `172.17.0.0/16` plus the
@@ -266,9 +272,15 @@ Aliases first, so the rules read as intent:
 |---|---|---|
 | `LAN_NET` | `192.168.0.0/24` | `[measured]` |
 | `MESH_NET` | `192.168.133.0/24` | `[measured]` |
+| `IOT_NET` | `10.60.10.0/24` | §6 |
+| `GUEST_NET` | `10.60.20.0/24` | §6 |
 | `RFC1918` | `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` | |
 | `HA_SERVER` | *Phase 0* | unknown today |
 | `ZIGBEE_COORD` | DHCP reservation in `10.60.10.0/24` | Phase 0 |
+
+Aliases are created as an explicit step in Phase 1a step 2 and Phase 1b step 3 — a rule
+naming an alias that does not exist on the router silently matches nothing, which in a
+block rule reads as "the rule is not working" and in an allow rule reads as a hole.
 
 **Interface `GUEST` (VLAN 20), evaluated top to bottom:**
 
@@ -282,34 +294,62 @@ Aliases first, so the rules read as intent:
 Rule 2 is deliberately `RFC1918` rather than `LAN_NET`. It cannot go stale when Phase 2
 and 3 create new ranges, which is exactly when a narrower rule would be forgotten.
 
-**Interface `IOT` (VLAN 10):**
+**Interface `IOT` (VLAN 10), evaluated top to bottom:**
 
 | # | Src | Dst | Action | Why |
 |---|---|---|---|---|
 | 1 | IOT | firewall | allow DNS, DHCP | |
-| 2 | IOT | `LAN_NET` | **block + log** | the boundary |
-| 3 | IOT | `MESH_NET` | block | no path into the tunnel |
-| 4 | IOT | `GUEST_NET` | block | |
-| 5 | `ZIGBEE_COORD` | `HA_SERVER:<z2m port>` | allow | **only if** Phase 0.4 finds the coordinator is a TCP client; see note |
-| 6 | IOT | any | allow | vendor cloud, OTA |
-| 7 | `HA_SERVER` | IOT | allow | the one trusted initiator into IoT |
-| 8 | any | IOT | **block + log** | nothing else may initiate into IoT |
+| 2 | `ZIGBEE_COORD` | `HA_SERVER:<z2m port>` | allow + log | **conditional** — only if Phase 0.4 measures the coordinator as the TCP client. `<z2m port>` is recorded by Phase 0.4, not guessed. Must sit above rule 3 or it can never match |
+| 3 | IOT | `RFC1918` | **block + log** | the boundary — one rule kills the LAN, the mesh, Guest, and every private range Phase 2 and Phase 3 create |
+| 4 | IOT | any | allow | vendor cloud, OTA — see the §13 egress seam |
+| 5 | `HA_SERVER` | IOT | allow | the only trusted initiator from the LAN |
+| 6 | any | IOT | **block + log** | no other source may open a session into IoT; rule 2 is the only exception |
 
-Rules 7 and 8 are the design's spine, and the order is load-bearing: the allow from
-`HA_SERVER` must be evaluated before the block. The firewall is stateful, so "HA may initiate into IoT"
-automatically admits the replies, while IoT can never start a connection to HA or
-anything else on the LAN. Home Assistant keeps working and an owned bulb still cannot
-phone home or scan the rack.
+Two things changed here from the first draft, both of them shadowing bugs:
 
-Rule 5 exists only in the fallback case, and it is narrower than rule 7 in both
-directions: one source address, one destination, one port. Because zigbee2mqtt and the MQTT broker are both
-Home Assistant add-ons, MQTT traffic stays on HA's docker bridge and **never crosses the
-VLAN** — the only cross-boundary flow in the Zigbee chain is z2m to the coordinator
-socket. If the coordinator listens (TCP server) and z2m dials out via
-`serial.port: socket://<ip>:<port>`, HA initiates and rule 5 is not needed at all. If
-the coordinator is a TCP client, it needs `IOT:ZIGBEE_COORD → HA_SERVER:<z2m port>` and
-nothing wider. Phase 0 decides this with a `sockstat`/`ss` check on HA while z2m is
-running: a listening socket on the z2m port means HA dials out.
+- **The conditional Zigbee allow now sits above the private-space block.** Printed below
+  it, it could never match — `HA_SERVER` is inside `LAN_NET`, so the block would have
+  swallowed it and Zigbee would fail silently in exactly the case rule 2 exists for.
+  Rule order in these tables is load-bearing, which is why "evaluated top to bottom" is
+  now in both headings.
+- **The block is `RFC1918`, not `LAN_NET`,** for the same reason it is for Guest: once
+  Phase 2 puts desktops on `10.60.50.0/24` and Phase 3 creates VLAN 30/40, an
+  `IOT → LAN_NET` block plus `IOT → any` allow would leave IoT reaching every new range,
+  defeating Phase 2's entire purpose. Consequence: the separate `IOT → MESH_NET` and
+  `IOT → GUEST_NET` block rules are **gone**, because both ranges are inside `RFC1918`
+  and a rule behind rule 3 is dead code — the same failure mode as the first bullet.
+
+Rules 5 and 6 are the design's spine, and the order is load-bearing: the allow from
+`HA_SERVER` must be evaluated before the block. The firewall is stateful, so "HA may
+initiate into IoT" automatically admits the replies.
+
+What that spine does **not** claim, because it is false: IoT cannot open a session to any
+private address, but rule 4 lets it open sessions to the public internet on every
+protocol and port. Every vendor-cloud beacon, OTA poll and telemetry upload from an owned
+bulb is such a connection, and it is deliberate — the alternative is breaking the devices
+that ship that way. The boundary is *IoT cannot reach the rack, the mesh, Guest, or any
+trusted-LAN host*; it is not *IoT cannot phone home*. Narrowing that egress is a deferred
+seam in §13, not a property of this design.
+
+Rule 2 exists only in the fallback case, and it is narrower than rule 5 in both
+directions: one source address, one destination, one port. Because zigbee2mqtt and the
+MQTT broker are both Home Assistant add-ons, MQTT traffic stays on HA's docker bridge and
+**never crosses the VLAN** — the only cross-boundary flow in the Zigbee chain is z2m to
+the coordinator socket.
+
+**Phase 0.4 decides whether rule 2 is needed, and the direction must be read correctly.**
+A first draft of this document had it backwards, which produces a silent Zigbee failure
+with a correct observation:
+
+| observation on HA (while z2m is running) | what it means | rule 2 |
+|---|---|---|
+| a **listening** socket on the z2m port **on HA** | the coordinator connects *to* HA, so the coordinator is the TCP client and IoT is opening a session into the trusted LAN | **required** |
+| no listening socket on HA, but an established connection from HA to the coordinator's address | HA dials out (the `serial.port: socket://<ip>:<port>` case), so the trusted LAN initiates and statefulness admits the replies | **not needed** |
+
+Check with `ss -tlnp` / `sockstat -la` on HA while z2m is connected, and record the exact
+port — rule 2 names `<z2m port>` and Phase 0.4 is what gives it a value. Whichever way it
+goes, Phase 1b step 5 must be written against the measured result rather than against an
+assumption.
 
 **Intra-VLAN traffic is not covered by any of this.** Two guests on different APs sit in
 the same broadcast domain and switch frames to each other without touching OPNsense.
@@ -333,6 +373,14 @@ unchanged and out of scope.
 | `home-iot` | 10 tagged | EAP225 living room, EAP610 office only | **disabled** on kitchen, entrance, garage |
 | `home-guest` | 20 tagged | EAP225 living room, EAP610 office only | same |
 
+The names of the **pre-existing** SSIDs are not known to this document — §7.5 lists only
+"existing trusted", and every step that disables or rolls back an SSID needs a literal
+name. Phase 0.9 records the exact SSID name, VLAN/untagged status, security mode and
+per-AP broadcast set of every SSID in use, and Phase 1a/1b and both rollbacks reference
+those recorded names verbatim. If there is no current guest SSID at all, Phase 1a step 12
+is deleted and its rollback rewritten — do not disable an object by guessing at its name
+in the Omada UI at 11pm.
+
 WPA2/WPA3-PSK, per-SSID passphrase. Keep the existing SSIDs and passphrases for the
 trusted network so no client has to be reconfigured.
 
@@ -350,7 +398,10 @@ OPNsense web UI is on the interface being edited. Before any Phase 1 change:
 
 ## 8. Phases
 
-Each phase is independently valuable and independently reversible.
+Phases 0-2 are independently valuable and independently reversible; each carries a
+`**Rollback:**` line. **Phase 3 is not reversible** — it is a cluster migration whose
+rebuild option is a one-way door with an outage window, and it depends on Phase 2 having
+happened. Saying otherwise was a promise the document then did not keep.
 
 ### Phase 0 — inventory and proof (no changes to anything)
 
@@ -359,14 +410,25 @@ Each phase is independently valuable and independently reversible.
 | 0.1 | Model and 802.1Q support of the 8-port switch; whether all ports trunk. | Finding B, §7.1 |
 | 0.2 | Model of the rack switch; managed or unmanaged; PoE budget. | the only hardware purchase |
 | 0.3 | Home Assistant IP and how it addresses IoT devices today (IP vs mDNS name). | `HA_SERVER`, and whether "no mDNS" is actually true today |
-| 0.4 | Zigbee coordinator model, firmware, and socket direction (`ss -ltnp` on HA while z2m runs). | firewall rule 5 |
+| 0.4 | Zigbee coordinator model, firmware, socket direction (`ss -tlnp` on HA while z2m runs) **and the port it listens/dials on**. | firewall rule 2 (whether it is needed at all, and its `<z2m port>` value) |
 | 0.5 | Authoritative map of every static IP on `192.168.0.0/24`, including non-NixOS hosts: TrueNAS/MinIO `.6`, DNS/registry `.41`, HA, printers, the Omada controller. | Phase 3 blast radius |
 | 0.6 | **Prove the current boundary.** From a client on each of IoT and Guest: reach `192.168.0.1`, `HA:8123`, `192.168.0.6:9000`, a node's `9100`, and `1.1.1.1`. Record what answers. | Finding A |
 | 0.7 | Confirm OPNsense console access and export config. | §7.6 |
 | 0.8 | Confirm where the Omada controller runs (hardware, software, cloud). | rollback mechanics |
+| 0.9 | Inventory every SSID in use: exact name, VLAN or untagged, security mode, and the set of APs broadcasting it. | §7.5, Phase 1a step 6, both rollbacks |
 
 0.6 is the one that decides whether this project is a hardening or a fix, and it costs
 ten minutes.
+
+**Phase 0 exit artifact — this is the gate for entering Phase 1a.** Eight facts with no
+record are eight facts no later gate can read. Produce:
+
+- `docs/superpowers/specs/2026-11-17-lan-vlan-phase0-findings.md`, one section per `0.x`,
+  each holding the answer, the exact command or screen used, and the date it was taken.
+- The OPNsense XML export, stored off-router at a named path (not only on the router).
+
+Phase 1a does not start until that file is complete. "Record what answers" is not an
+artifact; a file with a path is.
 
 ### Phase 1a — Guest VLAN
 
@@ -374,45 +436,85 @@ Guest first, deliberately: nothing on it needs to be reachable, so a wrong rule 
 "guest phone has no internet" — trivially visible, trivially reversible — while
 exercising the entire path: trunk, VLAN, DHCP, DNS, firewall.
 
-1. Create VLAN 20, interface, address, DHCP, DNS on OPNsense.
-2. Add the GUEST ruleset before the SSID exists, so there is never an unfiltered window.
-3. Tag VLAN 20 on the inter-room trunk, both ends.
-4. Create the `home-guest` SSID on the two wired APs, VLAN 20. Leave it disabled on the
-   mesh and garage APs.
-5. **Test from a client at each AP's location**: gets `10.60.20.x`, reaches internet,
-   cannot reach `192.168.0.1`, HA, `.6`, or any node.
-6. Only then disable the old guest SSID.
+1. Create VLAN 20 on the LAN NIC (Interfaces → Assignments → VLANs, priority 0).
+2. Assign it as an interface and rename `opt20` → `GUEST`.
+3. Give it its IPv4 address **`10.60.20.1/24`** — the literal, not "an address from the
+   table".
+4. Enable DHCPv4: range `.100`–`.200`, gateway `.1`, DNS `.1`, lease time recorded.
+5. Add `10.60.20.0/24` to Unbound's **client access list** and confirm it is in the
+   listening set. If the new subnet is not permitted there, guests resolve nothing and the
+   failure looks exactly like a firewall bug.
+6. **Record the interface's "block private networks / block RFC1918" checkboxes as an
+   explicit observation.** One of them silently kills the internet path in rule 3 and
+   makes the step 5 test below fail for entirely the wrong reason.
+7. Create the aliases in §7.3 (`RFC1918`, `GUEST_NET`, and the rest the rules name). A
+   rule naming a missing alias matches nothing, silently.
+8. Add the GUEST ruleset **before the SSID exists**, so there is never an unfiltered
+   window. Remove the default per-interface allow-all as part of this step, not later.
+9. Tag VLAN 20 on the inter-room trunk, **both ends**.
+10. Create the `home-guest` SSID on the two wired APs, VLAN 20. Leave it disabled on the
+    mesh and garage APs.
+11. **Test from a client at each AP's location**: gets `10.60.20.x`, reaches internet,
+    cannot reach `192.168.0.1`, HA, `.6`, or any node — and the block appears in
+    Firewall → Live View filtered on the GUEST interface, which distinguishes "blocked"
+    from "target happens to be down".
+12. Only then disable the old guest SSID, using the name recorded in Phase 0.9. See the
+    open decision below: retiring it removes guest coverage from three rooms.
+
+**Open decision required before step 12** — see §8.2.
 
 **Rollback:** disable the new SSID, re-enable the old one. Nothing on the trusted LAN
 moved, so nothing else can break.
 
 ### Phase 1b — IoT VLAN
 
-1. Reserve the coordinator's address in the VLAN 10 DHCP scope. No mDNS means HA
-   addresses IoT devices by IP, and a random lease means a router reboot silently
-   breaks Zigbee. This is a requirement, not a nicety.
-2. Create VLAN 10, interface, DHCP, DNS.
-3. Add the IOT ruleset, including rule 5 only if Phase 0.4 requires it.
+1. Reserve the coordinator's address in the VLAN 10 DHCP scope. **Conditional on Phase
+   0.3:** this step assumes HA addresses IoT devices by IP. If Phase 0.3 finds HA uses
+   mDNS names today, a reservation does not help and the real prerequisite is making HA
+   address the coordinator by IP first — record which branch applies and do not proceed
+   on the assumption.
+2. Create VLAN 10, interface, address **`10.60.10.1/24`**, DHCP range `.100`–`.200`, DNS,
+   Unbound client access for `10.60.10.0/24`, and the block-private checkbox observation —
+   same substeps as Phase 1a steps 3-6.
+3. Create the aliases the IOT ruleset names, then add the ruleset, including rule 2 only
+   if Phase 0.4 requires it.
 4. Tag VLAN 10 on the trunks.
-5. Point z2m's `serial.port` at the reserved coordinator address.
+5a. **Move the coordinator itself onto VLAN 10** — static address below the pool, or its
+    switch port to untagged 10 — and verify it is reachable from OPNsense. This is the
+    single most critical device move in the phase and it used to be implicit.
+5b. Then point z2m's `serial.port` at `socket://<reserved-ip>:<port>`, restart the
+    add-on, and verify the z2m log reaches "Connected" with no reconnect loop. State the
+    expected downtime between 5a and 5b; Zigbee devices do **not** need re-pairing for
+    it.
 6. Create `home-iot` on the two wired APs, VLAN 10.
 7. Move IoT devices over in batches, verifying HA control after each batch.
 8. Test from a client: gets `10.60.10.x`, HA controls its devices, and an IoT client
-   cannot reach `192.168.0.1`, HA, `.6`, or any node.
+   cannot reach `192.168.0.1`, HA, `.6`, or any node — with the block visible in Live
+   View.
 
-**Rollback:** move devices back to the old SSID. z2m's `serial.port` is one field.
+**Rollback:** move devices back to the old SSID (name from Phase 0.9), **and** revert the
+coordinator's address from 5a as well as z2m's `serial.port`. Reverting only the port
+field does not roll the move back.
 
 ### Phase 2 — B-lite: desktops to VLAN 50
 
-Cheap, and it is the half of breach containment that protects the operator's machines
-from a cluster compromise. Nothing in this repo changes — the desktops are not managed
-here. Requires the rack switch to be managed.
+**Not yet planned.** This phase currently has no steps, no literal values, no port list and
+no verification — and its one security sentence ("allow only what is needed") is the
+vaguest line in the document, which is the kind of line an implementer gets wrong in the
+permissive direction at midnight. Writing it to the standard of Phase 1a/1b means a VLAN 50
+interface, address, DHCP scope, resolver access, aliases, a §7.3-style ruleset table, the
+named list of rack-switch ports, §10 rows and a rollback verification. None of that exists
+yet, so it is declared unbuilt rather than gestured at — the same treatment Phase 3 gets in
+§8.1.
 
-Add to the ruleset: `users → LAN_NET` allow only what is needed (SSH to nodes, the
-cluster API), and `LAN_NET → users` block inbound. Note this also changes what a
-roadwarrior on the mesh sees, since the mesh advertises `LAN_NET` only.
+What is settled: the intent is cheap breach containment, moving the operator's desktops off
+the segment a compromised cluster could reach. It requires the rack switch to be managed
+(Phase 0.2). Nothing in this repo changes — the desktops are not managed here — but the
+ruleset it needs lives in no repo either (§12), which is part of why it needs its own plan.
+It also changes what a roadwarrior on the mesh sees, since the mesh advertises `LAN_NET`
+only.
 
-**Rollback:** set the desktop ports back to untagged 1.
+**Rollback (once planned):** set the desktop ports back to untagged 1.
 
 ### Phase 3 — move off `192.168.0.0/24`
 
@@ -436,6 +538,7 @@ What must change together, `[measured]` from this repo:
 | llm01 references | `hosts/llm01/configuration.nix` `allowedApiSources`, `home/hosts/coder-workspace-titan/userOptions.nix`, and a module-level default in `modules/home-manager/pi/default.nix`. `modules/nixos/ssh.nix` holds `.29` only inside an `example = [...]` for `listenAddresses`, so grepping it produces a false positive |
 | Mesh LAN CIDR | `wireguard.lanSubnet` (**currently unset** — inherited from the module default, so this is a new override, not an edit), `wireguard.forwardToLan` SNAT, `hosts/titan/configuration.nix` `publicHost.meshTCPPortExtraSources`, the OPNsense WireGuard peer's `allowedIPs` (the one edit that actually moves the route), `meshDns.splitZones`, and `networking.hosts` (pins `s3.l.arrieta.eu` to `192.168.0.42`) |
 | `AGENTS.md` | runbook examples, routewatch commands, and a k3s snippet already stale in both option name and address |
+| Firewall aliases and rules | OPNsense (no repo, §12) — `LAN_NET`'s value changes, and both the IOT and GUEST rulesets must be re-verified against every new range. `RFC1918` keeps the blocks correct by construction, but the aliases and the Live View tests do not update themselves |
 | Cluster side | `k8s-casa` Prometheus static scrape list, app DNS, anything with a hardcoded node IP |
 | Rollout | `scripts/comin-approve.sh` bind zone `casa.arrieta` resolution |
 
@@ -481,9 +584,33 @@ against each other. It should be written up as its own spec, after Phase 0.5 has
 the authoritative IP map and after a restore has actually been tested. Do not fold it
 into the Phase 1 plan.
 
+### 8.2 Open decision — guest coverage in the mesh rooms
+
+**This needs the operator's decision before Phase 1a step 12, and the plan deliberately
+picks neither.** Leaving it implicit means whoever runs the phase decides at 11pm, under
+pressure, with guest Wi-Fi down in three rooms.
+
+The kitchen, entrance and garage APs are the mesh/bridge units — the APs most likely to
+be broadcasting today's guest SSID. The new `home-guest` SSID is enabled only on the two
+wired APs, because a VLAN must not depend on a wireless mesh backhaul (§4, Finding B).
+So retiring the old SSID removes guest coverage from those three rooms; leaving it
+running keeps an unfiltered guest network on the flat LAN, which is the hole this whole
+project exists to close.
+
+| option | what you get | what it costs |
+|---|---|---|
+| **(a) Retire the old SSID everywhere** | no residual hole; the plan is honest | no guest Wi-Fi in kitchen, entrance and garage until the cables in §13 are pulled |
+| **(b) Keep the old SSID on the mesh APs** | guest coverage everywhere today | an unfiltered guest network on the trusted LAN persists; per-AP Omada isolation stays on and is **per-AP only** `[community]`, so it is not a boundary. Must be recorded in §11 as an accepted risk, not left as a footnote |
+
+Record the choice, and the date, in the Phase 0 findings artifact. If (b) is chosen, §11
+must name the rooms and the reason, and §13's cable-pulling item becomes the remediation
+with a real dependency attached.
+
 ## 9. Landmines
 
-**The management VLAN breaks mesh.** `[community]` Adopting an EAP in mesh mode fails
+### 9.1 The management VLAN breaks mesh
+
+`[community]` Adopting an EAP in mesh mode fails
 when a management VLAN is used on the wired parent AP. The kitchen and entrance APs are
 mesh children of the wired ones, so the textbook "dedicated management VLAN" step would
 break roaming in two rooms. Rejected from the plan on that evidence. If it is ever
@@ -507,20 +634,31 @@ to get a lease. Wireless-only scopes can be small and static reservations should
 outside the dynamic pool.
 
 **The Zigbee coordinator's socket direction is a guess until measured.** If it turns out
-to be a TCP client and rule 5 is omitted, Zigbee silently fails to come up after the
+to be a TCP client and rule 2 is omitted, Zigbee silently fails to come up after the
 move. Phase 0.4 exists for this.
 
 ## 10. Testing and acceptance
 
-| Test | Phase | Pass condition |
-|---|---|---|
-| Boundary from IoT client, at each enabled AP | 1b | `10.60.10.x` lease; `192.168.0.1`, `HA:8123`, `.6:9000`, node `9100` all unreachable; internet up |
-| Boundary from Guest client, at each enabled AP | 1a | `10.60.20.x` lease; all RFC1918 unreachable; internet up |
-| No silent fallback on mesh/garage APs | 1a, 1b | IoT and Guest SSIDs not broadcast there, or proven tagged |
-| Zigbee | 1b | z2m connected, devices responsive from HA, no reconnect loop in the z2m log |
-| Cluster untouched | 1a, 1b | `kubectl get nodes` all Ready before and after; no comin rollback in `/var/log/comin-health-gate.log` |
-| Mesh unaffected | 1a, 1b | roadwarrior reaches `192.168.0.11:6443` and the rack as before, and gains no route to `10.60.10.0/24` or `10.60.20.0/24` |
-| Fleet rollout path | 1a, 1b | `scripts/comin-approve.sh` still resolves and reaches every host |
+Every row names the command and where it is run. A pass condition stated as a predicate is
+satisfied by any unrelated failure — a target that is down, a client with no route, the
+wrong SSID joined — and a broken test is indistinguishable from a working boundary. That
+is exactly what success criterion 5 promises against, so the observation point is part of
+the test.
+
+| Test | Phase | Pass condition | Observed with |
+|---|---|---|---|
+| **Positive control** — the probes can detect an open port at all | before 1a | from a trusted-LAN client, `HA:8123`, `.6:9000` and a node's `9100` all report OPEN | `nc -vz <ip> <port>` from a trusted-LAN host, one line per target, recorded in the Phase 0 artifact |
+| Boundary from IoT client, at each enabled AP | 1b | `10.60.10.x` lease; `192.168.0.1`, `HA:8123`, `192.168.0.6:9000`, `192.168.0.11:9100` all refused/filtered; internet up | at the AP's location: `ip -4 addr` (lease), `nc -vz` per named target, `nc -vz 1.1.1.1 443`, **and** OPNsense Firewall → Live View filtered on the IOT interface showing the drop |
+| Boundary from Guest client, at each enabled AP | 1a | `10.60.20.x` lease; `192.168.0.1`, `192.168.0.6:9000`, `192.168.0.11:9100`, `192.168.133.1` and `10.60.10.1` all unreachable; internet up | same shape as above on the GUEST interface. "All RFC1918 unreachable" is not a test — it is unbounded and unfalsifiable, so it is replaced by one named target per blocked range plus the Live View drop |
+| No silent fallback on mesh/garage APs | 1a, 1b | IoT and Guest SSIDs not broadcast there | from a client in each of kitchen, entrance, garage: `nmcli dev wifi list` (or phone Wi-Fi list) shows no `home-iot` / `home-guest` |
+| Zigbee | 1b | z2m connected, devices responsive from HA, no reconnect loop | z2m frontend log, plus one device toggled from the HA UI per batch |
+| Cluster untouched | 1a, 1b | all 12 nodes Ready before and after; no rollback recorded | `kubectl --context casa get nodes` from the usual admin host, and `grep -c 'health gate' /var/log/comin-health-gate.log` compared to the pre-change count |
+| Mesh unaffected | 1a, 1b | roadwarrior reaches the API and the rack as before, and gains no route to the new ranges | from the named roadwarrior peer: `wg show` for the allowedIPs actually handed out, `ip route get 10.60.10.1` (must not resolve via `wg0`), then `nc -vz 192.168.0.11 6443` |
+| Fleet rollout path | 1a, 1b | `scripts/comin-approve.sh` still resolves and reaches every host | run it in run-1 (verify-only) mode; if it has no dry-run, that is itself the finding and must be recorded rather than worked around |
+
+Success criterion 3, rewritten as something observable: *a guest client receives a
+`10.60.20.x` lease, completes a TLS connection to a public host, and every probe to the
+named private targets above is logged as a drop on the GUEST interface.*
 
 ## 11. Risks
 
@@ -528,7 +666,7 @@ move. Phase 0.4 exists for this.
 |---|---|---|---|
 | Rack switch is unmanaged | medium | office gets no VLANs | Phase 0.2; hardware purchase, not redesign |
 | VLAN falls back to native on an AP | medium | boundary silently absent | client-side test per AP; SSIDs disabled on mesh |
-| Coordinator needs an inbound hole | low | Zigbee down | Phase 0.4 measures it; rule 5 is narrow and IP-pinned |
+| Coordinator needs an inbound hole | low | Zigbee down | Phase 0.4 measures it; rule 2 is narrow and IP-pinned |
 | Trunk change drops the inter-room link during a deploy | low | fleet host mid-switch | schedule the change; check no comin deploy is running |
 | Phase 3 etcd IP migration goes wrong | medium | cluster down | rebuild alternative; restore tested before scheduling |
 | Guest intra-VLAN traffic | certain | guests can reach each other | accepted and documented, not hidden |
@@ -561,7 +699,16 @@ Deliberately excluded, each additive, none requiring a VLAN change to add later:
   the mesh may reach `6443`, `10250`, `2379`, `2380`, `2381` — costs nothing to maintain
   because it never needs editing for new workloads. This is the cheap half of the
   containment goal and it is independent of every phase here.
-- **Kitchen and entrance VLAN coverage.** Needs a cable, not more mesh.
+- **IoT outbound egress allow-list.** Rule 4 lets IoT reach the public internet on every
+  protocol and port, which is every vendor-cloud beacon, OTA poll and telemetry upload an
+  owned bulb makes. That is deliberate — the alternative breaks the devices as shipped —
+  but it is not a property of the boundary, it is a permission. Narrowing it to a per-device
+  allow-list is additive and is worth doing per device as each one is retired from its
+  vendor cloud, not as a blanket rule on day one.
+- **Kitchen and entrance VLAN coverage.** Needs a cable, not more mesh. This is the
+  remediation behind the §8.2 guest-coverage decision: if option (a) is chosen, guest Wi-Fi
+  stays absent from those rooms until this lands, and this item acquires a real dependency
+  rather than being a nice-to-have.
 - **Guest intra-VLAN isolation.** Needs switch private-VLAN or ACL support.
 - **IPv6 on IoT and Guest.** Only with a plan for RA-based SLAAC and prefix changes.
 

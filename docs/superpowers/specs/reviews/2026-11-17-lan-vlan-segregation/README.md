@@ -7,9 +7,8 @@ Multi-agent review of `../../2026-11-17-lan-vlan-segregation-design.md`, run 202
 what was reviewed. These files are kept so the review is not silently lost, not because
 they are documentation.
 
-**Update — the four blockers that were false claims about this repository are now fixed**
-(B-03, B-04, B-05, B-06), each re-verified against `origin/main` rather than taken on
-trust. Two of the review's own citations did not survive that check:
+**Update — all 22 blockers are now addressed**, each re-verified against `origin/main`
+rather than taken on trust. Two of the review's own citations did not survive that check:
 
 - B-03 said "only nine" hosts resolve their address from `network_env`. It is **seven**
   via `secrets.yaml`, plus `titan` from `secrets/titan.yaml`, four build-time literals
@@ -19,7 +18,22 @@ trust. Two of the review's own citations did not survive that check:
   review rotted in the four days between itself and this correction, which is the
   argument for re-deriving rather than archiving.
 
-The remaining 18 blockers and all 78 majors are untouched.
+Four more of the review's fixes were applied with a change, because following them
+literally would have introduced the very bug class they were reporting:
+
+- **B-01 + B-02 together.** Making the IOT block `RFC1918` (B-02) puts `MESH_NET` and
+  `GUEST_NET` inside it, so the separate block rules the review left in place become dead
+  code behind it — the same shadowing B-01 was reporting. They were deleted, and the
+  conditional Zigbee allow moved above the block.
+- **B-11** asked for a `GUEST_NET` alias; added, plus alias creation as an explicit step,
+  since a rule naming a missing alias matches nothing silently.
+- **B-13** is not fixed — it is **converted into an explicit blocking decision (§8.2)**,
+  because it is the operator's call, not a fact. It needs an answer before Phase 1a step 12.
+- **B-16** was resolved by **deferral** ("not yet planned", mirroring §8.1) rather than by
+  writing Phase 2 to plan standard. That is a judgement call and is reversible if the
+  operator wants the phase written out.
+
+All 78 majors remain unaddressed.
 
 | file | what it is |
 |---|---|
